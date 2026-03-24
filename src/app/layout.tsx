@@ -1,18 +1,13 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Inter } from "next/font/google";
+import { Roboto } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
+import { Toaster } from "@/components/ui/sonner";
 
-const inter = Inter({subsets:['latin'],variable:'--font-sans'});
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const roboto = Roboto({ 
+  weight: ['400', '500', '700', '900'],
+  subsets: ['latin'], 
+  variable: '--font-sans' 
 });
 
 export const metadata: Metadata = {
@@ -26,11 +21,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={cn("h-full", "antialiased", geistSans.variable, geistMono.variable, "font-sans", inter.variable)}
-    >
-      <body className="min-h-full flex flex-col">{children}</body>
-    </html>
+      <html lang="en">
+        <body className={`${roboto.variable} font-sans antialiased min-h-[100dvh] flex flex-col selection:bg-primary/30 selection:text-primary-foreground relative`}>
+          <div className="fixed inset-0 z-[-1] pointer-events-none bg-background bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.15),rgba(255,255,255,0))] dark:bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.2),rgba(0,0,0,0))]" />
+          <main className="flex-1 flex flex-col items-center">
+            {children}
+          </main>
+          <Toaster position="top-right" richColors theme="system" />
+        </body>
+      </html>
   );
 }

@@ -128,3 +128,47 @@
     @apply font-sans;
   }
 }
+
+html.dark .shiki,
+html.dark .shiki span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
+  font-style: var(--shiki-dark-font-style) !important;
+  font-weight: var(--shiki-dark-font-weight) !important;
+  text-decoration: var(--shiki-dark-text-decoration) !important;
+}
+
+/* Print Styles for Document Exports */
+@media print {
+  @page {
+    margin: 1.5cm;
+    size: auto;
+  }
+  
+  body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Hide navigation and UI elements during print */
+  nav, .no-print, button, form {
+    display: none !important;
+  }
+
+  /* Ensure card containers don't break pages or add massive shadows */
+  .print-document {
+    box-shadow: none !important;
+    border: none !important;
+    width: 100% !important;
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Avoid breaking inside rows */
+  tr, td, th {
+    page-break-inside: avoid;
+  }
+}

@@ -1,0 +1,178 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DATABASE_URL_UNPOOLED")
+  extensions = [vector]
+}
+
+model Tenant {
+  id               String               @id @default(uuid())
+  name             String
+  type             String               @default("SCHOOL") // "SCHOOL", "INDEPENDENT_TEACHER"
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  
+  users            User[]
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  expiresAt DateTime
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id               String               @id @default(uuid())
+  role             String               @default("TEACHER") // "SUPERADMIN" | "ADMIN" | "TEACHER"
+  name             String?
+  email            String               @unique
+  emailVerified    DateTime?
+  passwordHash     String
+  tenantId         String?
+  tenant           Tenant?              @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  
+  sessions         Session[]
+  schemesOfWork    SchemeOfWork[]
+  lessonPlans      LessonPlan[]
+  lessonNotes      LessonNote[]
+  assessments      Assessment[]
+}
+
+model CurriculumDocument {
+  id               String               @id @default(uuid())
+  title            String
+  gradeLevel       String
+  subject          String
+  fileUrl          String
+  status           String               @default("pending") // "pending", "processing", "completed", "error"
+  uploadDate       DateTime             @default(now())
+  uploadedBy       String?
+  
+  chunks           CurriculumChunk[]
+  schemesOfWork    SchemeOfWork[]
+}
+
+model CurriculumChunk {
+  id               String               @id @default(uuid())
+  curriculumId     String
+  curriculum       CurriculumDocument   @relation(fields: [curriculumId], references: [id], onDelete: Cascade)
+  chunkText        String
+  chunkIndex       Int
+  pageNumber       Int?
+  topic            String?
+  metadata         Json?
+  
+  // Vector embedding (dimension 1536 for OpenAI text-embedding-3-small)
+  embedding        Unsupported("vector(1536)")?
+}
+
+model SchemeOfWork {
+  id               String               @id @default(uuid())
+  title            String
+  grade            String
+  subject          String
+  term             String
+  content          Json                 // Generated JSON content
+  
+  teacherId        String
+  teacher          User                 @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  
+  curriculumId     String?
+  curriculum       CurriculumDocument?  @relation(fields: [curriculumId], references: [id], onDelete: SetNull)
+  
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  lessonPlans      LessonPlan[]
+}
+
+model LessonPlan {
+  id               String               @id @default(uuid())
+  lessonNumber     Int
+  topic            String
+  objectives       String[]
+  content          Json                 // Detailed sections (intro, body, conclusion, etc.)
+  
+  schemeId         String
+  scheme           SchemeOfWork         @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  
+  teacherId        String
+  teacher          User                 @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  lessonNotes      LessonNote[]
+}
+
+model LessonNote {
+  id               String               @id @default(uuid())
+  notes            String
+  resources        Json?
+  
+  lessonPlanId     String
+  lessonPlan       LessonPlan           @relation(fields: [lessonPlanId], references: [id], onDelete: Cascade)
+  
+  teacherId        String
+  teacher          User                 @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+}
+
+model GenerationRule {
+  id               String               @id @default(uuid())
+  contentType      String               @unique // "SCHEME_OF_WORK", "LESSON_PLAN", "LESSON_NOTES", "ASSESSMENT"
+  customPrompt     String               @db.Text
+  updatedAt        DateTime             @updatedAt
+}
+
+model Assessment {
+  id               String               @id @default(uuid())
+  title            String
+  grade            String
+  subject          String
+  type             String
+  content          Json                 
+  
+  teacherId        String
+  teacher          User                 @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(uuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
+model RateLimit {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  points    Int      @default(0)
+  expiresAt DateTime
+}
