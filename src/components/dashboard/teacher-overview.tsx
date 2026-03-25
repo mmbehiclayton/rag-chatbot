@@ -1,6 +1,5 @@
-import { BookOpen, FileText, GraduationCap, Clock, ChevronRight, Plus, Database } from "lucide-react";
+import { BookOpen, FileText, GraduationCap, Clock, ChevronRight, Plus, Database, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
 import { db } from "@/lib/db";
 import { formatDistanceToNow } from "date-fns";
 
@@ -12,122 +11,133 @@ export async function TeacherOverview({ session }: { session: any }) {
     db.lessonPlan.findMany({
       where: { teacherId: session.userId },
       orderBy: { updatedAt: "desc" },
-      take: 3,
+      take: 4,
     })
   ]);
 
-  // Rough estimate logic for time saved (2h per lesson plan)
   const timeSaved = lessonsCount * 2;
   const isTeacher = session.role === "TEACHER";
+  const name = session.email?.split('@')[0] || "Teacher";
 
   return (
-    <div className="space-y-10 animate-in fade-in duration-700 pb-10 mt-16 sm:mt-0">
-      <div className="flex flex-col gap-6">
+    <div className="space-y-6 animate-in fade-in duration-500 pb-6">
+      
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-[34px] sm:text-4xl font-extrabold tracking-tight text-foreground leading-tight">
-            {isTeacher ? `Hi, ${session.email?.split('@')[0] || "Teacher"}` : "Teacher Generation Tools"}
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            {isTeacher ? `Welcome back, ${name}` : "Teacher Generation Tools"}
           </h1>
-          <p className="text-muted-foreground mt-1 text-base">{isTeacher ? "Let's craft the perfect lesson today." : "Access the generative AI modules below."}</p>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {isTeacher ? "Ready to craft today's lesson?" : "Access the generative AI modules below."}
+          </p>
         </div>
-        
-        <Link 
-          href="/chat" 
-          className="group relative flex w-full items-center justify-between overflow-hidden rounded-[32px] bg-foreground text-background p-6 lg:p-8 shadow-2xl transition-transform hover:scale-[1.02] active:scale-[0.98]"
+
+        {/* Quick CTA */}
+        <Link
+          href="/dashboard/workstation"
+          className="group inline-flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold shadow-sm hover:bg-primary/90 hover:shadow-md hover:shadow-primary/20 transition-all duration-200 shrink-0"
         >
-          <div className="absolute -right-10 -top-10 h-48 w-48 rounded-full bg-primary/20 blur-3xl transition-all group-hover:bg-primary/30" />
-          <div className="relative z-10 flex flex-col gap-1.5">
-            <span className="text-2xl lg:text-3xl font-extrabold tracking-tight">Create New Plan</span>
-            <span className="text-sm lg:text-base text-background/70 font-semibold tracking-wide">AI-powered generation</span>
-          </div>
-          <div className="relative z-10 flex h-14 w-14 lg:h-16 lg:w-16 items-center justify-center rounded-full bg-background/10 backdrop-blur-md transition-colors group-hover:bg-background/20">
-            <Plus className="h-6 w-6 lg:h-7 lg:w-7 text-background" />
-          </div>
+          <Sparkles className="w-4 h-4" />
+          Open Workstation
+          <Plus className="w-3.5 h-3.5 opacity-70" />
         </Link>
       </div>
 
-      <div className="w-full overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 pb-4 scrollbar-hide">
-        <div className="flex sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-4 w-max sm:w-full">
-          {[{
-            title: "Schemes", value: schemesCount.toString(), desc: "Lifetime generation", icon: BookOpen, color: "text-blue-500", bg: "bg-blue-500/10"
-          }, {
-            title: "Lessons", value: lessonsCount.toString(), desc: "Lifetime generation", icon: FileText, color: "text-green-500", bg: "bg-green-500/10"
-          }, {
-            title: "Tests", value: assessmentsCount.toString(), desc: "Lifetime generation", icon: GraduationCap, color: "text-purple-500", bg: "bg-purple-500/10"
-          }, {
-            title: "Time Saved", value: `${timeSaved}h`, desc: "Using AI tools", icon: Clock, color: "text-orange-500", bg: "bg-orange-500/10"
-          }].map((stat, i) => (
-            <div key={i} className="flex-none w-[160px] sm:w-auto p-5 rounded-[28px] bg-card/80 backdrop-blur-md border border-border/40 shadow-xl shadow-primary/5 relative overflow-hidden group hover:border-primary/20 transition-colors">
-              <div className="flex flex-col gap-4 relative z-10">
-                 <div className={`w-12 h-12 rounded-[20px] ${stat.bg} flex items-center justify-center`}>
-                   <stat.icon className={`w-5 h-5 ${stat.color}`} />
-                 </div>
-                 <div>
-                   <div className="text-2xl font-extrabold tracking-tight">{stat.value}</div>
-                   <h3 className="font-semibold text-muted-foreground text-xs uppercase tracking-wider mt-1">{stat.title}</h3>
-                 </div>
-              </div>
+      {/* Stats row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[{
+          title: "Schemes", value: schemesCount, desc: "Generated", icon: BookOpen,
+          color: "text-blue-600", bg: "bg-blue-500/8", border: "border-blue-500/15"
+        }, {
+          title: "Lessons", value: lessonsCount, desc: "Generated", icon: FileText,
+          color: "text-emerald-600", bg: "bg-emerald-500/8", border: "border-emerald-500/15"
+        }, {
+          title: "Assessments", value: assessmentsCount, desc: "Generated", icon: GraduationCap,
+          color: "text-violet-600", bg: "bg-violet-500/8", border: "border-violet-500/15"
+        }, {
+          title: "Hours Saved", value: `${timeSaved}h`, desc: "Using AI", icon: Clock,
+          color: "text-orange-600", bg: "bg-orange-500/8", border: "border-orange-500/15"
+        }].map((stat, i) => (
+          <div
+            key={i}
+            className={`flex items-center gap-3 p-4 rounded-2xl bg-card border ${stat.border} hover:shadow-sm transition-shadow`}
+          >
+            <div className={`w-9 h-9 rounded-xl ${stat.bg} flex items-center justify-center shrink-0`}>
+              <stat.icon className={`w-4 h-4 ${stat.color}`} />
             </div>
-          ))}
-        </div>
+            <div className="min-w-0">
+              <div className="text-lg font-bold tracking-tight">{stat.value}</div>
+              <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide truncate">{stat.title}</div>
+            </div>
+          </div>
+        ))}
       </div>
 
-      <div className="grid gap-8 xl:grid-cols-7 pt-2">
-        <div className="xl:col-span-4 flex flex-col gap-5">
+      {/* Main content */}
+      <div className="grid gap-5 xl:grid-cols-5">
+        
+        {/* Recent drafts */}
+        <div className="xl:col-span-3 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-xl font-extrabold tracking-tight">Recent Drafts</h3>
-            <Link href="#" className="text-sm font-bold text-primary hover:text-primary/80 transition-colors tracking-wide">View All</Link>
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Recent Drafts</h2>
+            <Link href="/dashboard/lessons" className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors">
+              View All
+            </Link>
           </div>
-          
-          <div className="flex flex-col gap-3">
+
+          <div className="space-y-1.5">
             {recentDrafts.length > 0 ? recentDrafts.map((draft) => (
-               <Link key={draft.id} href={`/dashboard/lessons`} className="flex items-center p-4 rounded-[28px] bg-card/60 backdrop-blur-sm border border-border/30 hover:bg-card/90 shadow-sm transition-all group">
-                 <div className="w-14 h-14 rounded-[20px] bg-secondary flex items-center justify-center text-secondary-foreground group-hover:scale-105 transition-transform">
-                   <FileText className="w-6 h-6" />
-                 </div>
-                 <div className="flex-1 ml-4 truncate">
-                   <h4 className="font-bold text-[15px] leading-snug tracking-tight truncate">{draft.topic}</h4>
-                   <p className="text-xs text-muted-foreground font-semibold mt-1">Updated {formatDistanceToNow(draft.updatedAt)} ago</p>
-                 </div>
-                 <div className="flex items-center justify-center w-10 h-10 rounded-full bg-muted/50 group-hover:bg-primary/10 transition-colors ml-4 shrink-0">
-                   <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary" />
-                 </div>
+              <Link
+                key={draft.id}
+                href={`/dashboard/lessons`}
+                className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border/50 hover:border-primary/20 hover:bg-primary/3 transition-all group"
+              >
+                <div className="w-9 h-9 rounded-xl bg-muted/60 flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-colors">
+                  <FileText className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-semibold truncate text-foreground">{draft.topic}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Updated {formatDistanceToNow(draft.updatedAt)} ago</p>
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/50 group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0" />
               </Link>
             )) : (
-              <div className="p-8 text-center text-muted-foreground border border-dashed border-border/50 rounded-[28px]">
-                No recent lesson drafts. Generate one via Chat!
+              <div className="p-8 text-center text-sm text-muted-foreground border border-dashed border-border/60 rounded-xl">
+                No recent drafts — start generating via the Workstation.
               </div>
             )}
           </div>
         </div>
 
-        <div className="xl:col-span-3">
-           <div className="p-8 rounded-[32px] bg-gradient-to-br from-foreground to-foreground/90 text-background shadow-2xl relative overflow-hidden">
-             <div className="absolute -right-20 -bottom-20 w-64 h-64 bg-primary/20 rounded-full blur-3xl" />
-             <div className="absolute top-0 left-0 w-full h-full bg-[linear-gradient(to_right,#ffffff0a_1px,transparent_1px),linear-gradient(to_bottom,#ffffff0a_1px,transparent_1px)] bg-[size:24px_24px]" />
-             
-             <div className="relative z-10 flex flex-col h-full justify-between gap-8">
-               <div>
-                 <div className="w-14 h-14 rounded-[20px] bg-background/10 backdrop-blur-md flex items-center justify-center mb-6">
-                   <Database className="w-6 h-6 text-background" />
-                 </div>
-                 <h3 className="text-2xl font-extrabold tracking-tight mb-2">Curriculum Sync</h3>
-                 <p className="text-[15px] text-background/70 font-semibold leading-relaxed">
-                   Your embeddings are fully synchronized with the core KICD vector database. Ready for generation.
-                 </p>
-               </div>
-               
-               <div className="space-y-3">
-                 <div className="flex items-center justify-between text-sm font-bold tracking-wide">
-                    <span>Sync Status</span>
-                    <span className="text-green-400">100%</span>
-                 </div>
-                 <div className="w-full h-3 bg-background/20 rounded-full overflow-hidden">
-                    <div className="h-full bg-green-400 w-full rounded-full" />
-                 </div>
-               </div>
-             </div>
+        {/* Curriculum sync card */}
+        <div className="xl:col-span-2">
+          <div className="rounded-2xl bg-foreground text-background p-5 relative overflow-hidden h-full flex flex-col justify-between min-h-[180px]">
+            <div className="absolute -right-12 -bottom-12 w-48 h-48 bg-primary/25 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute top-0 left-0 w-full h-full bg-[linear-gradient(to_right,#ffffff06_1px,transparent_1px),linear-gradient(to_bottom,#ffffff06_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none" />
+
+            <div className="relative z-10">
+              <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center mb-3">
+                <Database className="w-4 h-4 text-background" />
+              </div>
+              <h3 className="text-base font-bold tracking-tight mb-1">Curriculum Sync</h3>
+              <p className="text-[13px] text-background/65 leading-relaxed">
+                Embeddings fully synchronized with the KICD vector database.
+              </p>
+            </div>
+
+            <div className="relative z-10 mt-4 space-y-2">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className="text-background/70">Sync Status</span>
+                <span className="text-emerald-400">100%</span>
+              </div>
+              <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div className="h-full bg-emerald-400 w-full rounded-full" />
+              </div>
+            </div>
           </div>
         </div>
+
       </div>
     </div>
   );

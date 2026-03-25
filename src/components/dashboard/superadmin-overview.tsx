@@ -26,27 +26,31 @@ export async function SuperAdminOverview({ session }: { session: any }) {
         </div>
       </div>
 
-      <div className="w-full overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 pb-4 scrollbar-hide">
-        <div className="flex sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-4 w-max sm:w-full">
+      <div className="w-full pb-4 scrollbar-hide">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
           {[{
-            title: "Database Nodes", value: chunksCount.toLocaleString(), desc: "Indexed curriculum chunks", icon: Database, color: "text-blue-500", bg: "bg-blue-500/10"
+            title: "Database Nodes", value: chunksCount.toLocaleString(), desc: "Indexed curriculum chunks", icon: Database, color: "text-blue-500", bg: "bg-blue-500/10", href: "/dashboard/knowledge"
           }, {
-            title: "Active Tenants", value: tenantsCount.toString(), desc: "Registered schools", icon: Users, color: "text-green-500", bg: "bg-green-500/10"
+            title: "Active Tenants", value: tenantsCount.toString(), desc: "Registered schools", icon: Users, color: "text-green-500", bg: "bg-green-500/10", href: "/dashboard/tenants"
           }, {
-            title: "System Health", value: "Operational", desc: "All services running smoothly", icon: Activity, color: "text-primary", bg: "bg-primary/10"
+            title: "Access Control", value: "Roles", desc: "Granular permissions matrix", icon: Server, color: "text-indigo-500", bg: "bg-indigo-500/10", href: "/dashboard/rbac"
+          }, {
+            title: "System Health", value: "Operational", desc: "All services running smoothly", icon: Activity, color: "text-primary", bg: "bg-primary/10", href: "#"
           }].map((stat, i) => (
-            <div key={i} className="flex-none w-[200px] sm:w-auto p-6 rounded-[32px] bg-card/80 backdrop-blur-md border border-border/40 shadow-xl shadow-primary/5 relative overflow-hidden group hover:border-primary/20 transition-colors">
-              <div className="flex flex-col gap-4 relative z-10">
-                 <div className={`w-14 h-14 rounded-[22px] ${stat.bg} flex items-center justify-center`}>
-                   <stat.icon className={`w-6 h-6 ${stat.color}`} />
+            <Link key={i} href={stat.href} className="w-full h-full p-6 text-left rounded-[32px] bg-card/80 backdrop-blur-md border border-border/40 shadow-xl shadow-primary/5 relative overflow-hidden group hover:border-primary/20 transition-all hover:scale-[1.02]">
+              <div className="flex flex-row sm:flex-col items-center sm:items-start gap-4 sm:gap-5 relative z-10 w-full min-w-0">
+                 <div className={`shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-[18px] sm:rounded-[22px] ${stat.bg} flex items-center justify-center`}>
+                   <stat.icon className={`w-5 h-5 sm:w-6 sm:h-6 ${stat.color}`} />
                  </div>
-                 <div>
-                   <div className="text-3xl font-extrabold tracking-tight">{stat.value}</div>
-                   <h3 className="font-semibold text-muted-foreground text-xs uppercase tracking-wider mt-1">{stat.title}</h3>
-                   <p className="text-xs text-muted-foreground mt-2">{stat.desc}</p>
+                 <div className="flex flex-row items-center sm:flex-col sm:items-start flex-1 gap-3 sm:gap-0 w-full min-w-0">
+                   <div className="text-xl sm:text-3xl font-extrabold tracking-tight min-w-[2.5rem]">{stat.value}</div>
+                   <div className="flex flex-col flex-1 truncate">
+                     <h3 className="font-bold sm:font-semibold text-foreground sm:text-muted-foreground text-sm sm:text-xs sm:uppercase tracking-wide sm:tracking-wider sm:mt-1 truncate">{stat.title}</h3>
+                     <p className="text-xs text-muted-foreground sm:mt-2 truncate">{stat.desc}</p>
+                   </div>
                  </div>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </div>

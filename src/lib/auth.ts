@@ -37,7 +37,8 @@ export async function createSession(user: User) {
     sessionId: session.id, 
     userId: user.id, 
     role: user.role,
-    tenantId: user.tenantId 
+    tenantId: user.tenantId,
+    email: user.email
   };
   const token = await encrypt(sessionPayload);
 
@@ -98,6 +99,7 @@ export async function auth() {
   return { 
     userId: session?.userId || null,
     role: session?.role || null,
-    tenantId: session?.tenantId || null
+    tenantId: session?.tenantId || null,
+    email: session?.email || null
   };
 }

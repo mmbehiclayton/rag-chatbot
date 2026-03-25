@@ -35,10 +35,8 @@ export default async function ProfilePage() {
       
       {/* App-like Header */}
       <div className="sticky top-0 z-10 bg-card/80 backdrop-blur-2xl px-6 py-5 flex items-center justify-between border-b border-border/40">
-        <Button variant="outline" size="icon" className="w-12 h-12 rounded-full shadow-sm" asChild>
-          <Link href="/dashboard">
-             <ChevronLeft className="w-6 h-6" />
-          </Link>
+        <Button variant="outline" size="icon" className="w-12 h-12 rounded-full shadow-sm" render={<Link href="/dashboard" />}>
+           <ChevronLeft className="w-6 h-6" />
         </Button>
         <h1 className="text-xl font-black tracking-tight">Profile</h1>
         <Button variant="outline" size="icon" className="w-12 h-12 rounded-full shadow-sm text-muted-foreground">

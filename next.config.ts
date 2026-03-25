@@ -5,6 +5,12 @@ const dbUrl = "postgresql://neondb_owner:npg_TCgjN0fnc2aP@ep-steep-shadow-amk94n
 const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
+  serverExternalPackages: ["pdf-parse"],
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '50mb',
+    },
+  },
   env: {
     DATABASE_URL: dbUrl,
   }

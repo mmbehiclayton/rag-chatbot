@@ -2,21 +2,22 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Users, LayoutDashboard, Settings, Database, GraduationCap, FileText, MessageSquare } from "lucide-react";
+import { Home, MessageSquare, BookOpen, FileText, MoreHorizontal } from "lucide-react";
 
 const MOBILE_NAV = [
-  { name: "Home", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Home", href: "/dashboard", icon: Home },
   { name: "Chat", href: "/dashboard/chat", icon: MessageSquare },
   { name: "Schemes", href: "/dashboard/schemes", icon: BookOpen },
-  { name: "Lessons", href: "/dashboard/lessons", icon: FileText }
+  { name: "Lessons", href: "/dashboard/lessons", icon: FileText },
+  { name: "More", href: "/dashboard/workstation", icon: MoreHorizontal },
 ];
 
 export function BottomNav({ role }: { role: string | null }) {
   const pathname = usePathname();
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 p-4 pb-6 px-6">
-      <nav className="flex items-center justify-between bg-card/90 backdrop-blur-xl border border-border/40 rounded-[28px] shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] py-2.5 px-6">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 px-4 pb-4 pt-0 pointer-events-none">
+      <nav className="flex items-center bg-card/95 backdrop-blur-2xl border border-border/50 rounded-2xl shadow-xl shadow-black/10 py-1 px-1 max-w-sm mx-auto pointer-events-auto">
         {MOBILE_NAV.map((item) => {
           const isActive = pathname === item.href || (pathname.startsWith(item.href) && item.href !== "/dashboard");
           const Icon = item.icon;
@@ -24,14 +25,18 @@ export function BottomNav({ role }: { role: string | null }) {
             <Link
               key={item.name}
               href={item.href}
-              className={`flex flex-col items-center justify-center gap-1 w-14 h-12 rounded-2xl transition-all duration-300 ${
-                isActive ? "text-primary scale-105" : "text-muted-foreground hover:text-foreground"
+              className={`relative flex flex-col items-center justify-center flex-1 h-14 rounded-xl transition-all duration-200 group ${
+                isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors ${isActive ? 'bg-primary/15' : 'bg-transparent'}`}>
-                <Icon className={`w-5 h-5 ${isActive ? "fill-primary/20 stroke-primary" : "stroke-muted-foreground"}`} />
-              </div>
-              <span className={`text-[10px] font-semibold tracking-wide ${isActive ? 'opacity-100' : 'opacity-80'}`}>{item.name}</span>
+              {/* Active pill background */}
+              {isActive && (
+                <span className="absolute inset-1.5 rounded-xl bg-primary/10" />
+              )}
+              <Icon className={`w-[18px] h-[18px] relative z-10 transition-all duration-200 ${isActive ? "stroke-primary" : "stroke-muted-foreground group-hover:stroke-foreground"}`} />
+              <span className={`text-[10px] font-semibold mt-0.5 relative z-10 tracking-wide ${isActive ? "text-primary" : ""}`}>
+                {item.name}
+              </span>
             </Link>
           );
         })}

@@ -44,6 +44,25 @@ model User {
   lessonPlans      LessonPlan[]
   lessonNotes      LessonNote[]
   assessments      Assessment[]
+  generationLogs   GenerationLog[]
+
+  @@index([tenantId])
+}
+
+model GenerationLog {
+  id               String               @id @default(uuid())
+  userId           String
+  user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId         String?
+  contentType      String               // "SCHEME_OF_WORK", "LESSON_PLAN", "LESSON_NOTES", "ASSESSMENT"
+  promptTokens     Int
+  completionTokens Int
+  totalTokens      Int
+  model            String
+  createdAt        DateTime             @default(now())
+
+  @@index([userId])
+  @@index([tenantId])
 }
 
 model CurriculumDocument {
@@ -53,6 +72,7 @@ model CurriculumDocument {
   subject          String
   fileUrl          String
   status           String               @default("pending") // "pending", "processing", "completed", "error"
+  errorMessage     String?              @db.Text
   uploadDate       DateTime             @default(now())
   uploadedBy       String?
   
@@ -72,6 +92,8 @@ model CurriculumChunk {
   
   // Vector embedding (dimension 1536 for OpenAI text-embedding-3-small)
   embedding        Unsupported("vector(1536)")?
+
+  @@index([curriculumId])
 }
 
 model SchemeOfWork {
@@ -92,6 +114,9 @@ model SchemeOfWork {
   updatedAt        DateTime             @updatedAt
 
   lessonPlans      LessonPlan[]
+
+  @@index([teacherId])
+  @@index([curriculumId])
 }
 
 model LessonPlan {
@@ -111,6 +136,9 @@ model LessonPlan {
   updatedAt        DateTime             @updatedAt
 
   lessonNotes      LessonNote[]
+
+  @@index([schemeId])
+  @@index([teacherId])
 }
 
 model LessonNote {
@@ -175,4 +203,54 @@ model RateLimit {
   key       String   @unique
   points    Int      @default(0)
   expiresAt DateTime
+}
+
+model RolePermission {
+  id          String   @id @default(uuid())
+  role        String
+  action      String   
+  resource    String   
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([role, action, resource])
+}
+
+// ─── CBC Curriculum Structure ─────────────────────────────────
+
+model CurriculumLevel {
+  id     String       @id @default(uuid())
+  name   String       @unique  // "Pre-Primary", "Lower Primary", "Upper Primary", "Junior Secondary", "Senior Secondary"
+  order  Int
+  grades GradeLevel[]
+}
+
+model GradeLevel {
+  id            String               @id @default(uuid())
+  name          String               @unique  // "PP1", "Grade 1", "Grade 7", "Grade 10"
+  order         Int
+  levelId       String
+  level         CurriculumLevel      @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  learningAreas LevelLearningArea[]
+
+  @@index([levelId])
+}
+
+model LearningArea {
+  id     String               @id @default(uuid())
+  name   String               @unique  // "Mathematics", "English", "Integrated Science"
+  order  Int
+  grades LevelLearningArea[]
+}
+
+// Junction: which LearningAreas apply to which GradeLevel
+model LevelLearningArea {
+  gradeId        String
+  grade          GradeLevel   @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+  learningAreaId String
+  learningArea   LearningArea @relation(fields: [learningAreaId], references: [id], onDelete: Cascade)
+
+  @@id([gradeId, learningAreaId])
+  @@index([gradeId])
+  @@index([learningAreaId])
 }

@@ -2,7 +2,6 @@
 
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
-const pdfParse = require("pdf-parse"); // Using require to bypass strictly typed ESM default export issues
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { embedMany } from "ai";
 import { openai } from "@ai-sdk/openai";
@@ -32,9 +31,16 @@ export async function processPDF(documentId: string) {
     const filepath = require("path").join(process.cwd(), "public", doc.fileUrl);
     const buffer = await require("fs").promises.readFile(filepath);
 
-    // 3. Extract text
-    const pdfData = await pdfParse(buffer);
-    const text = pdfData.text;
+    // 3. Extract text (Spawn an isolated vanilla Node.js child process)
+    // This absolutely bypasses Next.js Turbopack compiler bugs natively.
+    const { execFileSync } = require("child_process");
+    const workerPath = require("path").join(process.cwd(), "src", "lib", "pdf-worker.cjs");
+    
+    const textBuffer = execFileSync("node", [workerPath, filepath], { 
+       maxBuffer: 1024 * 1024 * 50 // 50MB maximum raw text throughput allowance
+    });
+    
+    const text = textBuffer.toString('utf-8');
 
     // 4. Chunking Strategy (KICD size constraints)
     const splitter = new RecursiveCharacterTextSplitter({
@@ -46,10 +52,17 @@ export async function processPDF(documentId: string) {
     const chunkTexts = chunks.map(chunk => chunk.pageContent);
 
     // 5. Generate Vectors (1536 dimensions)
-    const { embeddings } = await embedMany({
-      model: openai.embedding("text-embedding-3-small"),
-      values: chunkTexts,
-    });
+    let embeddings: number[][] = [];
+    if (process.env.OPENAI_API_KEY) {
+      const res = await embedMany({
+        model: openai.embedding("text-embedding-3-small"),
+        values: chunkTexts,
+      });
+      embeddings = res.embeddings;
+    } else {
+      console.warn("No OPENAI_API_KEY found! Generating dummy embeddings for extraction testing.");
+      embeddings = chunkTexts.map(() => Array.from({length: 1536}, () => Math.random() - 0.5));
+    }
 
     // 6. Vector Storage (Pgvector + Prisma raw queries)
     for (let i = 0; i < chunks.length; i++) {
@@ -74,11 +87,14 @@ export async function processPDF(documentId: string) {
     console.log(`[PDF Extraction & Vectors] Completed for ${documentId}. Inserted ${chunks.length} chunks.`);
     
     return { success: true, chunksCount: chunks.length };
-  } catch (error) {
+  } catch (error: any) {
     console.error("[PDF Extraction Error]", error);
     await db.curriculumDocument.update({
       where: { id: documentId },
-      data: { status: "error" }
+      data: { 
+        status: "error",
+        errorMessage: error.message || "Unknown PDF parsing error."
+      }
     });
     return { success: false, error: "Extraction or Embedding failed" };
   }

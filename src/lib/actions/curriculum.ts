@@ -21,13 +21,30 @@ export async function ingestCurriculum(formData: FormData) {
       return { success: false, error: "Missing required configuration fields." };
     }
 
+    const overwrite = formData.get("overwrite") === "true";
+
     // 1. Check duplicate vector domain
     const existingDoc = await db.curriculumDocument.findFirst({
-      where: { gradeLevel, subject }
+      where: { gradeLevel, subject },
+      include: { _count: { select: { chunks: true } } }
     });
 
-    if (existingDoc) {
-      return { success: false, error: `A Curriculum Design for ${gradeLevel} ${subject} already exists! Delete the older dataset before injecting a replacement.` };
+    if (existingDoc && !overwrite) {
+      return { 
+        success: false, 
+        duplicate: true, 
+        existingDoc: {
+          id: existingDoc.id,
+          uploadDate: existingDoc.uploadDate,
+          chunks: existingDoc._count.chunks
+        },
+        error: `A Curriculum Design for ${gradeLevel} ${subject} already exists.` 
+      };
+    }
+
+    if (existingDoc && overwrite) {
+      // Delete old doc (cascades to chunks)
+      await db.curriculumDocument.delete({ where: { id: existingDoc.id } });
     }
 
     // 2. Buffer conversion and physical storage (Local for immediate demo sync)
@@ -66,5 +83,23 @@ export async function ingestCurriculum(formData: FormData) {
   } catch (err: any) {
     console.error("[Upload Error]", err);
     return { success: false, error: err.message || "Failed to parse system upload." };
+  }
+}
+
+export async function deleteCurriculum(documentId: string) {
+  try {
+    const { userId, role } = await auth();
+    if (!userId || role !== "SUPERADMIN") throw new Error("Unauthorized");
+
+    // This cascades and removes all related chunks due to the Prisma schema onDelete: Cascade
+    await db.curriculumDocument.delete({
+      where: { id: documentId }
+    });
+
+    revalidatePath("/dashboard/knowledge");
+    return { success: true };
+  } catch (err: any) {
+    console.error("[Delete Error]", err);
+    return { success: false, error: err.message || "Failed to delete curriculum." };
   }
 }

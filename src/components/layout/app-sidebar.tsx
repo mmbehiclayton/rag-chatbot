@@ -2,80 +2,130 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Users, LayoutDashboard, Settings, LogOut, Database, GraduationCap, FileText, Sparkles, MessageSquare } from "lucide-react";
+import {
+  BookOpen, Users, Home, Settings, LogOut, Database,
+  GraduationCap, FileText, Sparkles, MessageSquare, Edit3,
+  ShieldAlert, LayoutGrid, Settings2, ShieldCheck, BarChart3
+} from "lucide-react";
 import { logout } from "@/lib/actions/auth";
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-const BASE_NAV = [
-  { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Mwalimu Chat", href: "/dashboard/chat", icon: MessageSquare },
-  { name: "Schemes of Work", href: "/dashboard/schemes", icon: BookOpen },
-  { name: "Lesson Plans", href: "/dashboard/lessons", icon: FileText },
-  { name: "Assessments", href: "/dashboard/assessments", icon: GraduationCap },
-];
+const navGroups = (role: string | null) => {
+  const groups: { label?: string; items: { name: string; href: string; icon: any }[] }[] = [];
 
-const ADMIN_EXTRAS = [
-  { name: "Teachers", href: "/dashboard/teachers", icon: Users },
-];
+  // Always visible
+  groups.push({
+    items: [{ name: "Home", href: "/dashboard", icon: Home }],
+  });
 
-const SUPERADMIN_EXTRAS = [
-  { name: "Tenants", href: "/dashboard/tenants", icon: Users },
-  { name: "Knowledge Base", href: "/dashboard/knowledge", icon: Database },
-];
+  // Superadmin system tools
+  if (role === "SUPERADMIN") {
+    groups.push({
+      label: "SYSTEM",
+      items: [
+        { name: "Structure", href: "/dashboard/structure", icon: LayoutGrid },
+        { name: "Knowledge Base", href: "/dashboard/knowledge", icon: Database },
+        { name: "Prompt Rules", href: "/dashboard/rules", icon: Settings2 },
+        { name: "Verification", href: "/dashboard/verification", icon: ShieldCheck },
+      ],
+    });
+  }
+
+  // Curriculum authoring for all
+  groups.push({
+    label: "CURRICULUM",
+    items: [
+      { name: "Workstation", href: "/dashboard/workstation", icon: Sparkles },
+      { name: "Mwalimu Chat", href: "/dashboard/chat", icon: MessageSquare },
+      { name: "Schemes of Work", href: "/dashboard/schemes", icon: BookOpen },
+      { name: "Lesson Plans", href: "/dashboard/lessons", icon: FileText },
+      { name: "Lesson Notes", href: "/dashboard/notes", icon: Edit3 },
+      { name: "Assessments", href: "/dashboard/assessments", icon: GraduationCap },
+    ],
+  });
+
+  // Admin tools
+  if (role === "ADMIN" || role === "SUPERADMIN") {
+    groups.push({
+      label: "ADMIN",
+      items: [
+        { name: "Teachers", href: "/dashboard/teachers", icon: Users },
+        { name: "Analytics", href: "/dashboard/admin/analytics", icon: BarChart3 },
+        ...(role === "SUPERADMIN" ? [
+          { name: "Tenants", href: "/dashboard/tenants", icon: Users },
+          { name: "Access Control", href: "/dashboard/rbac", icon: ShieldAlert },
+        ] : []),
+        { name: "Settings", href: "/dashboard/settings", icon: Settings },
+      ],
+    });
+  }
+
+  return groups;
+};
 
 export function AppSidebar({ role }: { role: string | null }) {
   const pathname = usePathname();
-  
-  let navigation = [...BASE_NAV];
-  if (role === "ADMIN" || role === "SUPERADMIN") {
-    navigation.push(...ADMIN_EXTRAS);
-  }
-  if (role === "SUPERADMIN") {
-    navigation.push(...SUPERADMIN_EXTRAS);
-  }
-  
-  if (role === "ADMIN" || role === "SUPERADMIN") {
-    navigation.push({ name: "Settings", href: "/dashboard/settings", icon: Settings });
-  }
+  const groups = navGroups(role);
 
   return (
-    <div className="w-64 bg-card border-r border-border/40 flex flex-col hidden md:flex">
-      <div className="h-16 flex items-center px-6 border-b border-border/40">
-        <Link href="/" className="text-xl font-bold tracking-tight flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Sparkles className="h-5 w-5" />
+    <aside className="w-56 bg-card border-r border-border/50 flex flex-col hidden md:flex shrink-0">
+      {/* Logo */}
+      <div className="h-14 flex items-center px-5 border-b border-border/50 shrink-0">
+        <Link href="/" className="flex items-center gap-2.5 group">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+            <Sparkles className="h-3.5 w-3.5" />
           </div>
-          Mwalimu AI
+          <span className="text-[15px] font-bold tracking-tight text-foreground">Mwalimu AI</span>
         </Link>
       </div>
-      <div className="flex-1 py-6 px-4 space-y-1 overflow-y-auto">
-        {navigation.map((item: any) => {
-          const isActive = pathname === item.href || (pathname.startsWith(item.href) && item.href !== "/dashboard");
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                isActive 
-                  ? "bg-primary/10 text-primary" 
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              <Icon className={`w-5 h-5 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
-              {item.name}
-            </Link>
-          );
-        })}
-      </div>
-      <div className="p-4 border-t border-border/40">
+
+      {/* Nav */}
+      <nav className="flex-1 py-4 px-3 space-y-5 overflow-y-auto scrollbar-hide">
+        {groups.map((group, gi) => (
+          <div key={gi} className="space-y-0.5">
+            {group.label && (
+              <p className="px-2 mb-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
+                {group.label}
+              </p>
+            )}
+            {group.items.map((item) => {
+              const isActive = pathname === item.href || (pathname.startsWith(item.href) && item.href !== "/dashboard");
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-[13px] font-medium transition-all duration-150 group relative",
+                    isActive
+                      ? "bg-primary/10 text-primary font-semibold"
+                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                  )}
+                >
+                  {isActive && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 bg-primary rounded-r-full" />
+                  )}
+                  <Icon className={cn("w-4 h-4 shrink-0", isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
+                  <span className="truncate">{item.name}</span>
+                </Link>
+              );
+            })}
+          </div>
+        ))}
+      </nav>
+
+      {/* User / Sign Out */}
+      <div className="p-3 border-t border-border/50 shrink-0">
         <form action={logout}>
-          <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-red-500 hover:bg-red-500/10 gap-3">
-            <LogOut className="w-5 h-5" />
+          <button
+            type="submit"
+            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-[13px] font-medium text-muted-foreground hover:text-red-500 hover:bg-red-500/8 transition-all"
+          >
+            <LogOut className="w-4 h-4 shrink-0" />
             Sign Out
-          </Button>
+          </button>
         </form>
       </div>
-    </div>
+    </aside>
   );
 }

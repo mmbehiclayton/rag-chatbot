@@ -20,7 +20,7 @@ function ResetForm() {
       <div className="text-center pb-4">
         <h1 className="text-xl font-bold text-red-500 mb-2">Invalid Link</h1>
         <p className="text-sm text-muted-foreground mb-6">The password reset link is missing or invalid.</p>
-        <Button asChild className="w-full"><Link href="/forgot-password">Request new link</Link></Button>
+        <Button render={<Link href="/forgot-password" />} className="w-full">Request new link</Button>
       </div>
     );
   }
@@ -42,8 +42,8 @@ function ResetForm() {
           <div className="bg-green-500/10 text-green-500 p-4 rounded-xl border border-green-500/20 text-sm text-center">
             Your password has been successfully reset!
           </div>
-          <Button asChild className="w-full h-11 text-base font-medium">
-            <Link href="/login">Go to login</Link>
+          <Button render={<Link href="/login" />} className="w-full h-11 text-base font-medium">
+            Go to login
           </Button>
         </div>
       ) : (

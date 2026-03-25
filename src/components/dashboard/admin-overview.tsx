@@ -34,8 +34,8 @@ export async function AdminOverview({ session }: { session: any }) {
         </div>
       </div>
 
-      <div className="w-full overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 pb-4 scrollbar-hide">
-        <div className="flex sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-4 w-max sm:w-full">
+      <div className="w-full pb-4 scrollbar-hide">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
           {[{
             title: "Active Teachers", value: teachersCount.toString(), desc: "Registered accounts", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10"
           }, {
@@ -45,14 +45,16 @@ export async function AdminOverview({ session }: { session: any }) {
           }, {
             title: "Hours Saved", value: `${hoursSaved}h`, desc: "Cost & time equivalent", icon: Clock, color: "text-green-500", bg: "bg-green-500/10"
           }].map((stat, i) => (
-            <div key={i} className="flex-none w-[160px] sm:w-auto p-5 rounded-[28px] bg-card/80 backdrop-blur-md border border-border/40 shadow-xl shadow-primary/5 relative overflow-hidden group hover:border-primary/20 transition-colors">
-              <div className="flex flex-col gap-4 relative z-10">
-                 <div className={`w-12 h-12 rounded-[20px] ${stat.bg} flex items-center justify-center`}>
-                   <stat.icon className={`w-5 h-5 ${stat.color}`} />
+            <div key={i} className="w-full h-full p-5 text-left rounded-[28px] bg-card/80 backdrop-blur-md border border-border/40 shadow-xl shadow-primary/5 relative overflow-hidden group hover:border-primary/20 transition-colors">
+              <div className="flex flex-row sm:flex-col items-center sm:items-start gap-4 sm:gap-5 relative z-10 w-full min-w-0">
+                 <div className={`shrink-0 w-12 h-12 sm:w-12 sm:h-12 rounded-[18px] sm:rounded-[20px] ${stat.bg} flex items-center justify-center`}>
+                   <stat.icon className={`w-5 h-5 sm:w-5 sm:h-5 ${stat.color}`} />
                  </div>
-                 <div>
-                   <div className="text-2xl font-extrabold tracking-tight">{stat.value}</div>
-                   <h3 className="font-semibold text-muted-foreground text-xs uppercase tracking-wider mt-1">{stat.title}</h3>
+                 <div className="flex flex-row items-center sm:flex-col sm:items-start flex-1 gap-3 sm:gap-0 w-full min-w-0">
+                   <div className="text-xl sm:text-2xl font-extrabold tracking-tight min-w-[2.5rem]">{stat.value}</div>
+                   <div className="flex flex-col flex-1 truncate">
+                     <h3 className="font-bold sm:font-semibold text-foreground sm:text-muted-foreground text-sm sm:text-xs sm:uppercase tracking-wide sm:tracking-wider sm:mt-1 truncate">{stat.title}</h3>
+                   </div>
                  </div>
               </div>
             </div>
