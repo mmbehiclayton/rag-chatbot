@@ -2,6 +2,7 @@ import { streamText, UIMessage, convertToModelMessages } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { retrieveContext } from "@/lib/rag";
 import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
 
 export async function POST(req: Request) {
     try {
@@ -9,6 +10,10 @@ export async function POST(req: Request) {
 
         const { tenantId, userId } = await auth();
         if (!userId) return new Response("Unauthorized", { status: 401 });
+
+        // Fetch Global Chat Rules
+        const chatRule = await db.generationRule.findUnique({ where: { contentType: "GLOBAL_CHAT" } });
+        const customRuleText = chatRule?.customPrompt ? `\n\n${chatRule.customPrompt}\n` : "";
 
         // Get the latest user message
         const lastMessage = messages[messages.length - 1];
@@ -28,7 +33,7 @@ export async function POST(req: Request) {
             }
         }
 
-        const systemPrompt = `You are Elimu AI, an AI assistant for Kenyan teachers. 
+        const systemPrompt = `You are Elimu AI, an AI assistant for Kenyan teachers. ${customRuleText}
 You answer questions using the provided KICD curriculum context. 
 If the context doesn't contain the answer, rely on your general educational knowledge but prioritize the curriculum data.
 Always structure your responses clearly, following KICD CBC standards where applicable.
