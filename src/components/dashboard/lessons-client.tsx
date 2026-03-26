@@ -5,7 +5,7 @@ import { generateLessonPlan, updateLessonPlan } from "@/lib/actions/generation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sparkles, Library, FileText, CheckCircle2, ChevronDown, Download, AlertCircle, Clock, Users, Lightbulb, Edit3, Save, X, Presentation, ChevronLeft, ChevronRight, Maximize2, Loader2, PlayCircle, Image as ImageIcon, Box } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { TeacherCopilot } from "./teacher-copilot";

@@ -5,7 +5,7 @@ import { useChat } from "@ai-sdk/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MessageSquare, X, Send, Sparkles, Bot, User, Trash2, Maximize2, Minimize2 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
 
 export function TeacherCopilot({ lessonPlan }: { lessonPlan: any }) {
