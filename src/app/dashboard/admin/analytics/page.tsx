@@ -9,8 +9,28 @@ export default async function AdminAnalyticsPage() {
     redirect("/dashboard");
   }
 
-  const stats = await getSchoolUsageStats();
-  const logs = await getDetailedGenerationLog();
+  let stats = null;
+  let logs = null;
+  let error = false;
+
+  try {
+    stats = await getSchoolUsageStats();
+    logs = await getDetailedGenerationLog();
+  } catch (e) {
+    console.error("Failed to load analytics:", e);
+    error = true;
+  }
+
+  if (error || !stats || !logs) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="bg-red-500/10 border border-red-500/20 rounded-[32px] p-12 text-center space-y-4">
+           <h2 className="text-2xl font-black">Something went wrong</h2>
+           <p className="text-muted-foreground font-medium">We couldn't load the institutional analytics right now. Please try again later.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">

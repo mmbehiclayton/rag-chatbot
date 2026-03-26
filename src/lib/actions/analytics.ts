@@ -5,15 +5,17 @@ import { auth } from "@/lib/auth";
 
 export async function getSchoolUsageStats() {
   const session = await auth();
-  if (!session?.tenantId || (session.role !== "ADMIN" && session.role !== "SUPERADMIN")) {
+  if (!session?.userId || (session.role !== "ADMIN" && session.role !== "SUPERADMIN")) {
     throw new Error("Unauthorized");
   }
 
+  const isSuperAdmin = session.role === "SUPERADMIN";
   const tenantId = session.tenantId;
 
-  // Fetch all users in the school
+  // Fetch all users in the school (or all if superadmin)
+  const usersWhere: any = isSuperAdmin ? { role: "TEACHER" } : { tenantId, role: "TEACHER" };
   const teachers = await db.user.findMany({
-    where: { tenantId, role: "TEACHER" },
+    where: usersWhere,
     select: {
       id: true,
       name: true,
@@ -28,13 +30,14 @@ export async function getSchoolUsageStats() {
     }
   });
 
-  // Fetch usage logs (Recompiled to include GenerationLog model)
-  const logs = await (db as any).generationLog?.findMany({
-    where: { tenantId }
+  // Fetch usage logs
+  const logsWhere: any = isSuperAdmin ? {} : { tenantId };
+  const logs = await db.generationLog.findMany({
+    where: logsWhere
   }) || [];
 
   // Aggregate totals
-  const totals = teachers.reduce((acc, t) => ({
+  const totals = teachers.reduce((acc: any, t: any) => ({
     schemes: acc.schemes + t._count.schemesOfWork,
     lessons: acc.lessons + t._count.lessonPlans,
     assessments: acc.assessments + t._count.assessments,
@@ -47,33 +50,41 @@ export async function getSchoolUsageStats() {
   }), { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
 
   return {
-    teachers,
+    teachers: teachers || [],
     totals,
     usage,
-    schoolName: "Your Institution" 
+    schoolName: isSuperAdmin ? "Global Organization" : "Your Institution" 
   };
 }
 
 export async function getDetailedGenerationLog() {
   const session = await auth();
-  if (!session?.tenantId || (session.role !== "ADMIN" && session.role !== "SUPERADMIN")) {
+  if (!session?.userId || (session.role !== "ADMIN" && session.role !== "SUPERADMIN")) {
     throw new Error("Unauthorized");
   }
 
-  // Fetch recent generations across all teachers in the tenant
+  const isSuperAdmin = session.role === "SUPERADMIN";
+  const tenantId = session.tenantId;
+
+  // Fetch recent generations across all teachers
+  const logWhere: any = isSuperAdmin ? {} : { teacher: { tenantId } };
+
   const recentSchemes = await db.schemeOfWork.findMany({
-    where: { teacher: { tenantId: session.tenantId } },
+    where: logWhere,
     take: 10,
     orderBy: { createdAt: "desc" },
     include: { teacher: { select: { name: true } } }
   });
 
   const recentAssessments = await db.assessment.findMany({
-    where: { teacher: { tenantId: session.tenantId } },
+    where: logWhere,
     take: 10,
     orderBy: { createdAt: "desc" },
     include: { teacher: { select: { name: true } } }
   });
 
-  return { recentSchemes, recentAssessments };
+  return { 
+    recentSchemes: recentSchemes || [], 
+    recentAssessments: recentAssessments || [] 
+  };
 }
