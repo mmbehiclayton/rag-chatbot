@@ -27,7 +27,7 @@ interface RulesClientProps {
 }
 
 const CONTENT_TYPES = [
-  { id: "SCHEME_OF_WORK", label: "Scheme of Work", icon: BookOpen, color: "text-blue-500", bg: "bg-blue-500/10" },
+  { id: "SCHEME_OF_WORK", label: "Scheme of Work", icon: BookOpen, color: "text-indigo-500", bg: "bg-indigo-500/10" },
   { id: "LESSON_PLAN", label: "Lesson Plan", icon: FileText, color: "text-emerald-500", bg: "bg-emerald-500/10" },
   { id: "LESSON_NOTES", label: "Lesson Notes", icon: Edit3, color: "text-amber-500", bg: "bg-amber-500/10" },
   { id: "ASSESSMENT", label: "Assessment", icon: GraduationCap, color: "text-purple-500", bg: "bg-purple-500/10" },
@@ -136,10 +136,10 @@ export function RulesClient({ initialRules }: RulesClientProps) {
                  </div>
               </div>
 
-              <div className="flex-1 p-8 bg-slate-900 font-mono text-sm leading-relaxed text-blue-100 relative group">
+              <div className="flex-1 p-8 bg-slate-950 font-mono text-sm leading-relaxed text-slate-200 relative group">
                  <div className="absolute top-4 right-4 text-[10px] font-black uppercase tracking-widest text-white/20 pointer-events-none">RAW Prompt Fragment</div>
                  <textarea 
-                   className="w-full h-full bg-transparent border-none outline-none resize-none placeholder:text-white/10"
+                   className="w-full h-full bg-transparent border-none outline-none resize-none placeholder:text-white/5"
                    placeholder="Enter global generation rules here... (e.g. Ensure all learning outcomes are verbatim from KICD)"
                    value={currentRule}
                    onChange={e => setRules({...rules, [activeType]: e.target.value})}

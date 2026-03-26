@@ -149,13 +149,20 @@ export async function generateSchemeOfWork(parameters: { grade: string, subject:
   const session = await auth();
   if (!session?.userId) throw new Error("Unauthorized");
 
-  // Zero-Waste Check: Verify curriculum design exists
+  // Zero-Waste Check: Verify curriculum design exists globally OR for this tenant
   const docExists = await db.curriculumDocument.findFirst({
-    where: { gradeLevel: parameters.grade, subject: parameters.subject }
+    where: { 
+      gradeLevel: parameters.grade, 
+      subject: parameters.subject,
+      OR: [
+        { tenantId: session.tenantId },
+        { tenantId: null }
+      ]
+    }
   });
   
   if (!docExists) {
-     throw new Error(`MISSING CURRICULUM: No KICD Design uploaded for ${parameters.grade} ${parameters.subject}. To prevent AI hallucinations, please ask your Administrator to upload the PDF first.`);
+     throw new Error(`MISSING CURRICULUM: No KICD Design uploaded for "${parameters.grade} ${parameters.subject}". To prevent AI hallucinations, please ask your Administrator to upload the curriculum PDF first.`);
   }
 
   // Check Cache
@@ -168,7 +175,11 @@ export async function generateSchemeOfWork(parameters: { grade: string, subject:
   }
 
   const query = `Curriculum for ${parameters.grade} ${parameters.subject} Term ${parameters.term}`;
-  const contextChunks = await retrieveContext(query, 12, { grade: parameters.grade, subject: parameters.subject });
+  const contextChunks = await retrieveContext(query, 12, { 
+    grade: parameters.grade, 
+    subject: parameters.subject,
+    tenantId: session.tenantId ?? undefined
+  });
   const contextText = contextChunks.map(c => c.chunkText).join("\n\n");
 
   const customRule = await db.generationRule.findUnique({ where: { contentType: "SCHEME_OF_WORK" } });
@@ -360,15 +371,26 @@ export async function generateAssessment(parameters: { grade: string, subject: s
   if (!session?.userId) throw new Error("Unauthorized");
 
   const docExists = await db.curriculumDocument.findFirst({
-    where: { gradeLevel: parameters.grade, subject: parameters.subject }
+    where: { 
+      gradeLevel: parameters.grade, 
+      subject: parameters.subject,
+      OR: [
+        { tenantId: session.tenantId },
+        { tenantId: null }
+      ]
+    }
   });
   
   if (!docExists) {
-     throw new Error(`MISSING CURRICULUM: No KICD Design uploaded for ${parameters.grade} ${parameters.subject}.`);
+     throw new Error(`MISSING CURRICULUM: No KICD Design uploaded for "${parameters.grade} ${parameters.subject}". To enable generation, a curriculum PDF must be uploaded.`);
   }
 
   const query = `Curriculum for ${parameters.grade} ${parameters.subject} Term ${parameters.term}`;
-  const contextChunks = await retrieveContext(query, 12, { grade: parameters.grade, subject: parameters.subject });
+  const contextChunks = await retrieveContext(query, 12, { 
+    grade: parameters.grade, 
+    subject: parameters.subject,
+    tenantId: session.tenantId ?? undefined
+  });
   const contextText = contextChunks.map(c => c.chunkText).join("\n\n");
 
   const customRule = await db.generationRule.findUnique({ where: { contentType: "ASSESSMENT" } });
@@ -495,7 +517,7 @@ export async function getSchemeLessonsStatus(schemeId: string) {
     week.rows.forEach((row: any) => {
       // Assuming each row corresponds to one or more lessons
       // For simplicity, let's say each row is one topic/lesson
-      const exists = scheme.lessonPlans.some(lp => lp.lessonNumber === lessonCounter);
+      const exists = scheme.lessonPlans.some((lp: any) => lp.lessonNumber === lessonCounter);
       allLessons.push({
         lessonNumber: lessonCounter,
         topic: row.subStrand,
