@@ -34,18 +34,24 @@ export async function processPDF(documentId: string) {
     const filepath = path.resolve(docPath);
     const buffer = await fs.promises.readFile(filepath);
 
-    // 3. Extract text (Spawn an isolated vanilla Node.js child process)
-    // This absolutely bypasses Next.js Turbopack compiler bugs natively.
-    const { execFileSync } = require("child_process");
-    const workerFilename = "pdf-worker.cjs";
-    const workerRelativePath = "src/lib/" + workerFilename;
-    const workerPath = path.resolve(workerRelativePath);
+    // 3. Extract text using pdfjs-dist (Direct implementation to avoid bundling/worker issues)
+    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
     
-    const textBuffer = execFileSync("node", [workerPath, filepath], { 
-       maxBuffer: 1024 * 1024 * 50 // 50MB maximum raw text throughput allowance
-    });
+    // Convert buffer to Uint8Array for pdfjs
+    const data = new Uint8Array(buffer);
+    const loadingTask = pdfjs.getDocument({ data });
+    const pdfDocument = await loadingTask.promise;
     
-    const text = textBuffer.toString('utf-8');
+    let text = "";
+    for (let i = 1; i <= pdfDocument.numPages; i++) {
+      const page = await pdfDocument.getPage(i);
+      const content = await page.getTextContent();
+      const pageText = content.items
+        .map((item: any) => item.str)
+        .join(" ");
+      text += pageText + "\n";
+    }
+
 
     // 4. Chunking Strategy (KICD size constraints)
     const splitter = new RecursiveCharacterTextSplitter({
