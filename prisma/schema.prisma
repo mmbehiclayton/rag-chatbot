@@ -18,6 +18,7 @@ model Tenant {
   updatedAt        DateTime             @updatedAt
   
   users            User[]
+  curriculumDocuments CurriculumDocument[]
 }
 
 model Session {
@@ -75,9 +76,13 @@ model CurriculumDocument {
   errorMessage     String?              @db.Text
   uploadDate       DateTime             @default(now())
   uploadedBy       String?
+  tenantId         String?
+  tenant           Tenant?              @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   
   chunks           CurriculumChunk[]
   schemesOfWork    SchemeOfWork[]
+
+  @@index([tenantId])
 }
 
 model CurriculumChunk {

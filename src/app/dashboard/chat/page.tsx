@@ -19,10 +19,13 @@ import { Message, MessageContent, MessageResponse } from "@/components/ai-elemen
 export default function RAGChatBot() {
   const [input, setInput] = useState("");
   const { messages, sendMessage, status } = useChat();
-  const handleSubmit = (message: PromptInputMessage) => {
+  
+  const handleSubmit = async (message: PromptInputMessage) => {
     if (!message.text.trim()) return;
-    sendMessage({ text: message.text });
+    
     setInput("");
+    // @ts-ignore
+    await sendMessage({ text: message.text });
   }
 
   return (

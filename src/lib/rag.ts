@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { embed } from "ai";
 import { openai } from "@ai-sdk/openai";
 
-export async function retrieveContext(query: string, k = 5, filters?: { grade?: string, subject?: string }) {
+export async function retrieveContext(query: string, k = 5, filters?: { grade?: string, subject?: string, tenantId?: string }) {
   try {
     // Generate embedding for the user query
     const { embedding } = await embed({
@@ -24,7 +24,9 @@ export async function retrieveContext(query: string, k = 5, filters?: { grade?: 
                1 - (c."embedding" <=> ${vectorString}::vector) as similarity
         FROM "CurriculumChunk" c
         JOIN "CurriculumDocument" d ON c."curriculumId" = d."id"
-        WHERE d."gradeLevel" = ${filters.grade} AND d."subject" = ${filters.subject}
+        WHERE d."gradeLevel" = ${filters.grade} 
+          AND d."subject" = ${filters.subject}
+          AND (d."tenantId" = ${filters.tenantId} OR d."tenantId" IS NULL)
         ORDER BY c."embedding" <=> ${vectorString}::vector
         LIMIT ${k}
       `;
@@ -39,7 +41,9 @@ export async function retrieveContext(query: string, k = 5, filters?: { grade?: 
         SELECT c."chunkText", c."pageNumber", c."curriculumId",
                1 - (c."embedding" <=> ${vectorString}::vector) as similarity
         FROM "CurriculumChunk" c
-        WHERE c."id" NOT IN (${results.length > 0 ? results.map(r => r.id).filter(id => !!id) : 'dummy-id'})
+        JOIN "CurriculumDocument" d ON c."curriculumId" = d."id"
+        WHERE (d."tenantId" = ${filters?.tenantId} OR d."tenantId" IS NULL)
+          AND c."id" NOT IN (${results.length > 0 ? results.map(r => r.id).filter(id => !!id) : 'dummy-id'})
         ORDER BY c."embedding" <=> ${vectorString}::vector
         LIMIT ${k - results.length}
       `;

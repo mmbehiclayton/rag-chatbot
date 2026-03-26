@@ -1,10 +1,14 @@
 import { streamText, UIMessage, convertToModelMessages } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { retrieveContext } from "@/lib/rag";
+import { auth } from "@/lib/auth";
 
 export async function POST(req: Request) {
     try {
         const { messages }: { messages: UIMessage[] } = await req.json();
+
+        const { tenantId, userId } = await auth();
+        if (!userId) return new Response("Unauthorized", { status: 401 });
 
         // Get the latest user message
         const lastMessage = messages[messages.length - 1];
@@ -14,8 +18,8 @@ export async function POST(req: Request) {
             const query = typeof (lastMessage as any).content === "string" ? (lastMessage as any).content : "";
             
             if (query) {
-                // Fetch the top 5 most semantically similar curriculum chunks
-                const contextChunks = await retrieveContext(query, 5);
+                // Fetch the top 5 most semantically similar curriculum chunks for this tenant (or global)
+                const contextChunks = await retrieveContext(query, 5, { tenantId: tenantId ?? undefined });
                 
                 if (contextChunks.length > 0) {
                     contextText = "Here is some relevant context from the KICD Curriculum:\n" + 
