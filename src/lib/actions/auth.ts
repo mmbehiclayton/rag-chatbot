@@ -54,7 +54,10 @@ export async function register(prevState: any, formData: FormData) {
   console.log(`\n\n[MOCK EMAIL] Email Verification Link for ${email}:`);
   console.log(`http://localhost:3000/verify-email?token=${token}\n\n`);
 
-  redirect("/verify-email?success=true");
+  // Auto-login after registration
+  await createSession(user);
+
+  redirect("/dashboard");
 }
 
 export async function login(prevState: any, formData: FormData) {
@@ -91,12 +94,12 @@ export async function login(prevState: any, formData: FormData) {
     return { error: "Invalid credentials" };
   }
 
+  // Skip email verification for now as per user request
+  /*
   if (!user.emailVerified) {
-    // If it's a test account they are auto-verified? Wait, test accounts seeded via db have no emailVerified initially.
-    // I should probably let test accounts through if they were seeded? 
-    // They can just be updated to have emailVerified later, but for now strict checking is best.
     return { error: "Please check your email and verify your account first." };
   }
+  */
 
   await db.rateLimit.delete({ where: { key: rateLimitKey } }).catch(() => {});
 
