@@ -12,6 +12,14 @@ export async function getSchoolUsageStats() {
   const isSuperAdmin = session.role === "SUPERADMIN";
   const tenantId = session.tenantId;
 
+  // Fetch tenant info for quota (or all for stats)
+  const tenant = !isSuperAdmin ? await db.tenant.findUnique({ where: { id: tenantId! } }) : null;
+  const allTenants = isSuperAdmin ? await db.tenant.findMany() : [];
+  
+  const tokenQuota = isSuperAdmin 
+    ? allTenants.reduce((acc: any, t: any) => acc + t.tokenQuota, 0)
+    : tenant?.tokenQuota || 0;
+
   // Fetch all users in the school (or all if superadmin)
   const usersWhere: any = isSuperAdmin ? { role: "TEACHER" } : { tenantId, role: "TEACHER" };
   const teachers = await db.user.findMany({
@@ -53,7 +61,8 @@ export async function getSchoolUsageStats() {
     teachers: teachers || [],
     totals,
     usage,
-    schoolName: isSuperAdmin ? "Global Organization" : "Your Institution" 
+    tokenQuota,
+    schoolName: isSuperAdmin ? "Global Organization" : (tenant?.name || "Your Institution")
   };
 }
 

@@ -72,31 +72,51 @@ export function AnalyticsClient({ stats, logs }: AnalyticsClientProps) {
       <div className="bg-indigo-950/90 text-white rounded-[40px] p-8 border border-white/10 shadow-2xl relative overflow-hidden group">
          <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-indigo-500/20 rounded-full blur-[100px] -mr-32 -mt-32" />
          
-         <div className="relative z-10 flex flex-col md:flex-row justify-between gap-12">
-            <div className="space-y-4 max-w-md">
+         <div className="relative z-10 flex flex-col xl:flex-row justify-between gap-12">
+            <div className="space-y-6 max-w-md">
                <div className="flex items-center gap-2 text-indigo-400 font-black text-[10px] uppercase tracking-widest">
                  <ShieldCheck className="w-4 h-4" /> AI Engine Health
                </div>
-               <h3 className="text-3xl font-black tracking-tight">Infrastructure Consumption</h3>
-               <p className="text-indigo-200/70 text-sm font-medium leading-relaxed">
-                 Real-time monitoring of token utilization and estimated pedagogical compute costs. We use gpt-4o for high-fidelity KICD compliance.
-               </p>
+               <div className="space-y-2">
+                 <h3 className="text-3xl font-black tracking-tight">Infrastructure Pulse</h3>
+                 <p className="text-indigo-200/50 text-xs font-bold uppercase tracking-widest">Real-time Token Governance</p>
+               </div>
+               
+               <div className="space-y-3 pt-4">
+                  <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-indigo-300">
+                    <span>Usage vs Quota</span>
+                    <span>{((stats.usage.totalTokens / stats.tokenQuota) * 100).toFixed(1)}%</span>
+                  </div>
+                  <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden border border-white/5">
+                     <div 
+                      className="h-full bg-indigo-400 rounded-full transition-all duration-1000 shadow-[0_0_20px_rgba(129,140,248,0.5)]"
+                      style={{ width: `${Math.min((stats.usage.totalTokens / stats.tokenQuota) * 100, 100)}%` }}
+                     />
+                  </div>
+                  <p className="text-[10px] text-indigo-200/40 font-bold italic">
+                    Allocated Quota: {(stats.tokenQuota / 1000000).toFixed(1)}M Tokens
+                  </p>
+               </div>
             </div>
 
             <div className="flex flex-1 flex-wrap gap-8 justify-around items-center">
                <div className="text-center">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-2">Prompt Tokens</p>
-                  <h4 className="text-3xl font-black">{(stats.usage.promptTokens / 1000).toFixed(1)}k</h4>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-2">Consumption</p>
+                  <h4 className="text-3xl font-black">{(stats.usage.totalTokens / 1000).toFixed(1)}k</h4>
                </div>
                <div className="w-px h-12 bg-white/10 hidden md:block" />
                <div className="text-center">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-2">Completion</p>
-                  <h4 className="text-3xl font-black">{(stats.usage.completionTokens / 1000).toFixed(1)}k</h4>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-2">Remaining</p>
+                  <h4 className="text-3xl font-black text-emerald-400">
+                    {((stats.tokenQuota - stats.usage.totalTokens) / 1000).toFixed(1)}k
+                  </h4>
                </div>
                <div className="w-px h-12 bg-white/10 hidden md:block" />
                <div className="text-center">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-2">Total Utilization</p>
-                  <h4 className="text-3xl sm:text-5xl font-black text-indigo-400">{(stats.usage.totalTokens / 1000).toFixed(1)}k</h4>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-2">Estimated Balance</p>
+                  <h4 className="text-3xl sm:text-5xl font-black text-white">
+                    {(((stats.tokenQuota - stats.usage.totalTokens) / stats.tokenQuota) * 100).toFixed(0)}%
+                  </h4>
                </div>
             </div>
          </div>
