@@ -39,10 +39,8 @@ export function LandingClient({ session }: { session: any }) {
       <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/60 backdrop-blur-md supports-[backdrop-filter]:bg-background/40">
         <div className="container mx-auto flex h-14 sm:h-16 items-center justify-between px-4 sm:px-8 max-w-7xl">
           <div className="flex items-center gap-2 font-bold text-lg sm:text-xl tracking-tight z-10 w-full sm:w-auto">
-            <div className="bg-primary/10 text-primary p-1 sm:p-1.5 rounded-lg border border-primary/20 flex-shrink-0">
-              <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5" />
-            </div>
-            <span>Mwalimu<span className="text-primary">RAG</span></span>
+            <img src="/elimu-logo.png" alt="Elimu Logo" className="w-6 h-6 sm:w-7 sm:h-7 object-contain" />
+            <span>Elimu</span>
           </div>
           <nav className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
             {isLoggedIn ? (
@@ -90,7 +88,7 @@ export function LandingClient({ session }: { session: any }) {
           {/* Announcement Badge */}
           <motion.div variants={item} className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-1.5 rounded-full bg-primary/10 text-primary text-xs sm:text-sm font-medium mb-6 sm:mb-8 border border-primary/20 shadow-sm backdrop-blur-sm">
             <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span>Mwalimu Enterprise is now live</span>
+            <span>Elimu Platform is now live</span>
           </motion.div>
 
           {/* Hero Headline */}
@@ -100,7 +98,7 @@ export function LandingClient({ session }: { session: any }) {
                 <>
                   Welcome back to <br className="hidden sm:block" />
                   <span className="text-transparent bg-clip-text bg-gradient-to-br from-primary via-primary to-blue-600">
-                    MwalimuRAG
+                    Elimu
                   </span>
                 </>
               ) : (
@@ -149,7 +147,7 @@ export function LandingClient({ session }: { session: any }) {
             <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-yellow-500/80" />
             <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-green-500/80" />
             <div className="mx-auto w-48 sm:w-64 h-5 sm:h-6 rounded-md bg-muted/50 flex items-center justify-center text-[10px] sm:text-xs text-muted-foreground font-mono">
-              mwalimu.enterprise.app
+              elimu.app
             </div>
           </div>
           {/* Abstract Dashboard UI */}
@@ -207,9 +205,9 @@ export function LandingClient({ session }: { session: any }) {
       <footer className="w-full border-t border-border/40 py-8 sm:py-10 mt-8 sm:mt-16 bg-background/50 backdrop-blur-sm z-10 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between text-xs sm:text-sm text-muted-foreground gap-3 sm:gap-4">
           <div className="flex items-center gap-1.5 sm:gap-2 font-bold text-foreground">
-             <GraduationCap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" /> MwalimuRAG
+             <img src="/elimu-logo.png" alt="Elimu" className="w-4 h-4 object-contain" /> Elimu
           </div>
-          <p className="text-center sm:text-left">© 2026 Mwalimu Education Platform. Built for the Modern Curriculum.</p>
+          <p className="text-center sm:text-left">© 2026 Elimu Education Platform. Empowering Every Educator.</p>
         </div>
       </footer>
     </div>

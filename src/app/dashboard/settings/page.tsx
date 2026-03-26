@@ -77,7 +77,7 @@ export default async function SettingsPage() {
         {/* Settings Content */}
         <div className="flex-1 space-y-6">
           
-          <form action={updateProfile} className="p-8 bg-card/60 backdrop-blur-2xl rounded-[32px] border border-border/40 shadow-sm relative">
+          <form action={updateProfile as any} className="p-8 bg-card/60 backdrop-blur-2xl rounded-[32px] border border-border/40 shadow-sm relative">
             <h2 className="text-xl font-bold mb-6">Profile Information</h2>
             <div className="space-y-6 max-w-2xl">
               <div className="flex items-center gap-6">
@@ -109,7 +109,7 @@ export default async function SettingsPage() {
 
           {/* Admin restricted school config */}
           {isAdmin && (
-            <form action={updateSchool} className="p-8 bg-card/60 backdrop-blur-2xl rounded-[32px] border border-blue-500/20 shadow-sm relative overflow-hidden">
+            <form action={updateSchool as any} className="p-8 bg-card/60 backdrop-blur-2xl rounded-[32px] border border-blue-500/20 shadow-sm relative overflow-hidden">
               <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl" />
               <input type="hidden" name="tenantId" value={user.tenantId || ""} />
 

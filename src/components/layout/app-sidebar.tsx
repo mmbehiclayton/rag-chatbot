@@ -36,7 +36,7 @@ const navGroups = (role: string | null) => {
     label: "CURRICULUM",
     items: [
       { name: "Workstation", href: "/dashboard/workstation", icon: Sparkles },
-      { name: "Mwalimu Chat", href: "/dashboard/chat", icon: MessageSquare },
+      { name: "Elimu Chat", href: "/dashboard/chat", icon: MessageSquare },
       { name: "Schemes of Work", href: "/dashboard/schemes", icon: BookOpen },
       { name: "Lesson Plans", href: "/dashboard/lessons", icon: FileText },
       { name: "Lesson Notes", href: "/dashboard/notes", icon: Edit3 },
@@ -72,10 +72,8 @@ export function AppSidebar({ role }: { role: string | null }) {
       {/* Logo */}
       <div className="h-14 flex items-center px-5 border-b border-border/50 shrink-0">
         <Link href="/" className="flex items-center gap-2.5 group">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-            <Sparkles className="h-3.5 w-3.5" />
-          </div>
-          <span className="text-[15px] font-bold tracking-tight text-foreground">Mwalimu AI</span>
+          <img src="/elimu-logo.png" alt="Elimu Logo" className="w-6 h-6 object-contain" />
+          <span className="text-[15px] font-bold tracking-tight text-foreground">Elimu</span>
         </Link>
       </div>
 

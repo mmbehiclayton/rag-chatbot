@@ -24,7 +24,7 @@ export async function POST(req: Request) {
             }
         }
 
-        const systemPrompt = `You are Mwalimu RAG, an AI assistant for Kenyan teachers. 
+        const systemPrompt = `You are Elimu AI, an AI assistant for Kenyan teachers. 
 You answer questions using the provided KICD curriculum context. 
 If the context doesn't contain the answer, rely on your general educational knowledge but prioritize the curriculum data.
 Always structure your responses clearly, following KICD CBC standards where applicable.

@@ -348,7 +348,7 @@ export function StructureClient({
                             size="icon" 
                             variant="ghost" 
                             onClick={() => {
-                              setFormData({ name: area.name, order: area.order });
+                              setFormData({ name: area.name, order: (area as any).order || 1 });
                               setModalState({ type: "AREA", mode: "EDIT", data: area });
                             }}
                             className="w-7 h-7 rounded-lg"

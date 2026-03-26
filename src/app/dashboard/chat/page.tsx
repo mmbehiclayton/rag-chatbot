@@ -74,7 +74,7 @@ export default function RAGChatBot() {
             <PromptInputTextarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Message Mwalimu..."
+              placeholder="Message Elimu..."
               className="resize-none bg-transparent placeholder:text-muted-foreground/70" 
             />
           </PromptInputBody>

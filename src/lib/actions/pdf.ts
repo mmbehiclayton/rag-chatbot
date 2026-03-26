@@ -28,13 +28,18 @@ export async function processPDF(documentId: string) {
 
   try {
     // 2. Read the PDF from local Disk storage
-    const filepath = require("path").join(process.cwd(), "public", doc.fileUrl);
-    const buffer = await require("fs").promises.readFile(filepath);
+    const path = require("path");
+    const fs = require("fs");
+    const docPath = "public/" + doc.fileUrl; // Avoid direct path.join with process.cwd() up front
+    const filepath = path.resolve(docPath);
+    const buffer = await fs.promises.readFile(filepath);
 
     // 3. Extract text (Spawn an isolated vanilla Node.js child process)
     // This absolutely bypasses Next.js Turbopack compiler bugs natively.
     const { execFileSync } = require("child_process");
-    const workerPath = require("path").join(process.cwd(), "src", "lib", "pdf-worker.cjs");
+    const workerFilename = "pdf-worker.cjs";
+    const workerRelativePath = "src/lib/" + workerFilename;
+    const workerPath = path.resolve(workerRelativePath);
     
     const textBuffer = execFileSync("node", [workerPath, filepath], { 
        maxBuffer: 1024 * 1024 * 50 // 50MB maximum raw text throughput allowance

@@ -39,7 +39,7 @@ export default function ForgotPasswordPage() {
           <form action={formAction} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" placeholder="mwalimu@school.edu" required className="h-11" />
+              <Input id="email" name="email" type="email" placeholder="teacher@school.edu" required className="h-11" />
             </div>
 
             {state?.error && (

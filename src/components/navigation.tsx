@@ -12,7 +12,7 @@ export const Navigation = () => {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <Sparkles className="h-5 w-5" />
           </div>
-          <Link href="/">Mwalimu AI</Link>
+          <Link href="/">Elimu</Link>
         </div>
 
         <div className="flex gap-2">

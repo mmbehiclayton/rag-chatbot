@@ -40,7 +40,7 @@ export async function getSchoolUsageStats() {
     assessments: acc.assessments + t._count.assessments,
   }), { schemes: 0, lessons: 0, assessments: 0 });
 
-  const usage = logs.reduce((acc, l) => ({
+  const usage = logs.reduce((acc: any, l: any) => ({
     promptTokens: acc.promptTokens + l.promptTokens,
     completionTokens: acc.completionTokens + l.completionTokens,
     totalTokens: acc.totalTokens + l.totalTokens,

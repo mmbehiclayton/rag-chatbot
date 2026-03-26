@@ -1,0 +1,106 @@
+﻿
+> aisdk-rag-chatbot@0.1.0 build
+> next build
+
+Γû▓ Next.js 16.2.1 (Turbopack)
+- Environments: .env.local, .env
+- Experiments (use with caution):
+  ┬╖ serverActions
+
+node.exe : ΓÜá The 
+"middleware" file convention 
+is deprecated. Please use 
+"proxy" instead. Learn more: h
+ttps://nextjs.org/docs/message
+s/middleware-to-proxy
+At C:\Program 
+Files\nodejs\npm.ps1:29 char:3
++   & $NODE_EXE $NPM_CLI_JS 
+$args
++   
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo            
+  : NotSpecifi    ed: (ΓÜá 
+The "midd    
+le...leware-to-pro    
+xy:String) [], Rem    
+oteException
+    + FullyQualifiedEr    
+rorId : NativeComm    andError
+ 
+  Creating an optimized production build ...
+Turbopack build encountered 1 
+warnings:
+./src/lib/actions/pdf.ts:39:24
+Module not found: Can't 
+resolve ('/ROOT/src/lib/pdf-wo
+rker.cjs' | <dynamic>)
+  [90m37 |[0m     
+[36mconst[0m workerPath = re
+quire([32m"path"[0m).join(pr
+ocess.cwd(), [32m"src"[0m, 
+[32m"lib"[0m, 
+[32m"pdf-worker.cjs"[0m);
+  [90m38 |[0m     
+[31m[1m>[0m [90m39 |[0m  
+   [36mconst[0m textBuffer 
+= 
+execFileSync([32m"node"[0m, 
+[workerPath, filepath], { 
+  [90m   |[0m               
+         [31m[1m^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^[0m
+[31m[1m>[0m [90m40 |[0m  
+      maxBuffer: 
+[35m1024[0m * [35m1024[0m 
+* [35m50[0m [90m// 50MB 
+maximum raw text throughput 
+allowance[0m
+  [90m   |[0m [31m[1m^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^[0m
+[31m[1m>[0m [90m41 |[0m  
+   });
+  [90m   |[0m 
+[31m[1m^^^^^^[0m
+  [90m42 |[0m     
+  [90m43 |[0m     
+[36mconst[0m text = textBuff
+er.toString([32m'utf-8'[0m);
+  [90m44 |[0m
+
+
+
+Import trace:
+  Server Component:
+    ./src/lib/actions/pdf.ts
+    ./src/lib/actions/curricul
+um.ts
+
+https://nextjs.org/docs/messag
+es/module-not-found
+
+
+
+> Build error occurred
+Error: Turbopack build failed 
+with 1 errors:
+./src/lib/actions
+Module not found: Can't 
+resolve './ROOT/src/lib/pdf-wo
+rker.cjs'
+server relative imports are 
+not implemented yet. Please 
+try an import relative to the 
+file you are importing from.
+
+
+https://nextjs.org/docs/messag
+es/module-not-found
+
+
+    at <unknown> (https://next
+js.org/docs/messages/module-no
+t-found)

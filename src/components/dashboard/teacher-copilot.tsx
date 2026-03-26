@@ -15,6 +15,7 @@ export function TeacherCopilot({ lessonPlan }: { lessonPlan: any }) {
 
   const [input, setInput] = useState("");
   const { messages, sendMessage, status, setMessages } = useChat({
+    // @ts-ignore
     api: "/api/chat/copilot",
     initialMessages: [
       {

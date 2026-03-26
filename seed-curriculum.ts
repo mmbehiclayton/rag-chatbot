@@ -13,7 +13,6 @@ async function main() {
         title: "Grade 4 Mathematics KICD Design",
         gradeLevel: "Grade 4",
         subject: "Mathematics",
-        term: "Term 1",
         fileUrl: "https://example.com/mock.pdf",
         status: "completed",
         uploadedBy: "system"

@@ -9,7 +9,7 @@ const key = new TextEncoder().encode(secretKey);
 const publicRoutes = ['/', '/login', '/register', '/api/uploadthing']
 const isPublicRoute = (path: string) => publicRoutes.includes(path) || path.startsWith('/_next')
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname
   
   // Allow public assets

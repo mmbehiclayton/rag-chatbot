@@ -1,0 +1,10 @@
+﻿src/components/ai-elements/voice-selector.tsx(83,5): error TS2322: Type '((open: boolean, eventDetails: DialogRootChangeEventDetails) => void) | undefined' is not assignable to type 'ChangeHandler$1<boolean> | undefined'.
+  Type '(open: boolean, eventDetails: DialogRootChangeEventDetails) => void' is not assignable to type 'ChangeHandler$1<boolean>'.
+    Target signature provides too few arguments. Expected 2 or more, but got 1.
+src/components/dashboard/structure-client.tsx(351,74): error TS2339: Property 'order' does not exist on type 'LearningArea'.
+src/components/dashboard/teacher-copilot.tsx(18,5): error TS2353: Object literal may only specify known properties, and 'api' does not exist in type 'UseChatOptions<UIMessage<unknown, UIDataTypes, UITools>>'.
+src/components/ui/spinner.tsx(7,41): error TS2322: Type 'string | number' is not assignable to type 'number | undefined'.
+  Type 'string' is not assignable to type 'number'.
+src/lib/actions/analytics.ts(43,30): error TS7006: Parameter 'acc' implicitly has an 'any' type.
+src/lib/actions/analytics.ts(43,35): error TS7006: Parameter 'l' implicitly has an 'any' type.
+test.ts(1,8): error TS1192: Module '"C:/Users/USER/projects/aisdk-rag-chatbot/node_modules/.pnpm/pdf-parse@2.4.5/node_modules/pdf-parse/dist/pdf-parse/esm/index"' has no default export.

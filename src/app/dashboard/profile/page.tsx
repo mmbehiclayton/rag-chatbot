@@ -52,7 +52,7 @@ export default async function ProfilePage() {
              <div className="relative">
                 <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 p-1">
                   <div className="w-full h-full rounded-full bg-background flex items-center justify-center border-[3px] border-background overflow-hidden relative">
-                    <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${session.name || "User"}&backgroundColor=transparent`} alt="Avatar" className="w-full h-full object-cover" />
+                    <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${(session as any).name || "User"}&backgroundColor=transparent`} alt="Avatar" className="w-full h-full object-cover" />
                   </div>
                 </div>
                 {/* Edit avatar button */}
@@ -62,7 +62,7 @@ export default async function ProfilePage() {
              </div>
              <div>
                 <h2 className="text-xl font-black tracking-tight flex items-center gap-2">
-                  {session.name || "Mwalimu User"}
+                  {(session as any).name || "Elimu User"}
                 </h2>
                 <p className="text-sm font-semibold text-muted-foreground/80 lowercase mt-0.5">{session.email}</p>
              </div>

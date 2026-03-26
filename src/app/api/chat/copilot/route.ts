@@ -36,5 +36,8 @@ GUIDELINES:
     messages,
   });
 
-  return result.toDataStreamResponse();
+  if (typeof (result as any).toDataStreamResponse === "function") {
+    return (result as any).toDataStreamResponse();
+  }
+  return (result as any).toTextStreamResponse();
 }

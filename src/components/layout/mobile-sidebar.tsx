@@ -57,10 +57,8 @@ export function MobileSidebar({ role }: { role: string | null }) {
       <SheetContent side="left" className="w-[300px] p-0 border-r border-border/30 bg-card/95 backdrop-blur-3xl flex flex-col">
         <SheetHeader className="p-6 text-left border-b border-border/30 shrink-0">
           <SheetTitle className="flex items-center gap-3 text-xl font-bold">
-             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
-               <Sparkles className="h-5 w-5" />
-             </div>
-             Mwalimu AI
+             <img src="/elimu-logo.png" alt="Elimu Logo" className="w-8 h-8 object-contain" />
+             Elimu
           </SheetTitle>
         </SheetHeader>
         <div className="flex-1 py-6 px-4 space-y-2 overflow-y-auto scrollbar-hide">
