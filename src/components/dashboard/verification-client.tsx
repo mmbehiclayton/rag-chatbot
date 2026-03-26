@@ -13,6 +13,7 @@ import {
   Brain
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { UploadCurriculumModal } from "./upload-curriculum";
 import { cn } from "@/lib/utils";
 
 interface VerificationClientProps {
@@ -20,9 +21,16 @@ interface VerificationClientProps {
   learningAreas: any[];
   schemes: any[];
   designs: any[];
+  cbcStructure: any[];
 }
 
-export function VerificationClient({ grades, learningAreas, schemes, designs }: VerificationClientProps) {
+export function VerificationClient({ 
+  grades, 
+  learningAreas, 
+  schemes, 
+  designs,
+  cbcStructure 
+}: VerificationClientProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredLearningAreas = learningAreas.filter(la => 
@@ -56,14 +64,17 @@ export function VerificationClient({ grades, learningAreas, schemes, designs }: 
            </p>
         </div>
 
-        <div className="relative w-full sm:w-[300px]">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input 
-            placeholder="Search learning areas..." 
-            className="pl-11 h-12 rounded-[20px] bg-card/50 border-border/40"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+          <UploadCurriculumModal cbcStructure={cbcStructure} />
+          <div className="relative w-full sm:w-[300px]">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input 
+              placeholder="Search learning areas..." 
+              className="pl-11 h-12 rounded-[20px] bg-card/50 border-border/40"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 

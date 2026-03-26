@@ -24,6 +24,15 @@ import {
 import { AssetLibrary } from "./asset-library";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { 
+  Select, 
+  SelectContent, 
+  SelectGroup, 
+  SelectItem, 
+  SelectLabel, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -34,13 +43,15 @@ interface WorkstationClientProps {
   initialLessons: any[];
   initialAssessments: any[];
   availableCurriculum: { gradeLevel: string; subject: string }[];
+  cbcStructure: any[];
 }
 
 export function WorkstationClient({ 
   initialSchemes, 
   initialLessons, 
   initialAssessments,
-  availableCurriculum
+  availableCurriculum,
+  cbcStructure
 }: WorkstationClientProps) {
   const [activeTab, setActiveTab] = useState<"SCHEMES" | "LESSONS" | "ASSESSMENTS">("SCHEMES");
   const [isPending, startTransition] = useTransition();
@@ -60,6 +71,20 @@ export function WorkstationClient({
   });
   const [bulkLessons, setBulkLessons] = useState<{ lessonNumber: number; topic: string; exists: boolean }[]>([]);
   const [isFetchingStatus, setIsFetchingStatus] = useState(false);
+
+  // Cascading Logic
+  const availableGrades = useMemo(() => {
+    return cbcStructure.flatMap(level => level.grades);
+  }, [cbcStructure]);
+
+  const selectedGradeObj = useMemo(() => {
+    return availableGrades.find(g => g.name === params.grade);
+  }, [availableGrades, params.grade]);
+
+  const filteredLearningAreas = useMemo(() => {
+    if (!selectedGradeObj) return [];
+    return selectedGradeObj.learningAreas.map((la: any) => la.learningArea.name);
+  }, [selectedGradeObj]);
 
   const handleGenerate = async () => {
     startTransition(async () => {
@@ -419,41 +444,71 @@ export function WorkstationClient({
                               </div>
                             )}
                          </div>
-                       ) : (
-                        <>
+                       ) : (                        <>
                             <div className="grid grid-cols-2 gap-3">
                               <div className="space-y-1.5">
                                  <label className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground ml-1">Grade Level</label>
-                                 <select 
-                                  className="w-full h-10 rounded-xl bg-muted/50 border border-border/50 px-3 font-medium text-sm outline-none focus:border-primary/50"
-                                  value={params.grade}
-                                  onChange={e => setParams({...params, grade: e.target.value})}
+                                 <Select 
+                                   value={params.grade} 
+                                   onValueChange={(val: string | null) => {
+                                     setParams({ ...params, grade: val || "", subject: "" });
+                                   }}
                                  >
-                                   <option>Grade 1</option><option>Grade 2</option><option>Grade 3</option>
-                                   <option>Grade 4</option><option>Grade 5</option><option>Grade 6</option>
-                                   <option>Grade 7</option><option>Grade 8</option><option>Grade 9</option>
-                                 </select>
+                                    <SelectTrigger className="h-10 rounded-xl bg-muted/50 border-border/50 text-sm font-medium">
+                                       <SelectValue placeholder="Select Grade" />
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-2xl border-border/40 bg-card/95 backdrop-blur-xl shadow-2xl">
+                                      {cbcStructure.map((level: any) => (
+                                        <SelectGroup key={level.id}>
+                                          <SelectLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 px-3 py-2 italic">{level.name}</SelectLabel>
+                                          {level.grades.map((grade: any) => (
+                                            <SelectItem key={grade.id} value={grade.name} className="rounded-lg text-xs font-bold my-0.5">{grade.name}</SelectItem>
+                                          ))}
+                                        </SelectGroup>
+                                      ))}
+                                    </SelectContent>
+                                 </Select>
                               </div>
                               <div className="space-y-1.5">
                                  <label className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground ml-1">Academic Term</label>
-                                 <select 
-                                  className="w-full h-10 rounded-xl bg-muted/50 border border-border/50 px-3 font-medium text-sm outline-none focus:border-primary/50"
-                                  value={params.term}
-                                  onChange={e => setParams({...params, term: e.target.value})}
+                                 <Select 
+                                    value={params.term} 
+                                    onValueChange={(val: string | null) => setParams({ ...params, term: val || "" })}
                                  >
-                                   <option>Term 1</option><option>Term 2</option><option>Term 3</option>
-                                 </select>
+                                    <SelectTrigger className="h-10 rounded-xl bg-muted/50 border-border/50 text-sm font-medium">
+                                       <SelectValue placeholder="Select Term" />
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-2xl border-border/40 bg-card/95 backdrop-blur-xl shadow-2xl">
+                                       <SelectItem value="Term 1" className="rounded-lg text-xs font-bold my-0.5">Term 1</SelectItem>
+                                       <SelectItem value="Term 2" className="rounded-lg text-xs font-bold my-0.5">Term 2</SelectItem>
+                                       <SelectItem value="Term 3" className="rounded-lg text-xs font-bold my-0.5">Term 3</SelectItem>
+                                    </SelectContent>
+                                 </Select>
                               </div>
                             </div>
 
                             <div className="space-y-1.5">
                                <label className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground ml-1">Learning Area</label>
-                               <Input 
-                                 value={params.subject}
-                                 onChange={e => setParams({...params, subject: e.target.value})}
-                                 className="h-10 rounded-xl bg-muted/50 border-border/50 text-sm"
-                                 placeholder="e.g. Mathematics"
-                               />
+                               <Select 
+                                 value={params.subject} 
+                                 onValueChange={(val: string | null) => setParams({ ...params, subject: val || "" })}
+                                 disabled={!params.grade}
+                               >
+                                  <SelectTrigger className="h-10 rounded-xl bg-muted/50 border-border/50 text-sm font-medium">
+                                     <SelectValue placeholder={params.grade ? "Select Subject" : "Select a grade first"} />
+                                  </SelectTrigger>
+                                  <SelectContent className="rounded-2xl border-border/40 bg-card/95 backdrop-blur-xl shadow-2xl">
+                                     {filteredLearningAreas.length > 0 ? (
+                                       filteredLearningAreas.map((subj: string) => (
+                                         <SelectItem key={subj} value={subj} className="rounded-lg text-xs font-bold my-0.5">{subj}</SelectItem>
+                                       ))
+                                     ) : (
+                                       <div className="p-4 text-center text-[10px] font-bold text-muted-foreground uppercase italic pb-4">
+                                          {params.grade ? "No areas defined for this grade" : "Select a grade first"}
+                                       </div>
+                                     )}
+                                  </SelectContent>
+                               </Select>
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">

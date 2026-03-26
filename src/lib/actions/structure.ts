@@ -145,3 +145,29 @@ export async function unlinkAreaFromGrade(gradeId: string, learningAreaId: strin
     return { success: false, error: error.message };
   }
 }
+
+// ─── Data Retrieval ────────────────────────────────────────────
+
+export async function getCurriculumData() {
+  try {
+    const levels = await db.curriculumLevel.findMany({
+      orderBy: { order: 'asc' },
+      include: {
+        grades: {
+          orderBy: { order: 'asc' },
+          include: {
+            learningAreas: {
+              include: {
+                learningArea: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    return { success: true, levels };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
