@@ -16,3 +16,27 @@ export const db = globalThis.prisma || new PrismaClient({
 });
 
 if (process.env.NODE_ENV !== "production") globalThis.prisma = db;
+
+/**
+ * Runs a DB operation, retrying on transient connection errors. Neon's serverless
+ * tier auto-suspends after inactivity, so the first query during a cold start can
+ * fail before the compute wakes — a short retry almost always succeeds.
+ */
+export async function withDbRetry<T>(fn: () => Promise<T>, retries = 2, baseDelayMs = 500): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastErr = err;
+      const code = err?.code;
+      const msg = String(err?.message ?? "");
+      const transient =
+        code === "P1001" || code === "P1002" || code === "P1008" || code === "P1017" ||
+        /can'?t reach database|connection|timed out|ECONNRESET|ETIMEDOUT/i.test(msg);
+      if (!transient || attempt === retries) throw err;
+      await new Promise((r) => setTimeout(r, baseDelayMs * 2 ** attempt));
+    }
+  }
+  throw lastErr;
+}

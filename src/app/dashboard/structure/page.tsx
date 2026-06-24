@@ -31,14 +31,11 @@ export default async function CBCStructurePage() {
   ]);
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700 pb-20 mt-6 sm:mt-0">
+    <div className="space-y-5 animate-in fade-in duration-700 pb-20 mt-6 sm:mt-0">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div className="relative group">
-           <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg blur opacity-10 group-hover:opacity-20 transition duration-1000 group-hover:duration-200" />
-           <div className="relative">
-              <h1 className="text-3xl sm:text-5xl font-black tracking-tighter text-foreground bg-clip-text text-transparent bg-gradient-to-br from-foreground to-foreground/60">Curriculum Structure</h1>
-              <p className="text-muted-foreground mt-1 text-base font-medium">Configure the core CBC hierarchy for the entire ecosystem.</p>
-           </div>
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Curriculum Structure</h1>
+          <p className="text-muted-foreground mt-1 text-sm font-medium">Configure the core CBC hierarchy for the entire ecosystem.</p>
         </div>
       </div>
 

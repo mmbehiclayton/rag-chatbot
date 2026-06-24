@@ -1,8 +1,22 @@
-import { streamText, UIMessage, convertToModelMessages } from "ai";
+import { streamText, convertToModelMessages } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { retrieveContext } from "@/lib/rag";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+
+// AI SDK v6 UI messages carry their text in `parts`, not `content`.
+function extractText(message: any): string {
+    if (!message) return "";
+    if (typeof message.content === "string") return message.content;
+    if (Array.isArray(message.parts)) {
+        return message.parts
+            .filter((p: any) => p?.type === "text" && typeof p.text === "string")
+            .map((p: any) => p.text)
+            .join(" ")
+            .trim();
+    }
+    return "";
+}
 
 export async function POST(req: Request) {
     try {
@@ -29,8 +43,8 @@ export async function POST(req: Request) {
         let contextText = "";
 
         if (lastMessage && lastMessage.role === "user") {
-            const query = typeof lastMessage.content === "string" ? lastMessage.content : "";
-            
+            const query = extractText(lastMessage);
+
             if (query) {
                 try {
                 // Fetch context
@@ -56,16 +70,13 @@ Always structure your responses clearly, following KICD CBC standards where appl
 ${contextText}
 `;
 
-        const result = await streamText({
+        const result = streamText({
             model: openai("gpt-4o"),
             system: systemPrompt,
-            messages: messages, // Pass directly as in copilot route
+            messages: await convertToModelMessages(messages),
         });
 
-        if (typeof (result as any).toDataStreamResponse === "function") {
-            return (result as any).toDataStreamResponse();
-        }
-        return (result as any).toTextStreamResponse();
+        return result.toUIMessageStreamResponse();
     } catch (error: any) {
         console.error("Critical error in POST /api/chat:", error);
         return new Response(JSON.stringify({ 

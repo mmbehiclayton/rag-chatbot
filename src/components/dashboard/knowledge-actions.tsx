@@ -1,11 +1,11 @@
 "use client";
 
-import { useTransition } from "react";
+import { useTransition, useEffect } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { deleteCurriculum } from "@/lib/actions/curriculum";
+import { deleteCurriculum, retryCurriculum } from "@/lib/actions/curriculum";
 import { Button } from "@/components/ui/button";
-import { Trash2, Loader2, RefreshCw } from "lucide-react";
+import { Trash2, Loader2, RefreshCw, RotateCcw } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,13 +18,23 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
+export function AutoRefresh({ hasProcessing }: { hasProcessing: boolean }) {
+  const router = useRouter();
+  useEffect(() => {
+    if (!hasProcessing) return;
+    const id = setInterval(() => router.refresh(), 5000);
+    return () => clearInterval(id);
+  }, [hasProcessing, router]);
+  return null;
+}
+
 export function KnowledgeRefreshButton() {
   const router = useRouter();
   const [isRefreshing, startTransition] = useTransition();
 
   return (
-    <Button 
-      variant="outline" 
+    <Button
+      variant="outline"
       onClick={() => startTransition(() => router.refresh())}
       className="h-12 w-12 rounded-[20px] p-0 border-border/50 bg-background/50 hover:bg-muted transition-all"
       disabled={isRefreshing}
@@ -50,8 +60,8 @@ export function DeleteCurriculumButton({ documentId }: { documentId: string }) {
 
   return (
     <AlertDialog>
-      <AlertDialogTrigger 
-        className="h-8 w-8 rounded-full hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors ml-2 inline-flex items-center justify-center disabled:opacity-50" 
+      <AlertDialogTrigger
+        className="h-8 w-8 rounded-full hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors inline-flex items-center justify-center disabled:opacity-50"
         disabled={isPending}
       >
         {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
@@ -71,5 +81,26 @@ export function DeleteCurriculumButton({ documentId }: { documentId: string }) {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+  );
+}
+
+export function RetryButton({ documentId }: { documentId: string }) {
+  const [isPending, startTransition] = useTransition();
+
+  return (
+    <button
+      onClick={() =>
+        startTransition(async () => {
+          const result = await retryCurriculum(documentId);
+          if (result.success) toast.success("Re-ingestion queued — page auto-refreshes when complete.");
+          else toast.error(result.error ?? "Failed to retry.");
+        })
+      }
+      disabled={isPending}
+      title="Retry ingestion"
+      className="h-8 w-8 rounded-full hover:bg-orange-500/10 text-muted-foreground hover:text-orange-500 transition-colors inline-flex items-center justify-center disabled:opacity-50"
+    >
+      {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+    </button>
   );
 }

@@ -5,6 +5,9 @@ import { auth } from "@/lib/auth";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { embedMany } from "ai";
 import { openai } from "@ai-sdk/openai";
+import path from "path";
+import fs from "fs";
+import { pathToFileURL } from "url";
 
 export async function processPDF(documentId: string) {
   const { userId } = await auth();
@@ -27,21 +30,27 @@ export async function processPDF(documentId: string) {
   });
 
   try {
-    // 2. Read the PDF from local Disk storage
-    const path = require("path");
-    const fs = require("fs");
-    const docPath = "public/" + doc.fileUrl; // Avoid direct path.join with process.cwd() up front
-    const filepath = path.resolve(docPath);
-    const buffer = await fs.promises.readFile(filepath);
+    // 2. Read the PDF from local disk storage
+    const docPath = path.resolve(process.cwd(), "public", doc.fileUrl.replace(/^\//, ""));
+    const buffer = await fs.promises.readFile(docPath);
 
-    // 3. Extract text using pdfjs-dist (Direct implementation to avoid bundling/worker issues)
+    // 3. Extract text using pdfjs-dist
+    // pdfjs-dist is in serverExternalPackages (not bundled), so its internal
+    // dynamic import for the worker resolves correctly via Node.js module resolution.
     const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-    
-    // Convert buffer to Uint8Array for pdfjs
+
+    // Point pdfjs to the actual worker file in node_modules so its fake-worker
+    // dynamic import doesn't try to load a non-existent bundled chunk.
+    const workerPath = path.resolve(
+      process.cwd(),
+      "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs"
+    );
+    pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href;
+
     const data = new Uint8Array(buffer);
     const loadingTask = pdfjs.getDocument({ data });
     const pdfDocument = await loadingTask.promise;
-    
+
     let text = "";
     for (let i = 1; i <= pdfDocument.numPages; i++) {
       const page = await pdfDocument.getPage(i);
@@ -52,13 +61,12 @@ export async function processPDF(documentId: string) {
       text += pageText + "\n";
     }
 
-
     // 4. Chunking Strategy (KICD size constraints)
     const splitter = new RecursiveCharacterTextSplitter({
       chunkSize: 800,
       chunkOverlap: 150,
     });
-    
+
     const chunks = await splitter.createDocuments([text]);
     const chunkTexts = chunks.map(chunk => chunk.pageContent);
 
@@ -72,37 +80,33 @@ export async function processPDF(documentId: string) {
       embeddings = res.embeddings;
     } else {
       console.warn("No OPENAI_API_KEY found! Generating dummy embeddings for extraction testing.");
-      embeddings = chunkTexts.map(() => Array.from({length: 1536}, () => Math.random() - 0.5));
+      embeddings = chunkTexts.map(() => Array.from({ length: 1536 }, () => Math.random() - 0.5));
     }
 
-    // 6. Vector Storage (Pgvector + Prisma raw queries)
+    // 6. Vector Storage (pgvector + Prisma raw queries)
     for (let i = 0; i < chunks.length; i++) {
-        const chunkText = chunkTexts[i];
-        const embedding = embeddings[i];
-        
-        // Convert the array into a Postgres vector format enclosed by brackets
-        const vectorString = `[${embedding.join(",")}]`;
+      const chunkText = chunkTexts[i];
+      const embedding = embeddings[i];
+      const vectorString = `[${embedding.join(",")}]`;
 
-        await db.$executeRaw`
-            INSERT INTO "CurriculumChunk" ("id", "curriculumId", "chunkText", "chunkIndex", "embedding")
-            VALUES (gen_random_uuid(), ${documentId}, ${chunkText}, ${i}, ${vectorString}::vector)
-        `;
+      await db.$executeRaw`
+        INSERT INTO "CurriculumChunk" ("id", "curriculumId", "chunkText", "chunkIndex", "embedding")
+        VALUES (gen_random_uuid(), ${documentId}, ${chunkText}, ${i}, ${vectorString}::vector)
+      `;
     }
 
-    // Complete processing
     await db.curriculumDocument.update({
       where: { id: documentId },
-      data: { status: "completed" } 
+      data: { status: "completed" }
     });
 
     console.log(`[PDF Extraction & Vectors] Completed for ${documentId}. Inserted ${chunks.length} chunks.`);
-    
     return { success: true, chunksCount: chunks.length };
   } catch (error: any) {
     console.error("[PDF Extraction Error]", error);
     await db.curriculumDocument.update({
       where: { id: documentId },
-      data: { 
+      data: {
         status: "error",
         errorMessage: error.message || "Unknown PDF parsing error."
       }

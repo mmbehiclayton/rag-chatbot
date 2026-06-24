@@ -47,6 +47,7 @@ model User {
   lessonNotes      LessonNote[]
   assessments      Assessment[]
   generationLogs   GenerationLog[]
+  chatSessions     ChatSession[]
 
   @@index([tenantId])
 }
@@ -109,13 +110,15 @@ model SchemeOfWork {
   subject          String
   term             String
   content          Json                 // Generated JSON content
-  
+  isShared         Boolean              @default(false)
+  sharesCount      Int                  @default(0)
+
   teacherId        String
   teacher          User                 @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  
+
   curriculumId     String?
   curriculum       CurriculumDocument?  @relation(fields: [curriculumId], references: [id], onDelete: SetNull)
-  
+
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
 
@@ -131,10 +134,12 @@ model LessonPlan {
   topic            String
   objectives       String[]
   content          Json                 // Detailed sections (intro, body, conclusion, etc.)
-  
+  isShared         Boolean              @default(false)
+  sharesCount      Int                  @default(0)
+
   schemeId         String
   scheme           SchemeOfWork         @relation(fields: [schemeId], references: [id], onDelete: Cascade)
-  
+
   teacherId        String
   teacher          User                 @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   
@@ -167,6 +172,29 @@ model GenerationRule {
   contentType      String               @unique // "SCHEME_OF_WORK", "LESSON_PLAN", "LESSON_NOTES", "ASSESSMENT"
   customPrompt     String               @db.Text
   updatedAt        DateTime             @updatedAt
+}
+
+model ChatSession {
+  id               String               @id @default(uuid())
+  title            String               @default("New Conversation")
+  userId           String
+  user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  messages         ChatMessage[]
+
+  @@index([userId])
+}
+
+model ChatMessage {
+  id               String               @id @default(uuid())
+  sessionId        String
+  session          ChatSession          @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role             String               // "user" | "assistant"
+  content          String               @db.Text
+  createdAt        DateTime             @default(now())
+
+  @@index([sessionId])
 }
 
 model Assessment {

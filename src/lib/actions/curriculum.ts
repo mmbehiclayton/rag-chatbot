@@ -86,6 +86,26 @@ export async function ingestCurriculum(formData: FormData) {
   }
 }
 
+export async function checkCurriculumCoverage(grade: string, subject: string) {
+  const session = await auth();
+  if (!session?.userId) throw new Error("Unauthorized");
+
+  const doc = await db.curriculumDocument.findFirst({
+    where: {
+      gradeLevel: grade,
+      subject,
+      OR: [{ tenantId: session.tenantId }, { tenantId: null }],
+    },
+    include: { _count: { select: { chunks: true } } },
+  });
+
+  return {
+    hasCurriculum: !!doc,
+    status: doc?.status ?? null,
+    chunkCount: doc?._count.chunks ?? 0,
+  };
+}
+
 export async function deleteCurriculum(documentId: string) {
   try {
     const { userId, role } = await auth();
@@ -101,5 +121,30 @@ export async function deleteCurriculum(documentId: string) {
   } catch (err: any) {
     console.error("[Delete Error]", err);
     return { success: false, error: err.message || "Failed to delete curriculum." };
+  }
+}
+
+export async function retryCurriculum(documentId: string) {
+  try {
+    const { userId, role } = await auth();
+    if (!userId || role !== "SUPERADMIN") throw new Error("Unauthorized");
+
+    // Purge any partial chunks from the failed attempt before re-ingesting
+    await db.curriculumChunk.deleteMany({ where: { curriculumId: documentId } });
+
+    await db.curriculumDocument.update({
+      where: { id: documentId },
+      data: { status: "pending", errorMessage: null },
+    });
+
+    processPDF(documentId).catch((err) =>
+      console.error("Background PDF re-processing failed:", err)
+    );
+
+    revalidatePath("/dashboard/knowledge");
+    return { success: true };
+  } catch (err: any) {
+    console.error("[Retry Error]", err);
+    return { success: false, error: err.message || "Failed to retry ingestion." };
   }
 }

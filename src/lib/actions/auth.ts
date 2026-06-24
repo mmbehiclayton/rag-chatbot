@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { randomBytes } from "crypto";
 import { headers } from "next/headers";
+import { sendVerificationEmail, sendPasswordResetEmail } from "@/lib/email";
 
 export async function register(prevState: any, formData: FormData) {
   const name = formData.get("name") as string;
@@ -51,8 +52,7 @@ export async function register(prevState: any, formData: FormData) {
     }
   });
 
-  console.log(`\n\n[MOCK EMAIL] Email Verification Link for ${email}:`);
-  console.log(`http://localhost:3000/verify-email?token=${token}\n\n`);
+  await sendVerificationEmail(email, token);
 
   // Auto-login after registration
   await createSession(user);
@@ -129,8 +129,7 @@ export async function forgotPassword(prevState: any, formData: FormData) {
     data: { email, token, expiresAt }
   });
 
-  console.log(`\n\n[MOCK EMAIL] Password Reset Link for ${email}:`);
-  console.log(`http://localhost:3000/reset-password?token=${token}\n\n`);
+  await sendPasswordResetEmail(email, token);
 
   return { success: true };
 }

@@ -1,5 +1,5 @@
 import { openai } from "@ai-sdk/openai";
-import { streamText } from "ai";
+import { streamText, convertToModelMessages } from "ai";
 import { auth } from "@/lib/auth";
 
 export const maxDuration = 30;
@@ -30,14 +30,11 @@ GUIDELINES:
 6. Be encouraging and professional.
 `;
 
-  const result = await streamText({
+  const result = streamText({
     model: openai("gpt-4o"),
     system: systemPrompt,
-    messages,
+    messages: await convertToModelMessages(messages),
   });
 
-  if (typeof (result as any).toDataStreamResponse === "function") {
-    return (result as any).toDataStreamResponse();
-  }
-  return (result as any).toTextStreamResponse();
+  return result.toUIMessageStreamResponse();
 }

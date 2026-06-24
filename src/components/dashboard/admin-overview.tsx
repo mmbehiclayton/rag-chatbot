@@ -1,12 +1,12 @@
 import { Users, GraduationCap, Clock, Award, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { db } from "@/lib/db";
+import { db, withDbRetry } from "@/lib/db";
 import { formatDistanceToNow } from "date-fns";
 
 export async function AdminOverview({ session }: { session: any }) {
   // If tenant-based in the future, filter by session.tenantId
-  const [teachersCount, schemesCount, assessmentsCount, topTeachers] = await Promise.all([
+  const [teachersCount, schemesCount, assessmentsCount, topTeachers] = await withDbRetry(() => Promise.all([
     db.user.count({ where: { role: "TEACHER" } }),
     db.schemeOfWork.count(),
     db.assessment.count(),
@@ -20,7 +20,7 @@ export async function AdminOverview({ session }: { session: any }) {
       orderBy: { updatedAt: "desc" },
       take: 3,
     })
-  ]);
+  ]));
 
   const hoursSaved = schemesCount * 12 + assessmentsCount * 1.5;
   return (

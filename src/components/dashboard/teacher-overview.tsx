@@ -1,10 +1,10 @@
-import { BookOpen, FileText, GraduationCap, Clock, ChevronRight, Plus, Database, Sparkles } from "lucide-react";
+import { BookOpen, FileText, GraduationCap, Clock, ChevronRight, Plus, Database, Sparkles, CheckCircle2, Circle, ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { db } from "@/lib/db";
+import { db, withDbRetry } from "@/lib/db";
 import { formatDistanceToNow } from "date-fns";
 
 export async function TeacherOverview({ session }: { session: any }) {
-  const [schemesCount, lessonsCount, assessmentsCount, recentDrafts] = await Promise.all([
+  const [schemesCount, lessonsCount, assessmentsCount, recentDrafts, curriculumCount] = await withDbRetry(() => Promise.all([
     db.schemeOfWork.count({ where: { teacherId: session.userId } }),
     db.lessonPlan.count({ where: { teacherId: session.userId } }),
     db.assessment.count({ where: { teacherId: session.userId } }),
@@ -12,9 +12,16 @@ export async function TeacherOverview({ session }: { session: any }) {
       where: { teacherId: session.userId },
       orderBy: { updatedAt: "desc" },
       take: 4,
+    }),
+    db.curriculumDocument.count({
+      where: {
+        status: "completed",
+        OR: [{ tenantId: session.tenantId }, { tenantId: null }],
+      }
     })
-  ]);
+  ]));
 
+  const isNewUser = schemesCount === 0 && lessonsCount === 0 && assessmentsCount === 0;
   const timeSaved = lessonsCount * 2;
   const isTeacher = session.role === "TEACHER";
   const name = session.email?.split('@')[0] || "Teacher";
@@ -43,6 +50,71 @@ export async function TeacherOverview({ session }: { session: any }) {
           <Plus className="w-3.5 h-3.5 opacity-70" />
         </Link>
       </div>
+
+      {/* Onboarding guide — shown to new teachers only */}
+      {isNewUser && (
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center">
+              <Sparkles className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold tracking-tight">Get Started with Elimu</h2>
+              <p className="text-xs text-muted-foreground">Follow these 3 steps to generate your first CBC content.</p>
+            </div>
+          </div>
+          <div className="grid sm:grid-cols-3 gap-3">
+            {[
+              {
+                step: 1,
+                done: curriculumCount > 0,
+                title: "Curriculum Indexed",
+                desc: "Ask your Admin to upload the KICD PDF for your grade & subject.",
+                href: "/dashboard/knowledge",
+                cta: "View Knowledge Base",
+              },
+              {
+                step: 2,
+                done: schemesCount > 0,
+                title: "Generate a Scheme",
+                desc: "Create a full termly Scheme of Work from your curriculum.",
+                href: "/dashboard/workstation",
+                cta: "Open Workstation",
+              },
+              {
+                step: 3,
+                done: lessonsCount > 0,
+                title: "Expand to Lessons",
+                desc: "Turn scheme rows into detailed 3-part lesson plans.",
+                href: "/dashboard/lessons",
+                cta: "View Lessons",
+              },
+            ].map((item) => (
+              <Link
+                key={item.step}
+                href={item.href}
+                className={`relative flex flex-col gap-2 p-4 rounded-xl border transition-all hover:shadow-sm ${item.done ? "border-emerald-500/30 bg-emerald-500/5" : "border-border/60 bg-background/60 hover:border-primary/30"}`}
+              >
+                <div className="flex items-center gap-2">
+                  {item.done ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                  ) : (
+                    <Circle className="w-4 h-4 text-muted-foreground/40 shrink-0" />
+                  )}
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Step {item.step}</span>
+                </div>
+                <p className="text-sm font-semibold">{item.title}</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">{item.desc}</p>
+                {!item.done && (
+                  <span className="flex items-center gap-1 text-xs font-semibold text-primary mt-1">
+                    {item.cta} <ArrowRight className="w-3 h-3" />
+                  </span>
+                )}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Stats row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -90,7 +162,7 @@ export async function TeacherOverview({ session }: { session: any }) {
             {recentDrafts.length > 0 ? recentDrafts.map((draft) => (
               <Link
                 key={draft.id}
-                href={`/dashboard/lessons`}
+                href={`/dashboard/lessons/${draft.id}`}
                 className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border/50 hover:border-primary/20 hover:bg-primary/3 transition-all group"
               >
                 <div className="w-9 h-9 rounded-xl bg-muted/60 flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-colors">
@@ -103,8 +175,15 @@ export async function TeacherOverview({ session }: { session: any }) {
                 <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/50 group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0" />
               </Link>
             )) : (
-              <div className="p-8 text-center text-sm text-muted-foreground border border-dashed border-border/60 rounded-xl">
-                No recent drafts — start generating via the Workstation.
+              <div className="flex flex-col items-center gap-3 py-10 text-center border border-dashed border-border/60 rounded-xl">
+                <FileText className="w-8 h-8 text-muted-foreground/30" />
+                <div>
+                  <p className="text-sm font-semibold">No lesson plans yet</p>
+                  <p className="text-xs text-muted-foreground mt-1">Generate a Scheme of Work first, then expand it into lessons.</p>
+                </div>
+                <Link href="/dashboard/workstation" className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline">
+                  Open Workstation <ArrowRight className="w-3 h-3" />
+                </Link>
               </div>
             )}
           </div>

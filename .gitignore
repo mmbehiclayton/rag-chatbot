@@ -40,3 +40,12 @@ vercel.ini
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# uploaded curriculum files (runtime data, not source)
+/public/uploads/
+
+# local sample / test documents
+/*.pdf
+
+# generated patches
+*.patch

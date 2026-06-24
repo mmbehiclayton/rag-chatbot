@@ -1,19 +1,15 @@
 import type { NextConfig } from "next";
 
-const dbUrl = "postgresql://neondb_owner:npg_TCgjN0fnc2aP@ep-steep-shadow-amk94n39-pooler.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
-
 const nextConfig: NextConfig = {
-  /* config options here */
   reactCompiler: true,
-  serverExternalPackages: [],
+  // pdfjs-dist must not be bundled — its internal worker import() uses import.meta.url
+  // which resolves to the bundle chunk path (not node_modules) when bundled, breaking worker setup.
+  serverExternalPackages: ["pdfjs-dist"],
   experimental: {
     serverActions: {
       bodySizeLimit: '50mb',
     },
   },
-  env: {
-    DATABASE_URL: dbUrl,
-  }
 };
 
 export default nextConfig;

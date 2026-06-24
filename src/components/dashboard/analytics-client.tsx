@@ -101,7 +101,7 @@ export function AnalyticsClient({ stats, logs }: AnalyticsClientProps) {
 
             <div className="flex flex-1 flex-wrap gap-8 justify-around items-center">
                <div className="text-center">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-2">Consumption</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-2">Tokens Used</p>
                   <h4 className="text-3xl font-black">{(stats.usage.totalTokens / 1000).toFixed(1)}k</h4>
                </div>
                <div className="w-px h-12 bg-white/10 hidden md:block" />
@@ -113,9 +113,17 @@ export function AnalyticsClient({ stats, logs }: AnalyticsClientProps) {
                </div>
                <div className="w-px h-12 bg-white/10 hidden md:block" />
                <div className="text-center">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-2">Estimated Balance</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-2">Est. API Cost</p>
+                  <h4 className="text-3xl font-black text-amber-300">
+                    ${((stats.usage.promptTokens * 2.5 + stats.usage.completionTokens * 10) / 1_000_000).toFixed(2)}
+                  </h4>
+                  <p className="text-[9px] text-indigo-300/40 mt-1">GPT-4o pricing</p>
+               </div>
+               <div className="w-px h-12 bg-white/10 hidden md:block" />
+               <div className="text-center">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-2">Quota Used</p>
                   <h4 className="text-3xl sm:text-5xl font-black text-white">
-                    {(((stats.tokenQuota - stats.usage.totalTokens) / stats.tokenQuota) * 100).toFixed(0)}%
+                    {(((stats.usage.totalTokens / stats.tokenQuota) * 100)).toFixed(0)}%
                   </h4>
                </div>
             </div>

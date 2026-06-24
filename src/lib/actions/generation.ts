@@ -7,6 +7,51 @@ import { openai } from "@ai-sdk/openai";
 import { retrieveContext } from "@/lib/rag";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
+
+// ─── Shared Guards ────────────────────────────────────────────────────────────
+
+async function checkGenerationGuards(session: { userId: string; tenantId?: string | null }) {
+  // 1. Rate limit: 20 generations per user per hour
+  const headerStore = await headers();
+  const ip = headerStore.get("x-forwarded-for") || "127.0.0.1";
+  const rateLimitKey = `gen_${session.userId}_${ip}`;
+  const windowMs = 60 * 60 * 1000; // 1 hour
+
+  await db.rateLimit.deleteMany({ where: { expiresAt: { lt: new Date() } } }).catch(() => {});
+
+  const limit = await db.rateLimit.upsert({
+    where: { key: rateLimitKey },
+    create: { key: rateLimitKey, expiresAt: new Date(Date.now() + windowMs), points: 1 },
+    update: { points: { increment: 1 } },
+  });
+
+  if (limit.points > 20 && limit.expiresAt > new Date()) {
+    throw new Error("Rate limit exceeded: maximum 20 generations per hour. Please wait before generating again.");
+  }
+
+  // 2. Token quota: check tenant monthly usage
+  if (session.tenantId) {
+    const tenant = await db.tenant.findUnique({ where: { id: session.tenantId } });
+    if (tenant) {
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+
+      const usage = await db.generationLog.aggregate({
+        where: { tenantId: session.tenantId, createdAt: { gte: startOfMonth } },
+        _sum: { totalTokens: true },
+      });
+
+      const usedTokens = usage._sum.totalTokens ?? 0;
+      if (usedTokens >= tenant.tokenQuota) {
+        throw new Error(
+          `Monthly token quota exceeded (${usedTokens.toLocaleString()} / ${tenant.tokenQuota.toLocaleString()} tokens used). Contact your administrator to increase the quota.`
+        );
+      }
+    }
+  }
+}
 
 // --- Validations & Schemas ---
 
@@ -149,6 +194,8 @@ export async function generateSchemeOfWork(parameters: { grade: string, subject:
   const session = await auth();
   if (!session?.userId) throw new Error("Unauthorized");
 
+  await checkGenerationGuards(session);
+
   // Zero-Waste Check: Verify curriculum design exists globally OR for this tenant
   const docExists = await db.curriculumDocument.findFirst({
     where: { 
@@ -252,9 +299,59 @@ ${contextText}
   return scheme;
 }
 
+/**
+ * Marks an auto-flagged scheme as reviewed & published by removing the
+ * "[Needs Review]" prefix the hallucination guardrail added to its title.
+ */
+export async function reviewScheme(schemeId: string) {
+  const session = await auth();
+  if (!session?.userId) throw new Error("Unauthorized");
+
+  const scheme = await db.schemeOfWork.findFirst({
+    where: { id: schemeId, teacherId: session.userId },
+    select: { id: true, title: true },
+  });
+  if (!scheme) throw new Error("Scheme not found");
+
+  const cleanTitle = scheme.title.replace(/^\[Needs Review\]\s*/i, "").trim();
+  await db.schemeOfWork.update({
+    where: { id: schemeId },
+    data: { title: cleanTitle },
+  });
+
+  revalidatePath("/dashboard/schemes");
+  revalidatePath(`/dashboard/schemes/${schemeId}`);
+  return { success: true };
+}
+
+/**
+ * Deletes a generated asset (and its cascade — a scheme removes its lesson plans
+ * and their notes). Ownership-scoped via teacherId.
+ */
+export async function deleteAsset(type: "SCHEMES" | "LESSONS" | "NOTES" | "ASSESSMENTS", id: string) {
+  const session = await auth();
+  if (!session?.userId) throw new Error("Unauthorized");
+
+  const where = { id, teacherId: session.userId };
+  if (type === "SCHEMES") await db.schemeOfWork.deleteMany({ where });
+  else if (type === "LESSONS") await db.lessonPlan.deleteMany({ where });
+  else if (type === "NOTES") await db.lessonNote.deleteMany({ where });
+  else if (type === "ASSESSMENTS") await db.assessment.deleteMany({ where });
+  else throw new Error("Unknown asset type");
+
+  revalidatePath("/dashboard/schemes");
+  revalidatePath("/dashboard/lessons");
+  revalidatePath("/dashboard/notes");
+  revalidatePath("/dashboard/assessments");
+  revalidatePath("/dashboard/workstation");
+  return { success: true };
+}
+
 export async function generateLessonPlan(schemeId: string, lessonNumber: number, topic: string) {
   const session = await auth();
   if (!session?.userId) throw new Error("Unauthorized");
+
+  await checkGenerationGuards(session);
 
   const scheme = await db.schemeOfWork.findUnique({ where: { id: schemeId } });
   if (!scheme) throw new Error("Scheme not found");
@@ -314,6 +411,8 @@ export async function generateLessonNotes(lessonPlanId: string) {
   const session = await auth();
   if (!session?.userId) throw new Error("Unauthorized");
 
+  await checkGenerationGuards(session);
+
   const lessonPlan = await db.lessonPlan.findUnique({ where: { id: lessonPlanId } });
   if (!lessonPlan) throw new Error("Lesson Plan not found");
 
@@ -369,6 +468,8 @@ ${JSON.stringify(lessonPlan.content)}
 export async function generateAssessment(parameters: { grade: string, subject: string, term: string, type: string, totalMarks: number, durationMinutes: number }) {
   const session = await auth();
   if (!session?.userId) throw new Error("Unauthorized");
+
+  await checkGenerationGuards(session);
 
   const docExists = await db.curriculumDocument.findFirst({
     where: { 
@@ -528,6 +629,33 @@ export async function getSchemeLessonsStatus(schemeId: string) {
   });
 
   return allLessons;
+}
+
+/**
+ * Lists the lesson plans already generated for a scheme, with whether each
+ * already has Lesson Notes. Drives the Notes generation picker in the workstation.
+ */
+export async function getSchemeLessonPlans(schemeId: string) {
+  const session = await auth();
+  if (!session?.userId) throw new Error("Unauthorized");
+
+  const plans = await db.lessonPlan.findMany({
+    where: { schemeId, teacherId: session.userId },
+    orderBy: { lessonNumber: "asc" },
+    select: {
+      id: true,
+      lessonNumber: true,
+      topic: true,
+      lessonNotes: { select: { id: true }, take: 1 },
+    },
+  });
+
+  return plans.map((p) => ({
+    id: p.id,
+    lessonNumber: p.lessonNumber,
+    topic: p.topic,
+    hasNotes: p.lessonNotes.length > 0,
+  }));
 }
 
 /**

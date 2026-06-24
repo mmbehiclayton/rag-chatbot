@@ -1,10 +1,10 @@
 import { Database, Users, Server, Activity, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { db } from "@/lib/db";
+import { db, withDbRetry } from "@/lib/db";
 
 export async function SuperAdminOverview({ session }: { session: any }) {
-  const [chunksCount, tenantsCount, recentDocs] = await Promise.all([
+  const [chunksCount, tenantsCount, recentDocs] = await withDbRetry(() => Promise.all([
     db.curriculumChunk.count(),
     db.tenant.count(),
     db.curriculumDocument.findMany({
@@ -14,7 +14,7 @@ export async function SuperAdminOverview({ session }: { session: any }) {
         _count: { select: { chunks: true } }
       }
     })
-  ]);
+  ]));
   return (
     <div className="space-y-10 animate-in fade-in duration-700 pb-10">
       <div className="flex flex-col gap-6">

@@ -1,7 +1,11 @@
 "use client";
 
+import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { Download, CheckCircle2 } from "lucide-react";
+import { Download, CheckCircle2, Sparkles, BookOpen, ArrowRight, Loader2, ShieldCheck, AlertTriangle } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { generateLessonPlan, getSchemeLessonsStatus, reviewScheme } from "@/lib/actions/generation";
 
 interface SchemeViewerProps {
   scheme: any;
@@ -12,6 +16,48 @@ interface SchemeViewerProps {
 
 export function SchemeViewer({ scheme, grade, subject, term }: SchemeViewerProps) {
   const result = scheme?.content || scheme;
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [isReviewing, startReview] = useTransition();
+  const [generatingLesson, setGeneratingLesson] = useState<number | null>(null);
+
+  const needsReview = typeof scheme?.title === "string" && scheme.title.startsWith("[Needs Review]");
+
+  const handleApprove = () => {
+    startReview(async () => {
+      try {
+        await reviewScheme(scheme.id);
+        toast.success("Scheme approved & published.");
+        router.refresh();
+      } catch (err: any) {
+        toast.error(err.message || "Failed to publish scheme");
+      }
+    });
+  };
+
+  const handleGenerateAllLessons = () => {
+    startTransition(async () => {
+      try {
+        const lessons = await getSchemeLessonsStatus(scheme.id);
+        const missing = lessons.filter(l => !l.exists);
+        if (missing.length === 0) {
+          toast.info("All lessons already generated for this scheme.");
+          return;
+        }
+        toast.loading(`Generating ${missing.length} lesson plans...`, { id: "bulk-gen" });
+        for (const l of missing) {
+          setGeneratingLesson(l.lessonNumber);
+          await generateLessonPlan(scheme.id, l.lessonNumber, l.topic);
+        }
+        toast.success("All lesson plans generated!", { id: "bulk-gen" });
+        setGeneratingLesson(null);
+        router.push("/dashboard/lessons");
+      } catch (err: any) {
+        toast.error(err.message || "Generation failed", { id: "bulk-gen" });
+        setGeneratingLesson(null);
+      }
+    });
+  };
 
   return (
     <div className="animate-in slide-in-from-bottom-8 duration-700 bg-card/80 backdrop-blur-2xl rounded-[40px] border border-border/40 shadow-xl overflow-hidden flex flex-col h-full print:bg-white print:border-none print:shadow-none print:rounded-none print-landscape">
@@ -31,28 +77,75 @@ export function SchemeViewer({ scheme, grade, subject, term }: SchemeViewerProps
              <span className="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500">CBC Compliant</span>
            </div>
         </div>
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           className="h-11 rounded-[16px] gap-2 font-bold shadow-sm"
-          onClick={() => {
-            // Force landscape and custom filename
-            const style = document.createElement('style');
-            style.innerHTML = '@page { size: landscape; margin: 1cm; }';
-            document.head.appendChild(style);
-            
-            const originalTitle = document.title;
-            document.title = `${grade} ${subject} - ${result.title || "Scheme"}`;
-            
-            window.print();
-            
-            setTimeout(() => {
-              document.head.removeChild(style);
-              document.title = originalTitle;
-            }, 500);
-          }}
+          onClick={() => window.open(`/api/export?type=scheme&id=${scheme.id}`, "_blank")}
         >
           <Download className="w-4 h-4" /> Export PDF
         </Button>
+      </div>
+
+      {/* Needs-Review banner: AI flagged this scheme for verification */}
+      {needsReview && (
+        <div className="px-8 pt-5 no-print">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-amber-700 dark:text-amber-500">Flagged for review</p>
+                <p className="text-xs text-muted-foreground">
+                  AI confidence was below threshold. Verify the strands, outcomes and resources below, then approve to publish.
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={handleApprove}
+              disabled={isReviewing}
+              size="sm"
+              className="gap-2 shrink-0 rounded-xl bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              {isReviewing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+              Approve &amp; Publish
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Inline CTA: Generate Lesson Plans from this Scheme */}
+      <div className="px-8 pt-5 no-print">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl bg-primary/5 border border-primary/20">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
+              <BookOpen className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-bold">Ready to expand this scheme?</p>
+              <p className="text-xs text-muted-foreground">Generate detailed 3-part lesson plans for every row in this scheme.</p>
+            </div>
+          </div>
+          <Button
+            onClick={handleGenerateAllLessons}
+            disabled={isPending}
+            size="sm"
+            className="gap-2 shrink-0 rounded-xl"
+          >
+            {isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                {generatingLesson ? `Lesson ${generatingLesson}...` : "Preparing..."}
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                Generate All Lessons
+                <ArrowRight className="w-3.5 h-3.5" />
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       <div className="p-8 flex-1 overflow-auto print:overflow-visible print:p-0">

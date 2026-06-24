@@ -8,7 +8,7 @@ export default async function WorkstationPage() {
   const session = await auth();
   if (!session?.userId) redirect("/login");
 
-  const [schemes, lessons, assessments, curriculumDocs, cbcData] = await Promise.all([
+  const [schemes, lessons, notes, assessments, curriculumDocs, cbcData] = await Promise.all([
     db.schemeOfWork.findMany({
       where: { teacherId: session.userId },
       orderBy: { updatedAt: "desc" },
@@ -17,7 +17,26 @@ export default async function WorkstationPage() {
     db.lessonPlan.findMany({
       where: { teacherId: session.userId },
       orderBy: { updatedAt: "desc" },
-      take: 5
+      take: 5,
+      select: {
+        id: true,
+        topic: true,
+        updatedAt: true,
+        scheme: { select: { grade: true, subject: true } }
+      }
+    }),
+    db.lessonNote.findMany({
+      where: { teacherId: session.userId },
+      orderBy: { updatedAt: "desc" },
+      take: 5,
+      include: {
+        lessonPlan: {
+          select: {
+            topic: true,
+            scheme: { select: { grade: true, subject: true } }
+          }
+        }
+      }
     }),
     db.assessment.findMany({
       where: { teacherId: session.userId },
@@ -31,10 +50,30 @@ export default async function WorkstationPage() {
     getCurriculumData()
   ]);
 
+  // Flatten lessons & notes so the asset library can show grade/subject context
+  const initialLessons = lessons.map((l) => ({
+    id: l.id,
+    title: l.topic,
+    topic: l.topic,
+    grade: l.scheme?.grade || "—",
+    subject: l.scheme?.subject || "—",
+    updatedAt: l.updatedAt,
+  }));
+
+  const initialNotes = notes.map((n) => ({
+    id: n.id,
+    title: n.lessonPlan?.topic || "Lesson Notes",
+    topic: n.lessonPlan?.topic || "Lesson Notes",
+    grade: n.lessonPlan?.scheme?.grade || "—",
+    subject: n.lessonPlan?.scheme?.subject || "—",
+    updatedAt: n.updatedAt,
+  }));
+
   return (
-    <WorkstationClient 
+    <WorkstationClient
       initialSchemes={schemes}
-      initialLessons={lessons}
+      initialLessons={initialLessons}
+      initialNotes={initialNotes}
       initialAssessments={assessments}
       availableCurriculum={curriculumDocs}
       cbcStructure={cbcData.success ? (cbcData.levels as any) : []}
