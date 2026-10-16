@@ -57,9 +57,9 @@ export default async function PilotPage() {
       db.lessonRecord.findMany({ where: { updatedAt: { gte: since } }, select: { teacherId: true, updatedAt: true } }),
       db.termPass.findMany({ where: { status: "ACTIVE", year: current.year, term: current.term }, select: { teacherId: true } }),
       db.termPass.findMany({
-        where: { status: "PENDING" },
+        where: { status: "PENDING", method: "MPESA_CODE" },
         orderBy: { createdAt: "asc" },
-        select: { id: true, mpesaCode: true, phone: true, amount: true, year: true, term: true, createdAt: true, teacher: { select: { name: true, email: true } } },
+        select: { id: true, reference: true, phone: true, amount: true, year: true, term: true, createdAt: true, teacher: { select: { name: true, email: true } } },
       }),
       db.headReview.groupBy({ by: ["answer"], _count: true }),
     ])
@@ -120,7 +120,7 @@ export default async function PilotPage() {
               <li key={p.id} className="space-y-3 p-4 sm:flex sm:items-center sm:justify-between sm:gap-4 sm:space-y-0">
                 <div className="min-w-0">
                   <p className="text-sm font-medium">
-                    {p.mpesaCode} · KES {p.amount}
+                    {p.reference} · KES {p.amount}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {p.teacher.name || p.teacher.email} · {p.phone ?? "no phone given"} · {termLabel(p)} · sent {shortDate(p.createdAt)}

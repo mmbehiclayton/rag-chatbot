@@ -8,7 +8,7 @@ const key = new TextEncoder().encode(secretKey);
 
 // Define protected route patterns
 const publicRoutes = ['/', '/login', '/register', '/forgot-password', '/reset-password', '/verify-email', '/api/uploadthing']
-const isPublicRoute = (path: string) => publicRoutes.includes(path) || path.startsWith('/_next') || path.startsWith('/invite/')
+const isPublicRoute = (path: string) => publicRoutes.includes(path) || path.startsWith('/_next') || path.startsWith('/invite/') || path.startsWith('/api/paystack/')
 
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname

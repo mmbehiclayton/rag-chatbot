@@ -3,22 +3,26 @@ import { redirect } from "next/navigation";
 import { ArrowLeft, Check, Clock, Info } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { getAccess, paybill, termPrice } from "@/lib/plans";
+import { paystackOn } from "@/lib/paystack";
+import { CheckoutButton } from "@/components/pilot/checkout-button";
 import { PaymentForm } from "@/components/pilot/payment-form";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 
 const dateLabel = (d: Date) => d.toLocaleDateString("en-KE", { timeZone: "Africa/Nairobi", weekday: "short", day: "numeric", month: "short" });
 
-export default async function TermPassPage() {
+export default async function TermPassPage({ searchParams }: { searchParams: Promise<{ payment?: string }> }) {
   const session = await auth();
   if (!session?.userId) redirect("/login");
 
+  const { payment } = await searchParams;
   const access = await getAccess(session.userId);
   const { term, pass } = access;
   const price = termPrice();
   const pay = paybill();
   const paid = pass?.status === "ACTIVE";
-  const pending = pass?.status === "PENDING";
+  // A Paystack pass waits as PENDING only until checkout finishes, so only typed M-Pesa codes are "being checked".
+  const pending = pass?.status === "PENDING" && pass.method === "MPESA_CODE";
 
   const status =
     access.kind === "paid"
@@ -43,15 +47,31 @@ export default async function TermPassPage() {
         {status}
       </p>
 
+      {payment === "paid" && paid && (
+        <p className="flex gap-2 rounded-md bg-success/10 p-3 text-sm">
+          <Check className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
+          Payment received. Thank you!
+        </p>
+      )}
+      {payment === "pending" && !paid && (
+        <p className="flex gap-2 rounded-md bg-info/10 p-3 text-sm">
+          <Clock className="mt-0.5 size-4 shrink-0 text-info" aria-hidden />
+          Your payment is still going through. Once M-Pesa confirms it, your term pass switches on by itself. Refresh this page in a minute.
+        </p>
+      )}
+      {payment === "failed" && !paid && (
+        <p className="rounded-md bg-destructive/10 p-3 text-sm">The payment didn't go through, and no money was taken by Elimu. You can try again below.</p>
+      )}
+
       {pending && (
         <p className="flex gap-2 rounded-md bg-info/10 p-3 text-sm">
           <Clock className="mt-0.5 size-4 shrink-0 text-info" aria-hidden />
-          We're checking your payment ({pass.mpesaCode}). This usually takes less than a day.
+          We're checking your payment ({pass.reference}). This usually takes less than a day.
         </p>
       )}
-      {pass?.status === "REJECTED" && (
+      {pass?.status === "REJECTED" && pass.method === "MPESA_CODE" && (
         <p className="rounded-md bg-destructive/10 p-3 text-sm">
-          We couldn't confirm payment {pass.mpesaCode}
+          We couldn't confirm payment {pass.reference}
           {pass.note ? `: ${pass.note}` : "."} Check the code in your M-Pesa message and send it again.
         </p>
       )}
@@ -73,7 +93,17 @@ export default async function TermPassPage() {
       {!paid && (
         <section className="space-y-3">
           <h2 className="text-base font-semibold">Pay with M-Pesa</h2>
-          {pay.number ? (
+          {paystackOn() ? (
+            <Card>
+              <CardContent className="space-y-4">
+                <p className="text-sm">
+                  Pay KES {price} for {term.label} with M-Pesa or a card. Your phone will ask for your M-Pesa PIN, and your term pass switches on as soon as
+                  the payment goes through.
+                </p>
+                <CheckoutButton price={price} />
+              </CardContent>
+            </Card>
+          ) : pay.number ? (
             <Card>
               <CardContent className="space-y-5">
                 <ol className="list-decimal space-y-1.5 pl-5 text-sm">

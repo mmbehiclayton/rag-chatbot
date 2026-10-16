@@ -127,8 +127,8 @@ model CurriculumChunk {
 }
 
 /**
- * A paid term: the teacher pays by M-Pesa Paybill and enters the confirmation code,
- * then Elimu staff check it against the statement and activate it.
+ * A paid term. Through Paystack (M-Pesa or card) it goes live once Paystack confirms the payment.
+ * Without Paystack, the teacher pays by Paybill and enters the M-Pesa code, and Elimu staff activate it.
  */
 model TermPass {
   id           String    @id @default(uuid())
@@ -137,7 +137,8 @@ model TermPass {
   year         Int
   term         Int
   amount       Int
-  mpesaCode    String    @unique
+  method       String    @default("PAYSTACK") // "PAYSTACK" | "MPESA_CODE"
+  reference    String    @unique // Paystack reference, or the M-Pesa code the teacher typed
   phone        String?
   status       String    @default("PENDING") // "PENDING" | "ACTIVE" | "REJECTED"
   note         String?

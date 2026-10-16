@@ -33,7 +33,7 @@ export type Access = {
   term: { year: number; term: number; label: string };
   trialEndsOn: Date | null;
   freeClass: ClassRef | null;
-  pass: { status: string; mpesaCode: string; amount: number; note: string | null } | null;
+  pass: { status: string; method: string; reference: string; amount: number; note: string | null } | null;
 };
 
 /** The term a pass is for: the teacher's own term dates first, else the Ministry calendar. */
@@ -71,7 +71,7 @@ export async function getAccess(userId: string): Promise<Access> {
   const pass = await withDbRetry(() =>
     db.termPass.findUnique({
       where: { teacherId_year_term: { teacherId: userId, year: term.year, term: term.term } },
-      select: { status: true, mpesaCode: true, amount: true, note: true },
+      select: { status: true, method: true, reference: true, amount: true, note: true },
     })
   );
   const trialEndsOn = user ? new Date(user.createdAt.getTime() + TRIAL_DAYS * 86_400_000) : null;
