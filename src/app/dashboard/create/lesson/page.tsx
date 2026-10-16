@@ -1,13 +1,14 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
-import { getGradeOptions, getIndexedCurricula, getTeachingProfile } from "@/lib/curriculum-options";
+import { getGradeOptions, getIndexedCurricula, getTeachingProfile, preferClass } from "@/lib/curriculum-options";
 import { PageHeader } from "@/components/shared/page-header";
 import { QuickLessonForm } from "@/components/create/quick-lesson-form";
 
-export default async function CreateLessonPage() {
+export default async function CreateLessonPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const session = await auth();
   if (!session?.userId) redirect("/login");
+  const query = await searchParams;
 
   const [profile, grades, schemes, curricula] = await Promise.all([
     getTeachingProfile(session.userId),
@@ -37,8 +38,8 @@ export default async function CreateLessonPage() {
       <PageHeader title="Lesson plan" description="Choose the class and topic. Elimu writes a full CBC lesson plan for you to review." />
       <QuickLessonForm
         grades={grades}
-        myGrades={profile?.gradesTaught ?? []}
-        mySubjects={profile?.subjectsTaught ?? []}
+        myGrades={preferClass(profile?.gradesTaught, query.grade)}
+        mySubjects={preferClass(profile?.subjectsTaught, query.subject)}
         topicSuggestions={suggestions}
         curricula={curricula}
       />

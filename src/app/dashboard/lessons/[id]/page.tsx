@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { ChevronRight, Pencil, Presentation } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
+import { classHref } from "@/lib/classes";
 import { BulletList, DocHeader, DocSection, ExportButton, Field, asArray } from "@/components/document/doc-parts";
 import { CopilotButton } from "@/components/document/copilot-button";
 import { CreateNotesButton } from "@/components/create/create-notes-button";
@@ -36,8 +37,8 @@ export default async function LessonDetailPage({ params }: { params: Promise<{ i
   return (
     <div className="mx-auto max-w-3xl space-y-4 pb-6">
       <DocHeader
-        backHref={lesson.scheme ? `/dashboard/schemes/${lesson.scheme.id}` : "/dashboard/library?type=lessons"}
-        backLabel={lesson.scheme ? "Scheme of work" : "Library"}
+        backHref={lesson.scheme ? `/dashboard/schemes/${lesson.scheme.id}` : grade && subject ? classHref(grade, subject) : "/dashboard/classes"}
+        backLabel={lesson.scheme ? "Scheme of work" : grade && subject ? `${grade} ${subject}` : "My classes"}
         title={c.topic || lesson.topic}
         meta={meta}
         actions={

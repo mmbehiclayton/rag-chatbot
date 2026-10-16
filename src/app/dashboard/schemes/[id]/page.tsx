@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
+import { classHref } from "@/lib/classes";
 import { BulletList, DocHeader, DocSection, ExportButton, Field, asArray, parseTitle } from "@/components/document/doc-parts";
 import { ApproveSchemeButton, LessonRowAction, WeekBatchButton, WeekLessons } from "@/components/document/scheme-lessons";
 
@@ -56,8 +57,8 @@ export default async function SchemeDetailPage({ params }: { params: Promise<{ i
   return (
     <div className="mx-auto max-w-4xl space-y-4">
       <DocHeader
-        backHref="/dashboard/library?type=schemes"
-        backLabel="Library"
+        backHref={classHref(scheme.grade, scheme.subject)}
+        backLabel={`${scheme.grade} ${scheme.subject}`}
         title={title}
         meta={`${scheme.grade} · ${scheme.subject} · ${scheme.term} · ${counter} lessons`}
         needsReview={needsReview}
@@ -96,7 +97,7 @@ export default async function SchemeDetailPage({ params }: { params: Promise<{ i
 
       {weeks.map((week) => (
         <WeekLessons key={week.weekNumber} schemeId={scheme.id} rows={week.rows.map((r) => r.lesson)}>
-          <section className="rounded-xl border bg-card">
+          <section id={`week-${week.weekNumber}`} className="scroll-mt-20 rounded-xl border bg-card">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 sm:px-5">
               <h2 className="text-base font-semibold">Week {week.weekNumber}</h2>
               <WeekBatchButton rows={week.rows.map((r) => r.lesson)} />

@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
+import { classHref } from "@/lib/classes";
 import { DocHeader, DocSection, ExportButton, asArray, parseTitle } from "@/components/document/doc-parts";
 
 type Question = { questionNumber?: number; questionText?: string; marks?: number; modelAnswer?: string; rubric?: string };
@@ -26,8 +27,8 @@ export default async function AssessmentDetailPage({ params }: { params: Promise
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <DocHeader
-        backHref="/dashboard/library?type=assessments"
-        backLabel="Library"
+        backHref={classHref(assessment.grade, assessment.subject)}
+        backLabel={`${assessment.grade} ${assessment.subject}`}
         title={title}
         meta={`${assessment.grade} · ${assessment.subject} · ${assessment.type} · ${totalMarks} marks`}
         needsReview={needsReview}

@@ -1,17 +1,16 @@
 import {
-  BarChart3, Building2, Database, FolderOpen, Home, LayoutGrid, MessageSquare,
-  PlusCircle, Settings, Settings2, ShieldAlert, ShieldCheck, UserCircle, Users,
+  BarChart3, Building2, Database, GraduationCap, Home, LayoutGrid, MessageSquare,
+  Settings, Settings2, ShieldAlert, ShieldCheck, UserCircle, Users,
   type LucideIcon,
 } from "lucide-react";
 
 export type NavItem = { name: string; href: string; icon: LucideIcon };
 export type NavGroup = { label?: string; items: NavItem[] };
 
-/** The five destinations every user sees, on the bottom bar and the sidebar. */
+/** The four destinations every user sees, on the bottom bar and the sidebar. Work is organised by class. */
 export const PRIMARY_NAV: NavItem[] = [
-  { name: "Home", href: "/dashboard", icon: Home },
-  { name: "Create", href: "/dashboard/create", icon: PlusCircle },
-  { name: "Library", href: "/dashboard/library", icon: FolderOpen },
+  { name: "Today", href: "/dashboard", icon: Home },
+  { name: "My classes", href: "/dashboard/classes", icon: GraduationCap },
   { name: "Ask Elimu", href: "/dashboard/chat", icon: MessageSquare },
   { name: "Me", href: "/dashboard/profile", icon: UserCircle },
 ];
@@ -53,7 +52,9 @@ export function isActivePath(pathname: string, href: string) {
 const TITLES: [string, string][] = [
   ["/dashboard/create/lesson", "New lesson plan"],
   ["/dashboard/create/scheme", "New scheme of work"],
+  ["/dashboard/create/assessment", "New assessment"],
   ["/dashboard/create", "Create"],
+  ["/dashboard/classes", "My classes"],
   ["/dashboard/library", "Library"],
   ["/dashboard/schemes", "Scheme of work"],
   ["/dashboard/lessons", "Lesson plan"],
@@ -73,5 +74,5 @@ const TITLES: [string, string][] = [
 ];
 
 export function titleForPath(pathname: string) {
-  return TITLES.find(([prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`))?.[1] ?? "Home";
+  return TITLES.find(([prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`))?.[1] ?? "Today";
 }

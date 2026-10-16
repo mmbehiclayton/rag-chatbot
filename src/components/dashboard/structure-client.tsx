@@ -139,7 +139,7 @@ export function StructureClient({
                 {selectedLevelId === level.id && (
                   <motion.div
                     layoutId="active-level-bg"
-                    className="absolute inset-0 bg-gradient-to-r from-blue-600 to-blue-500 z-0"
+                    className="absolute inset-0 bg-primary z-0"
                   />
                 )}
 
@@ -182,7 +182,7 @@ export function StructureClient({
         </div>
 
         <div className="pt-6 border-t border-border/40">
-           <div className="p-4 rounded-[24px] bg-gradient-to-br from-indigo-500/10 to-blue-500/10 border border-blue-500/20">
+           <div className="p-4 rounded-[24px] border border-blue-500/20">
               <div className="flex items-center gap-2 mb-2 text-blue-600">
                 <Sparkles className="w-4 h-4" />
                 <span className="text-[11px] font-black uppercase tracking-widest">KICD Standards</span>
@@ -235,7 +235,7 @@ export function StructureClient({
                   
                   <div className="flex items-start justify-between mb-3 relative z-10">
                     <div className="flex items-center gap-4">
-                       <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500/20 to-indigo-500/5 text-blue-500 flex items-center justify-center border border-blue-500/20 group-hover:scale-110 transition-transform">
+                       <div className="w-9 h-9 rounded-xl text-blue-500 flex items-center justify-center border border-blue-500/20 group-hover:scale-110 transition-transform">
                          <GraduationCap className="w-5 h-5" />
                        </div>
                        <div>

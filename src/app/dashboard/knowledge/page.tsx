@@ -343,7 +343,7 @@ export default async function KnowledgePage(props: Props) {
                   className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 border border-border/40 rounded-2xl bg-background/40 hover:bg-muted/30 transition-all group shadow-sm hover:shadow-md hover:border-border/80"
                 >
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="w-10 h-10 rounded-[14px] bg-gradient-to-br from-blue-500/20 to-blue-500/5 text-blue-500 flex items-center justify-center border border-blue-500/20 group-hover:scale-105 transition-transform shrink-0">
+                    <div className="w-10 h-10 rounded-[14px] text-blue-500 flex items-center justify-center border border-blue-500/20 group-hover:scale-105 transition-transform shrink-0">
                       <Database className="w-5 h-5" />
                     </div>
                     <div className="min-w-0 flex-1">

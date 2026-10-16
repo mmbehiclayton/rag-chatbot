@@ -387,7 +387,6 @@ export function UploadCurriculumModal({
                   </span>
                 ) : (
                   <>
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.8s_infinite]" />
                     <span className="relative flex items-center justify-center gap-2">
                       Inject into Pipeline
                       <CheckCircle2 className="w-5 h-5" />

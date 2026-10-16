@@ -86,7 +86,6 @@ export default function RBACClient({ initialPermissions }: { initialPermissions:
                 : "bg-muted/30 border-border/50 hover:bg-muted/50 scale-[0.98] opacity-70 hover:opacity-100"
             )}
           >
-            <div className={cn("absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 opacity-0 transition-opacity", activeRole === role.id && "opacity-100")} />
             <div className="relative z-10 flex items-start gap-4">
               <div className={cn("mt-0.5 p-2 rounded-xl", activeRole === role.id ? "bg-indigo-500/10 text-indigo-500 shadow-inner" : "bg-foreground/5 text-muted-foreground")}>
                 <Shield className="w-5 h-5" />

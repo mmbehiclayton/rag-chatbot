@@ -94,7 +94,7 @@ export default async function TenantsPage(props: Props) {
                     <tr key={tenant.id} className="hover:bg-muted/40 transition-colors group">
                       <td className="py-3 px-6 h-[72px]">
                         <div className="flex items-center gap-4">
-                          <div className={`shrink-0 w-11 h-11 rounded-[16px] flex items-center justify-center shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)] transition-transform group-hover:scale-105 ${tenant.type === 'SCHOOL' ? 'bg-primary/10 text-primary border border-primary/20 bg-gradient-to-br from-primary/10 to-transparent' : 'bg-orange-500/10 text-orange-500 border border-orange-500/20 bg-gradient-to-br from-orange-500/10 to-transparent'}`}>
+                          <div className={`shrink-0 w-11 h-11 rounded-[16px] flex items-center justify-center shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)] transition-transform group-hover:scale-105 ${tenant.type === 'SCHOOL' ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-orange-500/10 text-orange-500 border border-orange-500/20'}`}>
                             {tenant.type === 'SCHOOL' ? <Building2 className="w-[22px] h-[22px]" /> : <Layout className="w-[22px] h-[22px]" />}
                           </div>
                           <div>
@@ -174,7 +174,7 @@ export default async function TenantsPage(props: Props) {
 
         {/* Right Side: Quick Stats / Hardware */}
         <div className="xl:col-span-1 space-y-6">
-          <div className="p-8 bg-gradient-to-br from-card to-muted/20 rounded-[32px] border border-border/50 shadow-sm relative overflow-hidden">
+          <div className="p-8 rounded-[32px] border border-border/50 shadow-sm relative overflow-hidden">
             <div className="absolute -right-10 -top-10 w-40 h-40 bg-primary/5 rounded-full blur-3xl" />
             <div className="relative z-10 w-12 h-12 bg-background/80 backdrop-blur-md rounded-[18px] flex items-center justify-center shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)] border border-border/40 mb-6 text-primary">
               <Server className="w-6 h-6" />

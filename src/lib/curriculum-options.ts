@@ -52,3 +52,10 @@ export async function getIndexedCurricula(tenantId?: string | null) {
   );
   return [...new Set(docs.map((d) => `${d.gradeLevel}|${d.subject}`))];
 }
+
+/** Puts a class passed in the URL (?grade=&subject=) ahead of the teacher's own choices so the form opens on it. */
+export function preferClass(list: string[] | undefined, value: string | string[] | undefined) {
+  const v = Array.isArray(value) ? value[0] : value;
+  const items = list ?? [];
+  return v ? [v, ...items.filter((i) => i !== v)] : items;
+}
