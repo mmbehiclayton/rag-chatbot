@@ -31,7 +31,7 @@ export default async function ProfilePage() {
     withDbRetry(() =>
       db.user.findUnique({
         where: { id: session.userId },
-        select: { name: true, email: true, role: true, schoolName: true, gradesTaught: true, subjectsTaught: true, tenant: { select: { name: true } } },
+        select: { name: true, email: true, role: true, isCurator: true, schoolName: true, gradesTaught: true, subjectsTaught: true, tenant: { select: { name: true } } },
       })
     ),
     withDbRetry(() =>
@@ -44,7 +44,7 @@ export default async function ProfilePage() {
   ]);
   if (!user) redirect("/login");
 
-  const adminGroups = adminNavGroups(session.role ?? null);
+  const adminGroups = adminNavGroups(session.role ?? null, user.isCurator);
   const month = monthStart.toLocaleDateString("en-KE", { month: "long" });
 
   return (

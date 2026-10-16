@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { generateObject } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { retrieveContext } from "@/lib/rag";
+import { getPublishedMap, lessonGrounding, mapToPrompt, subStrandsForTerm, allSubStrands } from "@/lib/curriculum-map";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
@@ -52,6 +53,39 @@ async function checkGenerationGuards(session: { userId: string; tenantId?: strin
     }
   }
 }
+
+// ─── Curriculum grounding ─────────────────────────────────────────────────────
+
+type Grounding = { source: "map" | "design"; text: string; curriculumId: string | null };
+
+const MAP_RULES = `The CURRICULUM MAP below was entered and checked by practising teachers. Use only its strands, sub-strands and specific learning outcomes, with names and outcomes exactly as written, in the order given.`;
+
+/**
+ * What generation is grounded on, in order of trust: the checked curriculum map for the
+ * class, then extracts from an uploaded curriculum design. Null when neither exists.
+ */
+async function termGrounding(grade: string, subject: string, term: string, tenantId: string | null | undefined): Promise<Grounding | null> {
+  const map = await getPublishedMap(grade, subject);
+  if (map) {
+    const forTerm = subStrandsForTerm(map, term);
+    return { source: "map", text: mapToPrompt(forTerm.length ? forTerm : allSubStrands(map)), curriculumId: null };
+  }
+
+  const doc = await db.curriculumDocument.findFirst({
+    where: { gradeLevel: grade, subject, status: "completed", OR: [{ tenantId: tenantId ?? null }, { tenantId: null }] },
+    select: { id: true },
+  });
+  if (!doc) return null;
+  const chunks = await retrieveContext(`Curriculum for ${grade} ${subject} ${term}`, 12, { grade, subject, tenantId: tenantId ?? undefined });
+  return { source: "design", text: chunks.map((c) => c.chunkText).join("\n\n"), curriculumId: doc.id };
+}
+
+function groundingBlock(g: Grounding) {
+  return g.source === "map" ? `${MAP_RULES}\n\nCURRICULUM MAP:\n${g.text}` : `CURRICULUM CONTEXT (extracts from the KICD curriculum design):\n${g.text}`;
+}
+
+const missingCurriculum = (grade: string, subject: string) =>
+  `The curriculum for ${grade} ${subject} isn't in Elimu yet, so we can't create this without guessing. Try another class, or check back soon.`;
 
 // --- Validations & Schemas ---
 
@@ -237,31 +271,12 @@ export async function generateSchemeOfWork(parameters: { grade: string, subject:
     }
   }
 
+  // Check the curriculum first so a missing one doesn't use up the teacher's hourly limit.
+  const grounding = await termGrounding(parameters.grade, parameters.subject, parameters.term, session.tenantId);
+  if (!grounding) throw new Error(missingCurriculum(parameters.grade, parameters.subject));
+  const contextText = grounding.text;
+
   await checkGenerationGuards(session);
-
-  // Zero-Waste Check: Verify curriculum design exists globally OR for this tenant
-  const docExists = await db.curriculumDocument.findFirst({
-    where: { 
-      gradeLevel: parameters.grade, 
-      subject: parameters.subject,
-      OR: [
-        { tenantId: session.tenantId },
-        { tenantId: null }
-      ]
-    }
-  });
-  
-  if (!docExists) {
-     throw new Error(`MISSING CURRICULUM: No KICD Design uploaded for "${parameters.grade} ${parameters.subject}". To prevent AI hallucinations, please ask your Administrator to upload the curriculum PDF first.`);
-  }
-
-  const query = `Curriculum for ${parameters.grade} ${parameters.subject} Term ${parameters.term}`;
-  const contextChunks = await retrieveContext(query, 12, { 
-    grade: parameters.grade, 
-    subject: parameters.subject,
-    tenantId: session.tenantId ?? undefined
-  });
-  const contextText = contextChunks.map(c => c.chunkText).join("\n\n");
 
   const customRule = await db.generationRule.findUnique({ where: { contentType: "SCHEME_OF_WORK" } });
   const customRuleText = customRule?.customPrompt ? `\n\nCUSTOM PLATFORM GUIDELINES (STRICTLY ENFORCE):\n${customRule.customPrompt}\n` : "";
@@ -275,15 +290,14 @@ INPUT DATA:
 - Duration: ${parameters.durationMinutes} minutes
 
 MANDATORY REQUIREMENTS:
-1. Extract ALL strands and sub-strands mathematically from the provided curriculum context.
-2. Extract EXACT learning outcomes (DO NOT paraphrase).
+1. Cover the strands and sub-strands from the curriculum provided below${grounding.source === "map" ? ", sharing the lessons out in proportion to each sub-strand's suggested lessons" : ""}.
+2. Use the EXACT specific learning outcomes (DO NOT paraphrase).
 3. Calculate total lessons: (${parameters.weeks} - ${parameters.holidays}) × ${parameters.lessonsPerWeek} = TOTAL LESSONS.
 4. Structure into Weeks and Rows (Max 3 sub-strands per week).
 5. Tag all 7 core competencies in activities.
 6. Include min 2 Community Service Learning and 2 Parental Engagement strategies.
 
-CURRICULUM CONTEXT:
-${contextText}
+${groundingBlock(grounding)}
 `;
 
   const { object, usage } = await generateObject({
@@ -301,7 +315,7 @@ ${contextText}
       term: parameters.term,
       content: object as any,
       teacherId: session.userId,
-      curriculumId: docExists.id
+      curriculumId: grounding.curriculumId
     }
   });
 
@@ -390,6 +404,7 @@ export async function generateLessonPlan(schemeId: string, lessonNumber: number,
   const scheme = await db.schemeOfWork.findFirst({ where: { id: schemeId, teacherId: session.userId } });
   if (!scheme) throw new Error("Scheme not found");
 
+  const schemeMap = await getPublishedMap(scheme.grade, scheme.subject);
   const customRule = await db.generationRule.findUnique({ where: { contentType: "LESSON_PLAN" } });
   const customRuleText = customRule?.customPrompt ? `\n\nCUSTOM PLATFORM GUIDELINES (STRICTLY ENFORCE):\n${customRule.customPrompt}\n` : "";
 
@@ -404,7 +419,7 @@ MANDATORY REQUIREMENTS:
 
 SCHEME CONTENT TO EXTRACT FROM:
 ${JSON.stringify(scheme.content)}
-`;
+${schemeMap ? `\n${MAP_RULES}\n\nCURRICULUM MAP FOR THIS LESSON:\n${lessonGrounding(schemeMap, topic)}\n` : ""}`;
 
   const { object, usage } = await generateObject({
     model: openai("gpt-4o"),
@@ -457,17 +472,25 @@ export async function generateQuickLessonPlan(parameters: { grade: string; subje
 
   await checkGenerationGuards(session);
 
-  const contextChunks = await retrieveContext(`${parameters.grade} ${parameters.subject} ${topic}`, 8, {
-    grade: parameters.grade,
-    subject: parameters.subject,
-    tenantId: session.tenantId ?? undefined,
-  });
-  const contextText = contextChunks.map((c) => c.chunkText).join("\n\n");
+  const quickMap = await getPublishedMap(parameters.grade, parameters.subject);
+  const contextText = quickMap
+    ? ""
+    : (
+        await retrieveContext(`${parameters.grade} ${parameters.subject} ${topic}`, 8, {
+          grade: parameters.grade,
+          subject: parameters.subject,
+          tenantId: session.tenantId ?? undefined,
+        })
+      )
+        .map((c) => c.chunkText)
+        .join("\n\n");
 
   const customRule = await db.generationRule.findUnique({ where: { contentType: "LESSON_PLAN" } });
   const customRuleText = customRule?.customPrompt ? `\n\nCUSTOM PLATFORM GUIDELINES (STRICTLY ENFORCE):\n${customRule.customPrompt}\n` : "";
 
-  const groundingText = contextText
+  const groundingText = quickMap
+    ? `${MAP_RULES}\n\nCURRICULUM MAP:\n${lessonGrounding(quickMap, topic)}`
+    : contextText
     ? `CURRICULUM DESIGN EXTRACTS (use the strand, sub-strand and learning outcomes exactly as written here):\n${contextText}`
     : "No curriculum design extract is available for this grade and learning area. Use your knowledge of the KICD CBC curriculum design and keep strand and sub-strand names conservative.";
 
@@ -587,30 +610,11 @@ export async function generateAssessment(parameters: { grade: string, subject: s
   const session = await auth();
   if (!session?.userId) throw new Error("Unauthorized");
 
+  const grounding = await termGrounding(parameters.grade, parameters.subject, parameters.term, session.tenantId);
+  if (!grounding) throw new Error(missingCurriculum(parameters.grade, parameters.subject));
+  const contextText = grounding.text;
+
   await checkGenerationGuards(session);
-
-  const docExists = await db.curriculumDocument.findFirst({
-    where: { 
-      gradeLevel: parameters.grade, 
-      subject: parameters.subject,
-      OR: [
-        { tenantId: session.tenantId },
-        { tenantId: null }
-      ]
-    }
-  });
-  
-  if (!docExists) {
-     throw new Error(`MISSING CURRICULUM: No KICD Design uploaded for "${parameters.grade} ${parameters.subject}". To enable generation, a curriculum PDF must be uploaded.`);
-  }
-
-  const query = `Curriculum for ${parameters.grade} ${parameters.subject} Term ${parameters.term}`;
-  const contextChunks = await retrieveContext(query, 12, { 
-    grade: parameters.grade, 
-    subject: parameters.subject,
-    tenantId: session.tenantId ?? undefined
-  });
-  const contextText = contextChunks.map(c => c.chunkText).join("\n\n");
 
   const customRule = await db.generationRule.findUnique({ where: { contentType: "ASSESSMENT" } });
   const customRuleText = customRule?.customPrompt ? `\n\nCUSTOM PLATFORM GUIDELINES (STRICTLY ENFORCE):\n${customRule.customPrompt}\n` : "";
@@ -630,8 +634,7 @@ MANDATORY REQUIREMENTS:
 2. Follow Bloom's taxonomy distribution.
 3. Provide a Detailed Marking Scheme.
 
-CURRICULUM CONTEXT:
-${contextText}
+${groundingBlock(grounding)}
 `;
 
   const { object, usage } = await generateObject({
@@ -731,7 +734,7 @@ export async function getSchemeLessonsStatus(schemeId: string) {
 
   const content = scheme.content as any;
   const allLessons: { lessonNumber: number; topic: string; exists: boolean }[] = [];
-  
+
   let lessonCounter = 1;
   content.weeks.forEach((week: any) => {
     week.rows.forEach((row: any) => {

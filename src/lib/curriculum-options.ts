@@ -1,4 +1,5 @@
 import { db, withDbRetry } from "@/lib/db";
+import { getPublishedMapKeys } from "@/lib/curriculum-map";
 
 export type GradeOption = { name: string; level: string; learningAreas: string[] };
 
@@ -50,7 +51,8 @@ export async function getIndexedCurricula(tenantId?: string | null) {
       select: { gradeLevel: true, subject: true },
     })
   );
-  return [...new Set(docs.map((d) => `${d.gradeLevel}|${d.subject}`))];
+  const maps = await getPublishedMapKeys();
+  return [...new Set([...docs.map((d) => `${d.gradeLevel}|${d.subject}`), ...maps])];
 }
 
 /** Puts a class passed in the URL (?grade=&subject=) ahead of the teacher's own choices so the form opens on it. */

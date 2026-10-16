@@ -16,7 +16,7 @@ export async function retrieveContext(query: string, k = 5, filters?: { grade?: 
     // We calculate similarity as 1 - cosine distance
     // If filters are provided, we dynamically build a strict WHERE-clause joined search
     let results: any[] = [];
-    
+
     // Pass 1: Priority filtered search (by Grade & Subject)
     if (filters?.grade && filters?.subject) {
       results = await db.$queryRaw`
@@ -24,7 +24,7 @@ export async function retrieveContext(query: string, k = 5, filters?: { grade?: 
                1 - (c."embedding" <=> ${vectorString}::vector) as similarity
         FROM "CurriculumChunk" c
         JOIN "CurriculumDocument" d ON c."curriculumId" = d."id"
-        WHERE d."gradeLevel" = ${filters.grade} 
+        WHERE d."gradeLevel" = ${filters.grade}
           AND d."subject" = ${filters.subject}
           AND (d."tenantId" = ${filters.tenantId} OR d."tenantId" IS NULL)
         ORDER BY c."embedding" <=> ${vectorString}::vector
@@ -32,22 +32,18 @@ export async function retrieveContext(query: string, k = 5, filters?: { grade?: 
       `;
     }
 
-    // Pass 2: Fallback/Broad search if no results or very low similarity (< 0.4)
-    const minThreshold = 0.4;
-    const bestSimilarity = (results as any[])[0]?.similarity || 0;
-
-    if (results.length < k || bestSimilarity < minThreshold) {
-      const topGlobalResults = await db.$queryRaw`
+    // Pass 2: broad search, only when no class was given. With a grade and learning area we never
+    // pad the results with another class's curriculum: it reads as plausible but is wrong.
+    if (!(filters?.grade && filters?.subject)) {
+      results = await db.$queryRaw`
         SELECT c."chunkText", c."pageNumber", c."curriculumId",
                1 - (c."embedding" <=> ${vectorString}::vector) as similarity
         FROM "CurriculumChunk" c
         JOIN "CurriculumDocument" d ON c."curriculumId" = d."id"
-        WHERE (d."tenantId" = ${filters?.tenantId} OR d."tenantId" IS NULL)
-          AND c."id" NOT IN (${results.length > 0 ? results.map(r => r.id).filter(id => !!id) : 'dummy-id'})
+        WHERE (d."tenantId" = ${filters?.tenantId ?? null} OR d."tenantId" IS NULL)
         ORDER BY c."embedding" <=> ${vectorString}::vector
-        LIMIT ${k - results.length}
+        LIMIT ${k}
       `;
-      results = [...results, ...(topGlobalResults as any[])];
     }
 
     return results.map(r => ({
@@ -56,8 +52,6 @@ export async function retrieveContext(query: string, k = 5, filters?: { grade?: 
       curriculumId: r.curriculumId,
       similarity: Number(r.similarity)
     }));
-
-    return results;
   } catch (error) {
     console.error("Error retrieving context:", error);
     return [];

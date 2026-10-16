@@ -12,7 +12,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!session?.userId) redirect("/login");
 
   const user = await withDbRetry(() =>
-    db.user.findUnique({ where: { id: session.userId }, select: { name: true, email: true, onboardedAt: true } })
+    db.user.findUnique({ where: { id: session.userId }, select: { name: true, email: true, onboardedAt: true, isCurator: true } })
   );
 
   // New teachers set up their grades and learning areas once before using the app.
@@ -21,7 +21,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden bg-background">
       <div className="no-print flex shrink-0">
-        <AppSidebar role={session.role} />
+        <AppSidebar role={session.role} isCurator={user?.isCurator ?? false} />
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="no-print z-10 flex h-14 shrink-0 items-center justify-between gap-4 border-b bg-card px-4 md:px-6">

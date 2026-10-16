@@ -25,9 +25,9 @@ function SidebarLink({ item, active }: { item: NavItem; active: boolean }) {
   );
 }
 
-export function AppSidebar({ role }: { role: string | null }) {
+export function AppSidebar({ role, isCurator = false }: { role: string | null; isCurator?: boolean }) {
   const pathname = usePathname();
-  const groups = adminNavGroups(role);
+  const groups = adminNavGroups(role, isCurator);
 
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-r bg-sidebar md:flex">

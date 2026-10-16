@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { jwtVerify } from 'jose'
+import { db } from '@/lib/db'
 
 const secretKey = process.env.JWT_SECRET_KEY || "development_secret_do_not_use_in_prod";
 const key = new TextEncoder().encode(secretKey);
@@ -11,7 +12,7 @@ const isPublicRoute = (path: string) => publicRoutes.includes(path) || path.star
 
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname
-  
+
   // Allow public assets
   if (path.match(/\.(png|jpg|jpeg|svg|gif|webp|ico|css|js)$/)) {
     return NextResponse.next()
@@ -40,9 +41,27 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // 4. Role-based route protection
-  const { role } = sessionPayload;
-  
+  // 4. Dashboard routes check the session in the database, so a sign-out, an expired session
+  // or a role change applies straight away instead of waiting for the token to expire.
+  let role = sessionPayload.role
+  if (path.startsWith('/dashboard')) {
+    const dbSession = typeof sessionPayload.sessionId === 'string'
+      ? await db.session.findUnique({
+          where: { id: sessionPayload.sessionId },
+          select: { expiresAt: true, user: { select: { role: true } } },
+        }).catch(() => undefined)
+      : null
+    if (dbSession === null || (dbSession && dbSession.expiresAt < new Date())) {
+      const response = NextResponse.redirect(new URL('/login', request.url))
+      response.cookies.delete('session')
+      return response
+    }
+    // If the database can't be reached, fall back to the token; pages check again with auth().
+    if (dbSession) role = dbSession.user.role
+  }
+
+  // 5. Role-based route protection
+
   // Define route prefixes and the roles allowed to access them
   const protectedRoutes = {
     "/dashboard/global-settings": ["SUPERADMIN"],

@@ -1,5 +1,5 @@
 import {
-  BarChart3, Building2, Database, GraduationCap, Home, LayoutGrid, MessageSquare,
+  BarChart3, BookMarked, Building2, Database, GraduationCap, Home, LayoutGrid, MessageSquare,
   Settings, Settings2, ShieldAlert, ShieldCheck, UserCircle, Users,
   type LucideIcon,
 } from "lucide-react";
@@ -16,8 +16,11 @@ export const PRIMARY_NAV: NavItem[] = [
 ];
 
 /** Extra groups for school admins and superadmins (sidebar on desktop, Me page on mobile). */
-export function adminNavGroups(role: string | null): NavGroup[] {
+export function adminNavGroups(role: string | null, isCurator = false): NavGroup[] {
   const groups: NavGroup[] = [];
+  const curatorLink = { name: "Curriculum maps", href: "/dashboard/curriculum", icon: BookMarked };
+  // Curators are trusted teachers who enter and check curriculum maps.
+  if (isCurator && role !== "SUPERADMIN") groups.push({ label: "Curriculum", items: [curatorLink] });
   if (role === "ADMIN" || role === "SUPERADMIN") {
     groups.push({
       label: "School",
@@ -33,6 +36,7 @@ export function adminNavGroups(role: string | null): NavGroup[] {
     groups.push({
       label: "Platform",
       items: [
+        curatorLink,
         { name: "Curriculum structure", href: "/dashboard/structure", icon: LayoutGrid },
         { name: "Knowledge base", href: "/dashboard/knowledge", icon: Database },
         { name: "Prompt rules", href: "/dashboard/rules", icon: Settings2 },
@@ -55,6 +59,7 @@ const TITLES: [string, string][] = [
   ["/dashboard/create/assessment", "New assessment"],
   ["/dashboard/create", "Create"],
   ["/dashboard/classes", "My classes"],
+  ["/dashboard/curriculum", "Curriculum maps"],
   ["/dashboard/library", "Library"],
   ["/dashboard/schemes", "Scheme of work"],
   ["/dashboard/lessons", "Lesson plan"],

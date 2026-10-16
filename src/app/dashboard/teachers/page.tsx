@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatDistanceToNow } from "date-fns";
 import { RoleSelector } from "@/components/dashboard/role-selector";
+import { CuratorToggle } from "@/components/dashboard/curator-toggle";
 
 export default async function TeachersPage() {
   const session = await auth();
@@ -88,7 +89,8 @@ export default async function TeachersPage() {
                   </div>
                 </div>
                 
-                <div className="flex justify-end gap-2">
+                <div className="flex items-center justify-end gap-2">
+                  {isSuperAdmin && user.role !== "SUPERADMIN" && <CuratorToggle userId={user.id} isCurator={user.isCurator} />}
                   <RoleSelector userId={user.id} initialRole={user.role} currentSessionRole={session.role} />
                   
                   <Button variant="ghost" size="icon" className="h-9 w-9 rounded-[14px] text-red-500 hover:text-red-600 hover:bg-red-500/10">

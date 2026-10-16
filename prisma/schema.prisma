@@ -44,6 +44,8 @@ model User {
   gradesTaught     String[]             @default([])
   subjectsTaught   String[]             @default([])
   onboardedAt      DateTime?
+  // Teachers trusted to enter and check curriculum maps (set by a superadmin)
+  isCurator        Boolean              @default(false)
 
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
@@ -55,6 +57,8 @@ model User {
   assessments      Assessment[]
   generationLogs   GenerationLog[]
   chatSessions     ChatSession[]
+  mapsEdited       CurriculumMap[]      @relation("MapEditor")
+  mapsChecked      CurriculumMap[]      @relation("MapChecker")
 
   @@index([tenantId])
 }
@@ -298,4 +302,56 @@ model LevelLearningArea {
   @@id([gradeId, learningAreaId])
   @@index([gradeId])
   @@index([learningAreaId])
+}
+
+// ─── Curriculum map (the knowledge base generation draws on) ──────────────────
+// Curators enter strands, sub-strands and outcomes for one grade + learning area from
+// designs they legally hold. A second curator checks it before teachers' documents use it.
+
+model CurriculumMap {
+  id            String               @id @default(uuid())
+  grade         String
+  subject       String
+  status        String               @default("DRAFT") // "DRAFT" | "IN_REVIEW" | "PUBLISHED"
+  sourceNote    String?              @db.Text          // which design and edition the map was entered from
+  reviewComment String?              @db.Text          // the checker's note when sending it back
+
+  editedById    String?
+  editedBy      User?                @relation("MapEditor", fields: [editedById], references: [id], onDelete: SetNull)
+  checkedById   String?
+  checkedBy     User?                @relation("MapChecker", fields: [checkedById], references: [id], onDelete: SetNull)
+  publishedAt   DateTime?
+
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  strands       CurriculumStrand[]
+
+  @@unique([grade, subject])
+}
+
+model CurriculumStrand {
+  id         String                @id @default(uuid())
+  mapId      String
+  map        CurriculumMap         @relation(fields: [mapId], references: [id], onDelete: Cascade)
+  order      Int
+  name       String
+  subStrands CurriculumSubStrand[]
+
+  @@index([mapId])
+}
+
+model CurriculumSubStrand {
+  id                  String           @id @default(uuid())
+  strandId            String
+  strand              CurriculumStrand @relation(fields: [strandId], references: [id], onDelete: Cascade)
+  order               Int
+  name                String
+  lessons             Int              @default(1) // suggested number of lessons
+  term                Int?                         // 1, 2 or 3 when the curator knows it; otherwise split evenly
+  outcomes            String[]         @default([]) // specific learning outcomes
+  inquiryQuestions    String[]         @default([])
+  learningExperiences String[]         @default([])
+
+  @@index([strandId])
 }
