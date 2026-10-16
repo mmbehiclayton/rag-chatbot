@@ -2,13 +2,58 @@
 
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
-import { generateObject } from "ai";
+import { APICallError, NoObjectGeneratedError, generateObject } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { retrieveContext } from "@/lib/rag";
 import { getPublishedMap, lessonGrounding, mapToPrompt, subStrandsForTerm, allSubStrands } from "@/lib/curriculum-map";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+
+// ─── Results and errors ───────────────────────────────────────────────────────
+
+// Next hides the message of anything thrown from a server action in production, so the
+// generators return their outcome instead. TeacherError messages are shown as written.
+class TeacherError extends Error {}
+
+export type GenerationResult = { ok: true; id: string } | { ok: false; error: string };
+
+function explain(label: string, e: unknown): string {
+  if (e instanceof TeacherError) return e.message;
+  console.error(`[generation] ${label} failed:`, e);
+  if (NoObjectGeneratedError.isInstance(e)) {
+    return e.finishReason === "length"
+      ? "This was too long to write in one go. Try fewer weeks or fewer lessons per week."
+      : "Elimu couldn't finish writing this. Please try again.";
+  }
+  if (APICallError.isInstance(e) && e.statusCode === 429) return "Elimu is busy right now. Wait a minute and try again.";
+  return "Something went wrong while writing this. Please try again in a minute.";
+}
+
+async function asResult(label: string, fn: () => Promise<{ id: string }>): Promise<GenerationResult> {
+  try {
+    const { id } = await fn();
+    return { ok: true, id };
+  } catch (e) {
+    return { ok: false, error: explain(label, e) };
+  }
+}
+
+async function requireSession() {
+  const session = await auth();
+  if (!session?.userId) throw new TeacherError("Your session has ended. Please sign in again.");
+  return session as typeof session & { userId: string };
+}
+
+/** The verification pass is a safety net: if it fails, the document stays and is flagged for review. */
+async function passesVerification(content: unknown, context: string) {
+  try {
+    return await verifyPedagogicalAccuracy(JSON.stringify(content), context);
+  } catch (e) {
+    console.error("[generation] verification failed:", e);
+    return false;
+  }
+}
 
 // ─── Shared Guards ────────────────────────────────────────────────────────────
 
@@ -28,7 +73,7 @@ async function checkGenerationGuards(session: { userId: string; tenantId?: strin
   });
 
   if (limit.points > 20 && limit.expiresAt > new Date()) {
-    throw new Error("Rate limit exceeded: maximum 20 generations per hour. Please wait before generating again.");
+    throw new TeacherError("You have created 20 documents in the last hour. Please wait a while before creating more.");
   }
 
   // 2. Token quota: check tenant monthly usage
@@ -46,8 +91,8 @@ async function checkGenerationGuards(session: { userId: string; tenantId?: strin
 
       const usedTokens = usage._sum.totalTokens ?? 0;
       if (usedTokens >= tenant.tokenQuota) {
-        throw new Error(
-          `Monthly token quota exceeded (${usedTokens.toLocaleString()} / ${tenant.tokenQuota.toLocaleString()} tokens used). Contact your administrator to increase the quota.`
+        throw new TeacherError(
+          `Your school has used this month's allowance (${usedTokens.toLocaleString()} of ${tenant.tokenQuota.toLocaleString()} tokens). Ask your school admin to raise it.`
         );
       }
     }
@@ -223,10 +268,9 @@ const AssessmentSchema = z.object({
 
 // --- Server Actions ---
 
-export async function generateSchemeOfWork(parameters: { grade: string, subject: string, term: string, weeks: number, holidays: number, lessonsPerWeek: number, durationMinutes: number, forceFresh?: boolean } | null) {
-  if (!parameters) throw new Error("Invalid parameters: data cannot be null");
-  const session = await auth();
-  if (!session?.userId) throw new Error("Unauthorized");
+async function generateSchemeOfWorkImpl(parameters: { grade: string, subject: string, term: string, weeks: number, holidays: number, lessonsPerWeek: number, durationMinutes: number, forceFresh?: boolean } | null) {
+  if (!parameters) throw new TeacherError("Fill in the form and try again.");
+  const session = await requireSession();
 
   // Cache: reuse a verified scheme for the same grade/subject/term. A scheme from
   // another teacher is cloned so it lands in the requester's own library.
@@ -273,7 +317,7 @@ export async function generateSchemeOfWork(parameters: { grade: string, subject:
 
   // Check the curriculum first so a missing one doesn't use up the teacher's hourly limit.
   const grounding = await termGrounding(parameters.grade, parameters.subject, parameters.term, session.tenantId);
-  if (!grounding) throw new Error(missingCurriculum(parameters.grade, parameters.subject));
+  if (!grounding) throw new TeacherError(missingCurriculum(parameters.grade, parameters.subject));
   const contextText = grounding.text;
 
   await checkGenerationGuards(session);
@@ -333,7 +377,7 @@ ${groundingBlock(grounding)}
   });
 
   // [NEW] Hallucination Guardrail: Deep Verification Pass
-  const isAccurate = await verifyPedagogicalAccuracy(JSON.stringify(object), contextText);
+  const isAccurate = await passesVerification(object, contextText);
   if (!isAccurate) {
     console.warn("HALLUCINATION DETECTED: Scheme of Work failed verification pass. Tagging for review.");
     // In a production system, we might re-generate, but here we'll just flag the DB record
@@ -395,14 +439,13 @@ export async function deleteAsset(type: "SCHEMES" | "LESSONS" | "NOTES" | "ASSES
   return { success: true };
 }
 
-export async function generateLessonPlan(schemeId: string, lessonNumber: number, topic: string) {
-  const session = await auth();
-  if (!session?.userId) throw new Error("Unauthorized");
+async function generateLessonPlanImpl(schemeId: string, lessonNumber: number, topic: string) {
+  const session = await requireSession();
 
   await checkGenerationGuards(session);
 
   const scheme = await db.schemeOfWork.findFirst({ where: { id: schemeId, teacherId: session.userId } });
-  if (!scheme) throw new Error("Scheme not found");
+  if (!scheme) throw new TeacherError("We couldn't find that scheme of work.");
 
   const schemeMap = await getPublishedMap(scheme.grade, scheme.subject);
   const customRule = await db.generationRule.findUnique({ where: { contentType: "LESSON_PLAN" } });
@@ -462,12 +505,11 @@ ${schemeMap ? `\n${MAP_RULES}\n\nCURRICULUM MAP FOR THIS LESSON:\n${lessonGround
  * Quick path: a single lesson plan straight from grade, learning area and topic,
  * without a scheme of work. Grounded on the curriculum design when one is indexed.
  */
-export async function generateQuickLessonPlan(parameters: { grade: string; subject: string; topic: string; durationMinutes: number }) {
-  const session = await auth();
-  if (!session?.userId) throw new Error("Unauthorized");
+async function generateQuickLessonPlanImpl(parameters: { grade: string; subject: string; topic: string; durationMinutes: number }) {
+  const session = await requireSession();
 
   const topic = parameters.topic.trim().slice(0, 200);
-  if (!parameters.grade || !parameters.subject || !topic) throw new Error("Choose a grade, learning area and topic.");
+  if (!parameters.grade || !parameters.subject || !topic) throw new TeacherError("Choose a grade, learning area and topic.");
   const durationMinutes = [30, 35, 40, 60, 70, 80].includes(parameters.durationMinutes) ? parameters.durationMinutes : 40;
 
   await checkGenerationGuards(session);
@@ -548,14 +590,13 @@ ${groundingText}
   return { id: lessonPlan.id };
 }
 
-export async function generateLessonNotes(lessonPlanId: string) {
-  const session = await auth();
-  if (!session?.userId) throw new Error("Unauthorized");
+async function generateLessonNotesImpl(lessonPlanId: string) {
+  const session = await requireSession();
 
   await checkGenerationGuards(session);
 
   const lessonPlan = await db.lessonPlan.findFirst({ where: { id: lessonPlanId, teacherId: session.userId } });
-  if (!lessonPlan) throw new Error("Lesson Plan not found");
+  if (!lessonPlan) throw new TeacherError("We couldn't find that lesson plan.");
 
   const customRule = await db.generationRule.findUnique({ where: { contentType: "LESSON_NOTES" } });
   const customRuleText = customRule?.customPrompt ? `\n\nCUSTOM PLATFORM GUIDELINES (STRICTLY ENFORCE):\n${customRule.customPrompt}\n` : "";
@@ -606,12 +647,11 @@ ${JSON.stringify(lessonPlan.content)}
   return notes;
 }
 
-export async function generateAssessment(parameters: { grade: string, subject: string, term: string, type: string, totalMarks: number, durationMinutes: number }) {
-  const session = await auth();
-  if (!session?.userId) throw new Error("Unauthorized");
+async function generateAssessmentImpl(parameters: { grade: string, subject: string, term: string, type: string, totalMarks: number, durationMinutes: number }) {
+  const session = await requireSession();
 
   const grounding = await termGrounding(parameters.grade, parameters.subject, parameters.term, session.tenantId);
-  if (!grounding) throw new Error(missingCurriculum(parameters.grade, parameters.subject));
+  if (!grounding) throw new TeacherError(missingCurriculum(parameters.grade, parameters.subject));
   const contextText = grounding.text;
 
   await checkGenerationGuards(session);
@@ -669,7 +709,7 @@ ${groundingBlock(grounding)}
   });
 
   // [NEW] Hallucination Guardrail
-  const isAccurate = await verifyPedagogicalAccuracy(JSON.stringify(object), contextText);
+  const isAccurate = await passesVerification(object, contextText);
   if (!isAccurate) {
     console.warn("HALLUCINATION DETECTED: Assessment failed verification pass.");
     await db.assessment.update({
@@ -805,4 +845,26 @@ async function verifyPedagogicalAccuracy(generatedContent: string, contextChunks
   });
 
   return object.isAccurate && object.confidenceScore > 85;
+}
+
+// ─── Generators (each returns a GenerationResult) ─────────────────────────────
+
+export async function generateSchemeOfWork(parameters: Parameters<typeof generateSchemeOfWorkImpl>[0]) {
+  return asResult("scheme of work", () => generateSchemeOfWorkImpl(parameters));
+}
+
+export async function generateLessonPlan(schemeId: string, lessonNumber: number, topic: string) {
+  return asResult("lesson plan", () => generateLessonPlanImpl(schemeId, lessonNumber, topic));
+}
+
+export async function generateQuickLessonPlan(parameters: Parameters<typeof generateQuickLessonPlanImpl>[0]) {
+  return asResult("quick lesson plan", () => generateQuickLessonPlanImpl(parameters));
+}
+
+export async function generateLessonNotes(lessonPlanId: string) {
+  return asResult("lesson notes", () => generateLessonNotesImpl(lessonPlanId));
+}
+
+export async function generateAssessment(parameters: Parameters<typeof generateAssessmentImpl>[0]) {
+  return asResult("assessment", () => generateAssessmentImpl(parameters));
 }

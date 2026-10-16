@@ -44,16 +44,18 @@ export function WeekLessons({ schemeId, rows, children }: { schemeId: string; ro
         let failed = 0;
         for (const row of targets) {
           setStates((s) => ({ ...s, [row.lessonNumber]: { status: "running" } }));
-          try {
-            const plan = await generateLessonPlan(schemeId, row.lessonNumber, row.topic);
-            setStates((s) => ({ ...s, [row.lessonNumber]: { status: "done", lessonId: plan.id } }));
-          } catch (e) {
+          const result = await generateLessonPlan(schemeId, row.lessonNumber, row.topic).catch(() => ({
+            ok: false as const,
+            error: "We couldn't reach Elimu. Check your connection and try again.",
+          }));
+          if (result.ok) {
+            setStates((s) => ({ ...s, [row.lessonNumber]: { status: "done", lessonId: result.id } }));
+          } else {
             failed++;
-            const error = e instanceof Error ? e.message : "Failed";
-            setStates((s) => ({ ...s, [row.lessonNumber]: { status: "failed", error } }));
+            setStates((s) => ({ ...s, [row.lessonNumber]: { status: "failed", error: result.error } }));
             // Stop early on limits that would fail every remaining lesson too.
-            if (/rate limit|quota/i.test(error)) {
-              toast.error(error);
+            if (/last hour|allowance/i.test(result.error)) {
+              toast.error(result.error);
               break;
             }
           }

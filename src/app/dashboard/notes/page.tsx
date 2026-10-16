@@ -8,6 +8,9 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { CreateNotesButton } from "@/components/create/create-notes-button";
 import { Button } from "@/components/ui/button";
 
+
+// Writing a document with AI can take a couple of minutes.
+export const maxDuration = 300;
 // Lesson notes are built from a lesson plan: pick one of your recent plans.
 export default async function NotesPage() {
   const session = await auth();

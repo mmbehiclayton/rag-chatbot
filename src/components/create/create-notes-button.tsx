@@ -28,11 +28,12 @@ export function CreateNotesButton({
       onClick={() =>
         startTransition(async () => {
           try {
-            const notes = await generateLessonNotes(lessonPlanId);
+            const result = await generateLessonNotes(lessonPlanId);
+            if (!result.ok) return void toast.error(result.error);
             toast.success("Lesson notes ready");
-            router.push(`/dashboard/notes/${notes.id}`);
-          } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Could not create notes. Please try again.");
+            router.push(`/dashboard/notes/${result.id}`);
+          } catch {
+            toast.error("We couldn't reach Elimu. Check your connection and try again.");
           }
         })
       }

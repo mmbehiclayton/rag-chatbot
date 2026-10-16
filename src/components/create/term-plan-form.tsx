@@ -91,7 +91,7 @@ export function TermPlanForm({
     startTransition(async () => {
       try {
         if (kind === "scheme") {
-          const scheme = await generateSchemeOfWork({
+          const result = await generateSchemeOfWork({
             ...target,
             term,
             weeks,
@@ -100,21 +100,24 @@ export function TermPlanForm({
             durationMinutes,
             forceFresh,
           });
+          if (!result.ok) return void toast.error(result.error);
           toast.success("Scheme of work ready");
-          router.push(`/dashboard/schemes/${scheme.id}`);
+          router.push(`/dashboard/schemes/${result.id}`);
         } else {
-          const assessment = await generateAssessment({
+          const result = await generateAssessment({
             ...target,
             term,
             type: `${assessmentType} assessment`,
             totalMarks: Number.parseInt(marks, 10),
             durationMinutes: 60,
           });
+          if (!result.ok) return void toast.error(result.error);
           toast.success("Assessment ready");
-          router.push(`/dashboard/assessments/${assessment.id}`);
+          router.push(`/dashboard/assessments/${result.id}`);
         }
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Something went wrong. Please try again.");
+      } catch {
+        // Only reached when the request itself fails, e.g. the connection dropped.
+        toast.error("We couldn't reach Elimu. Check your connection and try again.");
       }
     });
   };

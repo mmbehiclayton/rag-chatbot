@@ -43,16 +43,17 @@ export function QuickLessonForm({
   const submit = () => {
     startTransition(async () => {
       try {
-        const { id } = await generateQuickLessonPlan({
+        const result = await generateQuickLessonPlan({
           grade: target.grade,
           subject: target.subject,
           topic,
           durationMinutes: Number.parseInt(duration, 10),
         });
+        if (!result.ok) return void toast.error(result.error);
         toast.success("Lesson plan ready");
-        router.push(`/dashboard/lessons/${id}`);
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Could not create the lesson plan. Please try again.");
+        router.push(`/dashboard/lessons/${result.id}`);
+      } catch {
+        toast.error("We couldn't reach Elimu. Check your connection and try again.");
       }
     });
   };

@@ -5,6 +5,9 @@ import { getGradeOptions, getIndexedCurricula, getTeachingProfile, preferClass }
 import { PageHeader } from "@/components/shared/page-header";
 import { QuickLessonForm } from "@/components/create/quick-lesson-form";
 
+
+// Writing a document with AI can take a couple of minutes.
+export const maxDuration = 300;
 export default async function CreateLessonPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const session = await auth();
   if (!session?.userId) redirect("/login");

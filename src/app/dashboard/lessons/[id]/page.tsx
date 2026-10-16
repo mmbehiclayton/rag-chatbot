@@ -10,6 +10,9 @@ import { CreateNotesButton } from "@/components/create/create-notes-button";
 import { Button } from "@/components/ui/button";
 import type { LessonContent } from "@/components/document/lesson-types";
 
+
+// Writing a document with AI can take a couple of minutes.
+export const maxDuration = 300;
 export default async function LessonDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session?.userId) redirect("/login");

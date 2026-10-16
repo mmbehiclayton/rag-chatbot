@@ -6,6 +6,10 @@ import { classHref } from "@/lib/classes";
 import { BulletList, DocHeader, DocSection, ExportButton, Field, asArray, parseTitle } from "@/components/document/doc-parts";
 import { ApproveSchemeButton, LessonRowAction, WeekBatchButton, WeekLessons } from "@/components/document/scheme-lessons";
 
+
+// Writing a document with AI can take a couple of minutes.
+export const maxDuration = 300;
+
 type Row = {
   strand?: string;
   subStrand?: string;
