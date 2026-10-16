@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getSchemeSchedule } from "@/lib/term-pack-data";
 import { formatDay, formatRange, streamLabel, termLabel } from "@/lib/term-pack";
+import { coversClass, freePlanMessage, getAccess, plansOn, type ClassRef } from "@/lib/plans";
 
 // Returns a print-ready HTML document for a scheme, lesson plan, or assessment.
 // Usage: GET /api/export?type=scheme&id=<id>
@@ -19,10 +20,13 @@ export async function GET(req: NextRequest) {
   if (!type) return new NextResponse("Missing params", { status: 400 });
 
   let html = "";
+  // The class the document belongs to, checked against the teacher's plan before it is sent.
+  let cls: ClassRef | null = null;
 
   try {
     // Combined export: every record for a learning area (grade + subject), no id.
     if (!id && grade && subject) {
+      cls = { grade, subject };
       if (type === "scheme") {
         const items = await db.schemeOfWork.findMany({
           where: { teacherId: session.userId, grade, subject },
@@ -59,6 +63,7 @@ export async function GET(req: NextRequest) {
         where: { id, teacherId: session.userId },
       });
       if (!scheme) return new NextResponse("Not found", { status: 404 });
+      cls = scheme;
       const schedule = await getSchemeSchedule(scheme);
       const weekDates = new Map(schedule.weeks.map((w) => [w.number, formatRange(w.from, w.to)]));
       html = buildSchemeHTML(scheme, weekDates);
@@ -68,18 +73,22 @@ export async function GET(req: NextRequest) {
         include: { teacher: { select: { name: true, schoolName: true, tenant: { select: { name: true } } } } },
       });
       if (!scheme) return new NextResponse("Not found", { status: 404 });
+      cls = scheme;
       html = buildRecordHTML(scheme, await getSchemeSchedule(scheme, searchParams.get("stream") ?? undefined));
     } else if (type === "lesson") {
       const lesson = await db.lessonPlan.findFirst({
         where: { id, teacherId: session.userId },
+        include: { scheme: { select: { grade: true, subject: true } } },
       });
       if (!lesson) return new NextResponse("Not found", { status: 404 });
+      cls = { grade: lesson.grade ?? lesson.scheme?.grade ?? "", subject: lesson.subject ?? lesson.scheme?.subject ?? "" };
       html = buildLessonHTML(lesson);
     } else if (type === "assessment") {
       const assessment = await db.assessment.findFirst({
         where: { id, teacherId: session.userId },
       });
       if (!assessment) return new NextResponse("Not found", { status: 404 });
+      cls = assessment;
       html = buildAssessmentHTML(assessment);
     } else if (type === "notes") {
       const note = await db.lessonNote.findFirst({
@@ -87,9 +96,23 @@ export async function GET(req: NextRequest) {
         include: { lessonPlan: { select: { topic: true, grade: true, subject: true, scheme: { select: { grade: true, subject: true } } } } },
       });
       if (!note) return new NextResponse("Not found", { status: 404 });
+      cls = {
+        grade: note.lessonPlan?.grade ?? note.lessonPlan?.scheme?.grade ?? "",
+        subject: note.lessonPlan?.subject ?? note.lessonPlan?.scheme?.subject ?? "",
+      };
       html = buildNotesHTML(note);
     } else {
       return new NextResponse("Invalid type", { status: 400 });
+    }
+
+    if (cls && plansOn()) {
+      const access = await getAccess(session.userId);
+      if (!coversClass(access, cls)) {
+        return new NextResponse(wrap("Term pass needed", `<h1>Term pass needed</h1><p>${esc(freePlanMessage(access))}</p>`), {
+          status: 402,
+          headers: { "Content-Type": "text/html; charset=utf-8" },
+        });
+      }
     }
 
     return new NextResponse(html, {

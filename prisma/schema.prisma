@@ -11,14 +11,14 @@ datasource db {
 }
 
 model Tenant {
-  id               String               @id @default(uuid())
-  name             String
-  type             String               @default("SCHOOL") // "SCHOOL", "INDEPENDENT_TEACHER"
-  tokenQuota       Int                  @default(5000000)
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
-  
-  users            User[]
+  id         String   @id @default(uuid())
+  name       String
+  type       String   @default("SCHOOL") // "SCHOOL", "INDEPENDENT_TEACHER"
+  tokenQuota Int      @default(5000000)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  users               User[]
   curriculumDocuments CurriculumDocument[]
 }
 
@@ -30,207 +30,260 @@ model Session {
 }
 
 model User {
-  id               String               @id @default(uuid())
-  role             String               @default("TEACHER") // "SUPERADMIN" | "ADMIN" | "TEACHER"
-  name             String?
-  email            String               @unique
-  emailVerified    DateTime?
-  passwordHash     String
-  tenantId         String?
-  tenant           Tenant?              @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  id            String    @id @default(uuid())
+  role          String    @default("TEACHER") // "SUPERADMIN" | "ADMIN" | "TEACHER"
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  passwordHash  String
+  tenantId      String?
+  tenant        Tenant?   @relation(fields: [tenantId], references: [id], onDelete: SetNull)
 
   // Teacher profile, collected during onboarding and used to pre-fill create forms
-  schoolName       String?
-  gradesTaught     String[]             @default([])
-  subjectsTaught   String[]             @default([])
-  onboardedAt      DateTime?
+  schoolName     String?
+  gradesTaught   String[]  @default([])
+  subjectsTaught String[]  @default([])
+  onboardedAt    DateTime?
   // Teachers trusted to enter and check curriculum maps (set by a superadmin)
-  isCurator        Boolean              @default(false)
+  isCurator      Boolean   @default(false)
+  // Invite a colleague: each teacher's code, and who invited them
+  inviteCode     String?   @unique
+  invitedById    String?
+  invitedBy      User?     @relation("Invites", fields: [invitedById], references: [id], onDelete: SetNull)
+  invitees       User[]    @relation("Invites")
 
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
-  
-  sessions         Session[]
-  schemesOfWork    SchemeOfWork[]
-  lessonPlans      LessonPlan[]
-  lessonNotes      LessonNote[]
-  assessments      Assessment[]
-  generationLogs   GenerationLog[]
-  chatSessions     ChatSession[]
-  mapsEdited       CurriculumMap[]      @relation("MapEditor")
-  mapsChecked      CurriculumMap[]      @relation("MapChecker")
-  terms            TeacherTerm[]
-  timetableSlots   TimetableSlot[]
-  lessonRecords    LessonRecord[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions       Session[]
+  schemesOfWork  SchemeOfWork[]
+  lessonPlans    LessonPlan[]
+  lessonNotes    LessonNote[]
+  assessments    Assessment[]
+  generationLogs GenerationLog[]
+  chatSessions   ChatSession[]
+  mapsEdited     CurriculumMap[] @relation("MapEditor")
+  mapsChecked    CurriculumMap[] @relation("MapChecker")
+  terms          TeacherTerm[]
+  timetableSlots TimetableSlot[]
+  lessonRecords  LessonRecord[]
+  termPasses     TermPass[]      @relation("PassTeacher")
+  passesReviewed TermPass[]      @relation("PassReviewer")
+  headReviews    HeadReview[]
 
   @@index([tenantId])
+  @@index([invitedById])
 }
 
 model GenerationLog {
-  id               String               @id @default(uuid())
+  id               String   @id @default(uuid())
   userId           String
-  user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   tenantId         String?
-  contentType      String               // "SCHEME_OF_WORK", "LESSON_PLAN", "LESSON_NOTES", "ASSESSMENT"
+  contentType      String // "SCHEME_OF_WORK", "LESSON_PLAN", "LESSON_NOTES", "ASSESSMENT"
   promptTokens     Int
   completionTokens Int
   totalTokens      Int
   model            String
-  createdAt        DateTime             @default(now())
+  createdAt        DateTime @default(now())
 
   @@index([userId])
   @@index([tenantId])
 }
 
 model CurriculumDocument {
-  id               String               @id @default(uuid())
-  title            String
-  gradeLevel       String
-  subject          String
-  fileUrl          String
-  status           String               @default("pending") // "pending", "processing", "completed", "error"
-  errorMessage     String?              @db.Text
-  uploadDate       DateTime             @default(now())
-  uploadedBy       String?
-  tenantId         String?
-  tenant           Tenant?              @relation(fields: [tenantId], references: [id], onDelete: SetNull)
-  
-  chunks           CurriculumChunk[]
-  schemesOfWork    SchemeOfWork[]
+  id           String   @id @default(uuid())
+  title        String
+  gradeLevel   String
+  subject      String
+  fileUrl      String
+  status       String   @default("pending") // "pending", "processing", "completed", "error"
+  errorMessage String?  @db.Text
+  uploadDate   DateTime @default(now())
+  uploadedBy   String?
+  tenantId     String?
+  tenant       Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  chunks        CurriculumChunk[]
+  schemesOfWork SchemeOfWork[]
 
   @@index([tenantId])
 }
 
 model CurriculumChunk {
-  id               String               @id @default(uuid())
-  curriculumId     String
-  curriculum       CurriculumDocument   @relation(fields: [curriculumId], references: [id], onDelete: Cascade)
-  chunkText        String
-  chunkIndex       Int
-  pageNumber       Int?
-  topic            String?
-  metadata         Json?
-  
+  id           String             @id @default(uuid())
+  curriculumId String
+  curriculum   CurriculumDocument @relation(fields: [curriculumId], references: [id], onDelete: Cascade)
+  chunkText    String
+  chunkIndex   Int
+  pageNumber   Int?
+  topic        String?
+  metadata     Json?
+
   // Vector embedding (dimension 1536 for OpenAI text-embedding-3-small)
-  embedding        Unsupported("vector(1536)")?
+  embedding Unsupported("vector(1536)")?
 
   @@index([curriculumId])
 }
 
+/**
+ * A paid term: the teacher pays by M-Pesa Paybill and enters the confirmation code,
+ * then Elimu staff check it against the statement and activate it.
+ */
+model TermPass {
+  id           String    @id @default(uuid())
+  teacherId    String
+  teacher      User      @relation("PassTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  year         Int
+  term         Int
+  amount       Int
+  mpesaCode    String    @unique
+  phone        String?
+  status       String    @default("PENDING") // "PENDING" | "ACTIVE" | "REJECTED"
+  note         String?
+  reviewedById String?
+  reviewedBy   User?     @relation("PassReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([teacherId, year, term])
+  @@index([status])
+}
+
+/**
+ * The teacher's answer to "Did your head teacher accept this?" for a scheme or its record of work.
+ */
+model HeadReview {
+  id        String       @id @default(uuid())
+  teacherId String
+  teacher   User         @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  schemeId  String
+  scheme    SchemeOfWork @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  kind      String // "SCHEME" | "RECORD"
+  answer    String // "ACCEPTED" | "CHANGES" | "NOT_YET"
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([schemeId, kind])
+  @@index([teacherId])
+}
+
 model SchemeOfWork {
-  id               String               @id @default(uuid())
-  title            String
-  grade            String
-  subject          String
-  term             String
+  id          String  @id @default(uuid())
+  title       String
+  grade       String
+  subject     String
+  term        String
   // School year the scheme is for; with term it finds the teacher's term dates
-  year             Int?
-  content          Json                 // Generated JSON content
-  isShared         Boolean              @default(false)
-  sharesCount      Int                  @default(0)
+  year        Int?
+  content     Json // Generated JSON content
+  isShared    Boolean @default(false)
+  sharesCount Int     @default(0)
 
-  teacherId        String
-  teacher          User                 @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId String
+  teacher   User   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
 
-  curriculumId     String?
-  curriculum       CurriculumDocument?  @relation(fields: [curriculumId], references: [id], onDelete: SetNull)
+  curriculumId String?
+  curriculum   CurriculumDocument? @relation(fields: [curriculumId], references: [id], onDelete: SetNull)
 
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  lessonPlans      LessonPlan[]
-  lessonRecords    LessonRecord[]
+  lessonPlans   LessonPlan[]
+  lessonRecords LessonRecord[]
+  headReviews   HeadReview[]
 
   @@index([teacherId])
   @@index([curriculumId])
 }
 
 model LessonPlan {
-  id               String               @id @default(uuid())
-  lessonNumber     Int                  @default(1)
-  topic            String
-  objectives       String[]
-  content          Json                 // Detailed sections (intro, body, conclusion, etc.)
-  isShared         Boolean              @default(false)
-  sharesCount      Int                  @default(0)
+  id           String   @id @default(uuid())
+  lessonNumber Int      @default(1)
+  topic        String
+  objectives   String[]
+  content      Json // Detailed sections (intro, body, conclusion, etc.)
+  isShared     Boolean  @default(false)
+  sharesCount  Int      @default(0)
 
   // Optional: quick lesson plans are created straight from grade/subject/topic
-  schemeId         String?
-  scheme           SchemeOfWork?        @relation(fields: [schemeId], references: [id], onDelete: Cascade)
-  grade            String?
-  subject          String?
-  durationMinutes  Int                  @default(40)
+  schemeId        String?
+  scheme          SchemeOfWork? @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  grade           String?
+  subject         String?
+  durationMinutes Int           @default(40)
 
-  teacherId        String
-  teacher          User                 @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
+  teacherId String
+  teacher   User   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
 
-  lessonNotes      LessonNote[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lessonNotes LessonNote[]
 
   @@index([schemeId])
   @@index([teacherId])
 }
 
 model LessonNote {
-  id               String               @id @default(uuid())
-  notes            String
-  resources        Json?
-  
-  lessonPlanId     String
-  lessonPlan       LessonPlan           @relation(fields: [lessonPlanId], references: [id], onDelete: Cascade)
-  
-  teacherId        String
-  teacher          User                 @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
+  id        String @id @default(uuid())
+  notes     String
+  resources Json?
+
+  lessonPlanId String
+  lessonPlan   LessonPlan @relation(fields: [lessonPlanId], references: [id], onDelete: Cascade)
+
+  teacherId String
+  teacher   User   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model GenerationRule {
-  id               String               @id @default(uuid())
-  contentType      String               @unique // "SCHEME_OF_WORK", "LESSON_PLAN", "LESSON_NOTES", "ASSESSMENT"
-  customPrompt     String               @db.Text
-  updatedAt        DateTime             @updatedAt
+  id           String   @id @default(uuid())
+  contentType  String   @unique // "SCHEME_OF_WORK", "LESSON_PLAN", "LESSON_NOTES", "ASSESSMENT"
+  customPrompt String   @db.Text
+  updatedAt    DateTime @updatedAt
 }
 
 model ChatSession {
-  id               String               @id @default(uuid())
-  title            String               @default("New Conversation")
-  userId           String
-  user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
-  messages         ChatMessage[]
+  id        String        @id @default(uuid())
+  title     String        @default("New Conversation")
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  messages  ChatMessage[]
 
   @@index([userId])
 }
 
 model ChatMessage {
-  id               String               @id @default(uuid())
-  sessionId        String
-  session          ChatSession          @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  role             String               // "user" | "assistant"
-  content          String               @db.Text
-  createdAt        DateTime             @default(now())
+  id        String      @id @default(uuid())
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      String // "user" | "assistant"
+  content   String      @db.Text
+  createdAt DateTime    @default(now())
 
   @@index([sessionId])
 }
 
 model Assessment {
-  id               String               @id @default(uuid())
-  title            String
-  grade            String
-  subject          String
-  type             String
-  content          Json                 
-  
-  teacherId        String
-  teacher          User                 @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
+  id      String @id @default(uuid())
+  title   String
+  grade   String
+  subject String
+  type    String
+  content Json
+
+  teacherId String
+  teacher   User   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model PasswordResetToken {
@@ -261,13 +314,13 @@ model RateLimit {
 }
 
 model RolePermission {
-  id          String   @id @default(uuid())
-  role        String
-  action      String   
-  resource    String   
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  id        String   @id @default(uuid())
+  role      String
+  action    String
+  resource  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([role, action, resource])
 }
 
@@ -275,25 +328,25 @@ model RolePermission {
 
 model CurriculumLevel {
   id     String       @id @default(uuid())
-  name   String       @unique  // "Pre-Primary", "Lower Primary", "Upper Primary", "Junior Secondary", "Senior Secondary"
+  name   String       @unique // "Pre-Primary", "Lower Primary", "Upper Primary", "Junior Secondary", "Senior Secondary"
   order  Int
   grades GradeLevel[]
 }
 
 model GradeLevel {
-  id            String               @id @default(uuid())
-  name          String               @unique  // "PP1", "Grade 1", "Grade 7", "Grade 10"
+  id            String              @id @default(uuid())
+  name          String              @unique // "PP1", "Grade 1", "Grade 7", "Grade 10"
   order         Int
   levelId       String
-  level         CurriculumLevel      @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  level         CurriculumLevel     @relation(fields: [levelId], references: [id], onDelete: Cascade)
   learningAreas LevelLearningArea[]
 
   @@index([levelId])
 }
 
 model LearningArea {
-  id     String               @id @default(uuid())
-  name   String               @unique  // "Mathematics", "English", "Integrated Science"
+  id     String              @id @default(uuid())
+  name   String              @unique // "Mathematics", "English", "Integrated Science"
   order  Int
   grades LevelLearningArea[]
 }
@@ -315,23 +368,23 @@ model LevelLearningArea {
 // designs they legally hold. A second curator checks it before teachers' documents use it.
 
 model CurriculumMap {
-  id            String               @id @default(uuid())
+  id            String  @id @default(uuid())
   grade         String
   subject       String
-  status        String               @default("DRAFT") // "DRAFT" | "IN_REVIEW" | "PUBLISHED"
-  sourceNote    String?              @db.Text          // which design and edition the map was entered from
-  reviewComment String?              @db.Text          // the checker's note when sending it back
+  status        String  @default("DRAFT") // "DRAFT" | "IN_REVIEW" | "PUBLISHED"
+  sourceNote    String? @db.Text // which design and edition the map was entered from
+  reviewComment String? @db.Text // the checker's note when sending it back
 
-  editedById    String?
-  editedBy      User?                @relation("MapEditor", fields: [editedById], references: [id], onDelete: SetNull)
-  checkedById   String?
-  checkedBy     User?                @relation("MapChecker", fields: [checkedById], references: [id], onDelete: SetNull)
-  publishedAt   DateTime?
+  editedById  String?
+  editedBy    User?     @relation("MapEditor", fields: [editedById], references: [id], onDelete: SetNull)
+  checkedById String?
+  checkedBy   User?     @relation("MapChecker", fields: [checkedById], references: [id], onDelete: SetNull)
+  publishedAt DateTime?
 
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  strands       CurriculumStrand[]
+  strands CurriculumStrand[]
 
   @@unique([grade, subject])
 }
@@ -354,7 +407,7 @@ model CurriculumSubStrand {
   order               Int
   name                String
   lessons             Int              @default(1) // suggested number of lessons
-  term                Int?                         // 1, 2 or 3 when the curator knows it; otherwise split evenly
+  term                Int? // 1, 2 or 3 when the curator knows it; otherwise split evenly
   outcomes            String[]         @default([]) // specific learning outcomes
   inquiryQuestions    String[]         @default([])
   learningExperiences String[]         @default([])
@@ -364,17 +417,19 @@ model CurriculumSubStrand {
 
 // --- Term Pack: the teacher's calendar, timetable and record of work ---
 
-/** One school term for one teacher: opening and closing dates plus breaks (half-term, exams). */
+/**
+ * One school term for one teacher: opening and closing dates plus breaks (half-term, exams).
+ */
 model TeacherTerm {
-  id          String   @id @default(uuid())
-  teacherId   String
-  teacher     User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  year        Int
-  term        Int      // 1, 2 or 3
-  opensOn     DateTime @db.Date
-  closesOn    DateTime @db.Date
-  breaks      Json     @default("[]") // [{ from: "YYYY-MM-DD", to: "YYYY-MM-DD", label: string }]
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(uuid())
+  teacherId String
+  teacher   User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  year      Int
+  term      Int // 1, 2 or 3
+  opensOn   DateTime @db.Date
+  closesOn  DateTime @db.Date
+  breaks    Json     @default("[]") // [{ from: "YYYY-MM-DD", to: "YYYY-MM-DD", label: string }]
+  updatedAt DateTime @updatedAt
 
   @@unique([teacherId, year, term])
 }
@@ -384,21 +439,23 @@ model TeacherTerm {
  * the grade, an optional stream ("" when the school has one class per grade) and the learning area.
  */
 model TimetableSlot {
-  id          String   @id @default(uuid())
-  teacherId   String
-  teacher     User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  weekday     Int
-  period      Int
-  grade       String
-  stream      String   @default("")
-  subject     String
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(uuid())
+  teacherId String
+  teacher   User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  weekday   Int
+  period    Int
+  grade     String
+  stream    String   @default("")
+  subject   String
+  updatedAt DateTime @updatedAt
 
   @@unique([teacherId, weekday, period])
   @@index([teacherId, grade, subject])
 }
 
-/** A teacher's mark on one timetabled lesson. Taught lessons make up the record of work. */
+/**
+ * A teacher's mark on one timetabled lesson. Taught lessons make up the record of work.
+ */
 model LessonRecord {
   id           String       @id @default(uuid())
   teacherId    String
@@ -410,7 +467,7 @@ model LessonRecord {
   date         DateTime     @db.Date
   slot         Int          @default(0) // the lesson number on the timetable that day
   lessonNumber Int
-  status       String       // "TAUGHT" | "CARRIED_OVER"
+  status       String // "TAUGHT" | "CARRIED_OVER"
   remarks      String?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt

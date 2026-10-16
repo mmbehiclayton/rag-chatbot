@@ -1,5 +1,5 @@
 import {
-  BarChart3, BookMarked, Building2, Database, GraduationCap, Home, LayoutGrid, MessageSquare,
+  BarChart3, BookMarked, Building2, Database, FlaskConical, GraduationCap, Home, LayoutGrid, MessageSquare,
   Settings, Settings2, ShieldAlert, ShieldCheck, UserCircle, Users,
   type LucideIcon,
 } from "lucide-react";
@@ -36,6 +36,7 @@ export function adminNavGroups(role: string | null, isCurator = false): NavGroup
     groups.push({
       label: "Platform",
       items: [
+        { name: "Pilot", href: "/dashboard/pilot", icon: FlaskConical },
         curatorLink,
         { name: "Curriculum structure", href: "/dashboard/structure", icon: LayoutGrid },
         { name: "Knowledge base", href: "/dashboard/knowledge", icon: Database },
@@ -60,6 +61,8 @@ const TITLES: [string, string][] = [
   ["/dashboard/create", "Create"],
   ["/dashboard/profile/term", "Term dates and timetable"],
   ["/dashboard/timetable", "This week"],
+  ["/dashboard/profile/plan", "Term pass"],
+  ["/dashboard/pilot", "Pilot"],
   ["/dashboard/classes", "My classes"],
   ["/dashboard/curriculum", "Curriculum maps"],
   ["/dashboard/library", "Library"],

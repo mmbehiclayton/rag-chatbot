@@ -11,6 +11,7 @@ import { getPublishedMap, lessonGrounding, mapToPrompt, subStrandsForTerm, allSu
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { coversClass, freePlanMessage, getAccess, plansOn, type ClassRef } from "@/lib/plans";
 
 // ─── Results and errors ───────────────────────────────────────────────────────
 
@@ -51,7 +52,13 @@ async function passesVerification(content: unknown, context: string) {
 
 // ─── Shared Guards ────────────────────────────────────────────────────────────
 
-async function checkGenerationGuards(session: { userId: string; tenantId?: string | null }) {
+async function checkGenerationGuards(session: { userId: string; tenantId?: string | null }, cls: ClassRef) {
+  // 0. Plan: the free plan covers one class
+  if (plansOn()) {
+    const access = await getAccess(session.userId);
+    if (!coversClass(access, cls)) throw new TeacherError(freePlanMessage(access));
+  }
+
   // 1. Rate limit: 20 generations per user per hour
   const headerStore = await headers();
   const ip = headerStore.get("x-forwarded-for") || "127.0.0.1";
@@ -334,7 +341,7 @@ async function generateSchemeOfWorkImpl(parameters: {
   if (!grounding) throw new TeacherError(missingCurriculum(parameters.grade, parameters.subject));
   const contextText = grounding.text;
 
-  await checkGenerationGuards(session);
+  await checkGenerationGuards(session, parameters);
 
   const customRule = await db.generationRule.findUnique({ where: { contentType: "SCHEME_OF_WORK" } });
   const customRuleText = customRule?.customPrompt ? `\n\nCUSTOM PLATFORM GUIDELINES (STRICTLY ENFORCE):\n${customRule.customPrompt}\n` : "";
@@ -463,10 +470,10 @@ export async function deleteAsset(type: "SCHEMES" | "LESSONS" | "NOTES" | "ASSES
 async function generateLessonPlanImpl(schemeId: string, lessonNumber: number, topic: string) {
   const session = await requireSession();
 
-  await checkGenerationGuards(session);
-
   const scheme = await db.schemeOfWork.findFirst({ where: { id: schemeId, teacherId: session.userId } });
   if (!scheme) throw new TeacherError("We couldn't find that scheme of work.");
+
+  await checkGenerationGuards(session, scheme);
 
   const schemeMap = await getPublishedMap(scheme.grade, scheme.subject);
   const customRule = await db.generationRule.findUnique({ where: { contentType: "LESSON_PLAN" } });
@@ -533,7 +540,7 @@ async function generateQuickLessonPlanImpl(parameters: { grade: string; subject:
   if (!parameters.grade || !parameters.subject || !topic) throw new TeacherError("Choose a grade, learning area and topic.");
   const durationMinutes = [30, 35, 40, 60, 70, 80].includes(parameters.durationMinutes) ? parameters.durationMinutes : 40;
 
-  await checkGenerationGuards(session);
+  await checkGenerationGuards(session, parameters);
 
   const quickMap = await getPublishedMap(parameters.grade, parameters.subject);
   const contextText = quickMap
@@ -614,10 +621,16 @@ ${groundingText}
 async function generateLessonNotesImpl(lessonPlanId: string) {
   const session = await requireSession();
 
-  await checkGenerationGuards(session);
-
-  const lessonPlan = await db.lessonPlan.findFirst({ where: { id: lessonPlanId, teacherId: session.userId } });
+  const lessonPlan = await db.lessonPlan.findFirst({
+    where: { id: lessonPlanId, teacherId: session.userId },
+    include: { scheme: { select: { grade: true, subject: true } } },
+  });
   if (!lessonPlan) throw new TeacherError("We couldn't find that lesson plan.");
+
+  await checkGenerationGuards(session, {
+    grade: lessonPlan.grade ?? lessonPlan.scheme?.grade ?? "",
+    subject: lessonPlan.subject ?? lessonPlan.scheme?.subject ?? "",
+  });
 
   const customRule = await db.generationRule.findUnique({ where: { contentType: "LESSON_NOTES" } });
   const customRuleText = customRule?.customPrompt ? `\n\nCUSTOM PLATFORM GUIDELINES (STRICTLY ENFORCE):\n${customRule.customPrompt}\n` : "";
@@ -675,7 +688,7 @@ async function generateAssessmentImpl(parameters: { grade: string, subject: stri
   if (!grounding) throw new TeacherError(missingCurriculum(parameters.grade, parameters.subject));
   const contextText = grounding.text;
 
-  await checkGenerationGuards(session);
+  await checkGenerationGuards(session, parameters);
 
   const customRule = await db.generationRule.findUnique({ where: { contentType: "ASSESSMENT" } });
   const customRuleText = customRule?.customPrompt ? `\n\nCUSTOM PLATFORM GUIDELINES (STRICTLY ENFORCE):\n${customRule.customPrompt}\n` : "";

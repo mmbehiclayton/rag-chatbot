@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
 import { classHref } from "@/lib/classes";
 import { BulletList, DocHeader, DocSection, ExportButton, Field, asArray, parseTitle } from "@/components/document/doc-parts";
+import { HeadCheck } from "@/components/pilot/head-check";
 import { ApproveSchemeButton, LessonRowAction, WeekBatchButton, WeekLessons } from "@/components/document/scheme-lessons";
 
 
@@ -47,7 +48,7 @@ export default async function SchemeDetailPage({ params }: { params: Promise<{ i
   );
   if (!scheme) notFound();
 
-  const schedule = await getSchemeSchedule(scheme);
+  const [schedule, headReview] = await Promise.all([getSchemeSchedule(scheme), withDbRetry(() => db.headReview.findUnique({ where: { schemeId_kind: { schemeId: scheme.id, kind: "SCHEME" } }, select: { answer: true } })).catch(() => null)]);
   const dated = !!schedule.term && schedule.periods.length > 0;
   const weekDates = new Map(schedule.weeks.map((w) => [w.number, w]));
   // The date each lesson falls on now, after any carried-over lessons.
@@ -106,6 +107,8 @@ export default async function SchemeDetailPage({ params }: { params: Promise<{ i
           </span>
         </p>
       )}
+
+      {!needsReview && <HeadCheck schemeId={scheme.id} kind="SCHEME" answer={headReview?.answer ?? null} />}
 
       <DocSection title="Term overview">
         <Field label="Strands covered">{asArray(overview.strandsCovered).length > 0 && <BulletList items={overview.strandsCovered} />}</Field>

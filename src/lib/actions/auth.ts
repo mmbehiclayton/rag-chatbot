@@ -5,7 +5,8 @@ import { createSession, destroySession } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { randomBytes } from "crypto";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { INVITE_COOKIE } from "@/lib/invites";
 import { sendVerificationEmail, sendPasswordResetEmail } from "@/lib/email";
 
 export async function register(prevState: any, formData: FormData) {
@@ -35,15 +36,22 @@ export async function register(prevState: any, formData: FormData) {
 
   const passwordHash = await bcrypt.hash(password, 10);
 
+  // A colleague's invite link leaves their code in a cookie, so we can count who brought whom.
+  const cookieStore = await cookies();
+  const inviteCode = cookieStore.get(INVITE_COOKIE)?.value;
+  const inviter = inviteCode ? await db.user.findUnique({ where: { inviteCode }, select: { id: true } }) : null;
+
   const user = await db.user.create({
     data: {
       name,
       email,
       passwordHash,
       role: "TEACHER",
-      tenantId: tenant.id
+      tenantId: tenant.id,
+      invitedById: inviter?.id ?? null,
     },
   });
+  if (inviteCode) cookieStore.delete(INVITE_COOKIE);
 
   // Generate Email Verification Token
   const token = randomBytes(32).toString('hex');

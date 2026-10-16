@@ -6,6 +6,7 @@ import { db, withDbRetry } from "@/lib/db";
 import { getSchemeSchedule } from "@/lib/term-pack-data";
 import { formatDay, formatRange, streamLabel, termLabel } from "@/lib/term-pack";
 import { ExportButton, parseTitle } from "@/components/document/doc-parts";
+import { HeadCheck } from "@/components/pilot/head-check";
 import { LessonRemarks } from "@/components/term-pack/lesson-remarks";
 import { MarkLesson } from "@/components/term-pack/mark-lesson";
 import { Button } from "@/components/ui/button";
@@ -31,7 +32,10 @@ export default async function RecordOfWorkPage({
   );
   if (!scheme) notFound();
 
-  const schedule = await getSchemeSchedule(scheme, typeof query.stream === "string" ? query.stream : undefined);
+  const [schedule, headReview] = await Promise.all([
+    getSchemeSchedule(scheme, typeof query.stream === "string" ? query.stream : undefined),
+    withDbRetry(() => db.headReview.findUnique({ where: { schemeId_kind: { schemeId: scheme.id, kind: "RECORD" } }, select: { answer: true } })).catch(() => null),
+  ]);
   const { term, today, stream, streams } = schedule;
   const ready = !!term && schedule.periods.length > 0;
   const streamHref = (s: string) => `/dashboard/schemes/${scheme.id}/record${s ? `?${new URLSearchParams({ stream: s })}` : ""}`;
@@ -127,6 +131,8 @@ export default async function RecordOfWorkPage({
               {lastLesson} by closing day.
             </p>
           )}
+
+          {taught > 0 && <HeadCheck schemeId={scheme.id} kind="RECORD" answer={headReview?.answer ?? null} />}
 
           {past.length === 0 ? (
             <p className="rounded-xl border border-dashed bg-card p-4 text-sm text-muted-foreground">

@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CalendarDays, ChevronRight, LifeBuoy, LogOut, Pencil } from "lucide-react";
+import { CalendarDays, ChevronRight, LifeBuoy, LogOut, Pencil, Ticket } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { logout } from "@/lib/actions/auth";
 import { db, withDbRetry } from "@/lib/db";
+import { getInviteCode, inviteUrl } from "@/lib/invites";
 import { adminNavGroups } from "@/components/layout/nav-config";
+import { InviteShare } from "@/components/pilot/invite-share";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -45,6 +47,13 @@ export default async function ProfilePage() {
   if (!user) redirect("/login");
 
   const adminGroups = adminNavGroups(session.role ?? null, user.isCurator);
+  const isTeacher = user.role === "TEACHER";
+  const [inviteCode, joined] = isTeacher
+    ? await Promise.all([
+        getInviteCode(session.userId).catch(() => null),
+        withDbRetry(() => db.user.count({ where: { invitedById: session.userId } })).catch(() => 0),
+      ])
+    : [null, 0];
   const month = monthStart.toLocaleDateString("en-KE", { month: "long" });
 
   return (
@@ -103,6 +112,33 @@ export default async function ProfilePage() {
         </span>
         <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
       </Link>
+
+      {isTeacher && (
+        <Link
+          href="/dashboard/profile/plan"
+          className="flex min-h-14 items-center gap-3 rounded-xl border bg-card px-4 py-3 transition-colors hover:bg-muted/60"
+        >
+          <Ticket className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium">Term pass</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">Your plan, and paying with M-Pesa</span>
+          </span>
+          <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        </Link>
+      )}
+
+      {inviteCode && (
+        <section className="space-y-2">
+          <h2 className="text-base font-semibold">Invite a colleague</h2>
+          <div className="space-y-3 rounded-xl border bg-card p-4">
+            <p className="text-sm text-muted-foreground">
+              Send this link to teachers in your school or subject panel.{" "}
+              {joined > 0 ? `${joined} ${joined === 1 ? "colleague has" : "colleagues have"} joined so far.` : "Nobody has joined from your link yet."}
+            </p>
+            <InviteShare url={inviteUrl(inviteCode)} />
+          </div>
+        </section>
+      )}
 
       <section className="space-y-2">
         <h2 className="text-base font-semibold">Usage in {month}</h2>
