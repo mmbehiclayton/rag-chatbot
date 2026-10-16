@@ -4,6 +4,12 @@ import { retrieveContext } from "@/lib/rag";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { explainAIError } from "@/lib/ai-errors";
+import { getGradeOptions } from "@/lib/curriculum-options";
+import { allSubStrands, findSubStrand, getPublishedMap, lessonGrounding, mapToPrompt } from "@/lib/curriculum-map";
+import { detectClass, pageLabel } from "@/lib/chat-grounding";
+
+// Below this, a chunk from an unfiltered search is usually about something else.
+const MIN_SIMILARITY = 0.4;
 
 // AI SDK v6 UI messages carry their text in `parts`, not `content`.
 function extractText(message: any): string {
@@ -61,17 +67,33 @@ export async function POST(req: Request) {
         let sources: { id: string; title: string }[] = [];
         if (query) {
             try {
-                const contextChunks = await retrieveContext(query, 5, { tenantId: tenantId ?? undefined });
-                if (contextChunks && contextChunks.length > 0) {
-                    contextText = "\nRELEVANT CURRICULUM CONTEXT:\n" +
-                        contextChunks.map(c => `[Page ${c.pageNumber}]: ${c.chunkText}`).join("\n\n");
+                // When the question names a class ("Grade 5 Science"), answer from that class only.
+                const asked = detectClass(query, await getGradeOptions());
+                const map = asked ? await getPublishedMap(asked.grade, asked.subject) : null;
 
-                    const docIds = [...new Set(contextChunks.map((c) => c.curriculumId))];
-                    const docs = await db.curriculumDocument.findMany({ where: { id: { in: docIds } }, select: { id: true, title: true } });
-                    sources = docs.map((d) => {
-                        const pages = [...new Set(contextChunks.filter((c) => c.curriculumId === d.id).map((c) => c.pageNumber))].sort((a, b) => a - b);
-                        return { id: d.id, title: `${d.title}${pages.length ? ` (p. ${pages.join(", ")})` : ""}` };
+                if (map && asked) {
+                    const sub = findSubStrand(map, query) ?? allSubStrands(map).find((s) => query.toLowerCase().includes(s.name.toLowerCase()));
+                    contextText = `\nCURRICULUM MAP FOR ${asked.grade.toUpperCase()} ${asked.subject.toUpperCase()} (entered and checked by teachers; quote names and outcomes exactly):\n` +
+                        (sub ? lessonGrounding(map, sub.name) : mapToPrompt(allSubStrands(map)));
+                    sources = [{ id: `map-${map.id}`, title: `${asked.grade} ${asked.subject} curriculum map` }];
+                } else {
+                    const found = await retrieveContext(query, 5, {
+                        tenantId: tenantId ?? undefined,
+                        ...(asked ? { grade: asked.grade, subject: asked.subject } : {}),
                     });
+                    // Without a class filter, keep only close matches so another grade's design isn't quoted.
+                    const chunks = asked ? found : found.filter((c) => c.similarity >= MIN_SIMILARITY);
+                    if (chunks.length > 0) {
+                        contextText = "\nRELEVANT CURRICULUM CONTEXT:\n" + chunks.map((c) => c.chunkText).join("\n\n");
+                        const docIds = [...new Set(chunks.map((c) => c.curriculumId))];
+                        const docs = await db.curriculumDocument.findMany({ where: { id: { in: docIds } }, select: { id: true, title: true } });
+                        sources = docs.map((d) => ({
+                            id: d.id,
+                            title: `${d.title}${pageLabel(chunks.filter((c) => c.curriculumId === d.id).map((c) => c.pageNumber))}`,
+                        }));
+                    } else if (asked) {
+                        contextText = `\nNOTE: Elimu does not have the curriculum design for ${asked.grade} ${asked.subject} yet. Say so in one sentence, then give general guidance and say it should be checked against the KICD design.`;
+                    }
                 }
             } catch (ragError) {
                 console.error("RAG retrieval failed:", ragError);
