@@ -16,14 +16,18 @@ export default async function CurriculumMapsPage({ searchParams }: { searchParam
   if (!(await getCurator(session.userId))) redirect("/dashboard");
 
   const { level: levelParam } = await searchParams;
-  const [grades, maps] = await Promise.all([
+  const [grades, maps, designs] = await Promise.all([
     getGradeOptions(),
     withDbRetry(() =>
       db.curriculumMap.findMany({
         select: { grade: true, subject: true, status: true, _count: { select: { strands: true } } },
       })
     ),
+    withDbRetry(() =>
+      db.curriculumDocument.findMany({ where: { status: "completed", tenantId: null }, select: { gradeLevel: true, subject: true } })
+    ),
   ]);
+  const hasDesign = new Set(designs.map((d) => `${d.gradeLevel}|${d.subject}`));
 
   const levels = [...new Set(grades.map((g) => g.level))];
   const level = levels.includes(levelParam ?? "") ? levelParam! : levels.includes(PILOT_LEVEL) ? PILOT_LEVEL : levels[0];
@@ -79,7 +83,11 @@ export default async function CurriculumMapsPage({ searchParams }: { searchParam
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium">{subject}</span>
                         <span className="mt-0.5 block text-xs text-muted-foreground">
-                          {map ? `${map._count.strands} strand${map._count.strands === 1 ? "" : "s"}` : "Not started"}
+                          {map
+                            ? `${map._count.strands} strand${map._count.strands === 1 ? "" : "s"}`
+                            : hasDesign.has(`${g.name}|${subject}`)
+                              ? "Design uploaded · ready to draft"
+                              : "Not started · no design uploaded"}
                         </span>
                       </span>
                       {map && <MapStatusBadge status={map.status} />}

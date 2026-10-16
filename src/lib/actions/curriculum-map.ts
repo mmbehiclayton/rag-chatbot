@@ -5,7 +5,9 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getGradeOptions } from "@/lib/curriculum-options";
-import { MAP_STATUS, getCurator } from "@/lib/curriculum-map";
+import { MAP_STATUS, getCurator, writeMapDraft } from "@/lib/curriculum-map";
+import { draftMapFromDesign } from "@/lib/map-drafting";
+import { explainAIError } from "@/lib/ai-errors";
 
 type Result = { success: true } | { success: false; error: string };
 
@@ -54,34 +56,30 @@ export async function saveCurriculumMap(grade: string, subject: string, input: M
 
   const parsed = MapInput.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Check the map and try again." };
-  const data = parsed.data;
+  await writeMapDraft(grade, subject, curator.id, parsed.data);
 
-  await db.$transaction(async (tx) => {
-    const map = await tx.curriculumMap.upsert({
-      where: { grade_subject: { grade, subject } },
-      create: { grade, subject, sourceNote: data.sourceNote || null, editedById: curator.id },
-      update: {
-        sourceNote: data.sourceNote || null,
-        editedById: curator.id,
-        status: MAP_STATUS.DRAFT,
-        checkedById: null,
-        publishedAt: null,
-      },
-      select: { id: true },
-    });
-    await tx.curriculumStrand.deleteMany({ where: { mapId: map.id } });
-    for (const [order, strand] of data.strands.entries()) {
-      await tx.curriculumStrand.create({
-        data: {
-          mapId: map.id,
-          order,
-          name: strand.name,
-          subStrands: { create: strand.subStrands.map((s, i) => ({ ...s, order: i })) },
-        },
-      });
-    }
-  });
+  paths(grade, subject);
+  return { success: true };
+}
 
+/** Drafts the map from the uploaded curriculum design. Only replaces a map that is still a draft. */
+export async function draftCurriculumMap(grade: string, subject: string): Promise<Result> {
+  const session = await auth();
+  const curator = await getCurator(session.userId);
+  if (!curator) return { success: false, error: "Only curators can edit curriculum maps." };
+  if (!(await isRealClass(grade, subject))) return { success: false, error: "That grade and learning area doesn't exist." };
+
+  const map = await db.curriculumMap.findUnique({ where: { grade_subject: { grade, subject } }, select: { status: true } });
+  if (map && map.status !== MAP_STATUS.DRAFT) {
+    return { success: false, error: "This map is waiting for a check or in use. Edit it directly instead." };
+  }
+
+  try {
+    await draftMapFromDesign(grade, subject, curator.id);
+  } catch (e) {
+    const message = e instanceof Error && /^(No curriculum design|The design|Elimu couldn't)/.test(e.message) ? e.message : explainAIError("map draft", e);
+    return { success: false, error: message };
+  }
   paths(grade, subject);
   return { success: true };
 }

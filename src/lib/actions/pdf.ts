@@ -8,6 +8,7 @@ import { openai } from "@ai-sdk/openai";
 import path from "path";
 import fs from "fs";
 import { pathToFileURL } from "url";
+import { draftMapAfterUpload } from "@/lib/map-drafting";
 
 export async function processPDF(documentId: string) {
   const { userId } = await auth();
@@ -101,6 +102,9 @@ export async function processPDF(documentId: string) {
     });
 
     console.log(`[PDF Extraction & Vectors] Completed for ${documentId}. Inserted ${chunks.length} chunks.`);
+
+    // Next step of the pipeline: draft the class's curriculum map for curators to check.
+    await draftMapAfterUpload(documentId).catch((e) => console.error("[map draft] failed after upload:", e));
     return { success: true, chunksCount: chunks.length };
   } catch (error: any) {
     console.error("[PDF Extraction Error]", error);

@@ -25,6 +25,38 @@ const strandSelect = {
   },
 };
 
+/**
+ * Replaces a map's strands and puts it back to Draft. Any change takes a map out of use until
+ * a curator other than `editorId` checks it again.
+ */
+export async function writeMapDraft(grade: string, subject: string, editorId: string | null, data: { sourceNote?: string; strands: MapStrand[] }) {
+  await db.$transaction(async (tx) => {
+    const map = await tx.curriculumMap.upsert({
+      where: { grade_subject: { grade, subject } },
+      create: { grade, subject, sourceNote: data.sourceNote || null, editedById: editorId },
+      update: {
+        sourceNote: data.sourceNote || null,
+        editedById: editorId,
+        status: MAP_STATUS.DRAFT,
+        checkedById: null,
+        publishedAt: null,
+      },
+      select: { id: true },
+    });
+    await tx.curriculumStrand.deleteMany({ where: { mapId: map.id } });
+    for (const [order, strand] of data.strands.entries()) {
+      await tx.curriculumStrand.create({
+        data: {
+          mapId: map.id,
+          order,
+          name: strand.name,
+          subStrands: { create: strand.subStrands.map((s, i) => ({ ...s, order: i })) },
+        },
+      });
+    }
+  }, { timeout: 30_000 });
+}
+
 /** Superadmins and teachers marked as curators can enter and check curriculum maps. */
 export async function getCurator(userId: string | null) {
   if (!userId) return null;

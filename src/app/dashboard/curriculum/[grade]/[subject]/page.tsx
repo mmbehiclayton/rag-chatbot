@@ -8,6 +8,11 @@ import { getGradeOptions } from "@/lib/curriculum-options";
 import { MAP_STATUS, getCurator } from "@/lib/curriculum-map";
 import { MapStatusBadge } from "@/components/curriculum/map-status-badge";
 import { MapEditor } from "@/components/curriculum/map-editor";
+import { DraftFromDesign } from "@/components/curriculum/draft-from-design";
+import { findDesign } from "@/lib/map-drafting";
+
+// Drafting a map from a curriculum design reads the whole design with AI.
+export const maxDuration = 300;
 
 function decode(value: string) {
   try {
@@ -56,6 +61,7 @@ export default async function CurriculumMapPage({ params }: { params: Promise<{ 
   );
 
   const status = map?.status ?? MAP_STATUS.DRAFT;
+  const design = status === MAP_STATUS.DRAFT ? await findDesign(grade, subject) : null;
   const canCheck = status === MAP_STATUS.IN_REVIEW && map?.editedById !== curator.id;
   const person = (u: { name: string | null; email: string } | null | undefined) => u?.name || u?.email || "a curator";
 
@@ -97,7 +103,10 @@ export default async function CurriculumMapPage({ params }: { params: Promise<{ 
         )}
       </div>
 
+      {design && <DraftFromDesign grade={grade} subject={subject} designTitle={design.title} hasStrands={(map?.strands.length ?? 0) > 0} />}
+
       <MapEditor
+        key={map?.updatedAt.toISOString() ?? "new"}
         grade={grade}
         subject={subject}
         status={status}
