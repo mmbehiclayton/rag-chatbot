@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronRight, LifeBuoy, LogOut, Pencil } from "lucide-react";
+import { CalendarDays, ChevronRight, LifeBuoy, LogOut, Pencil } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { logout } from "@/lib/actions/auth";
 import { db, withDbRetry } from "@/lib/db";
@@ -91,6 +91,18 @@ export default async function ProfilePage() {
           </Row>
         </dl>
       </section>
+
+      <Link
+        href="/dashboard/profile/term"
+        className="flex min-h-14 items-center gap-3 rounded-xl border bg-card px-4 py-3 transition-colors hover:bg-muted/60"
+      >
+        <CalendarDays className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium">Term dates and timetable</span>
+          <span className="mt-0.5 block text-xs text-muted-foreground">When school opens and closes, breaks, and the days you teach each class</span>
+        </span>
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+      </Link>
 
       <section className="space-y-2">
         <h2 className="text-base font-semibold">Usage in {month}</h2>

@@ -58,6 +58,7 @@ const TITLES: [string, string][] = [
   ["/dashboard/create/scheme", "New scheme of work"],
   ["/dashboard/create/assessment", "New assessment"],
   ["/dashboard/create", "Create"],
+  ["/dashboard/profile/term", "Term dates and timetable"],
   ["/dashboard/classes", "My classes"],
   ["/dashboard/curriculum", "Curriculum maps"],
   ["/dashboard/library", "Library"],
@@ -79,5 +80,6 @@ const TITLES: [string, string][] = [
 ];
 
 export function titleForPath(pathname: string) {
+  if (/^\/dashboard\/schemes\/[^/]+\/record$/.test(pathname)) return "Record of work";
   return TITLES.find(([prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`))?.[1] ?? "Today";
 }

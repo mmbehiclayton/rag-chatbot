@@ -59,6 +59,9 @@ model User {
   chatSessions     ChatSession[]
   mapsEdited       CurriculumMap[]      @relation("MapEditor")
   mapsChecked      CurriculumMap[]      @relation("MapChecker")
+  terms            TeacherTerm[]
+  timetables       ClassTimetable[]
+  lessonRecords    LessonRecord[]
 
   @@index([tenantId])
 }
@@ -120,6 +123,8 @@ model SchemeOfWork {
   grade            String
   subject          String
   term             String
+  // School year the scheme is for; with term it finds the teacher's term dates
+  year             Int?
   content          Json                 // Generated JSON content
   isShared         Boolean              @default(false)
   sharesCount      Int                  @default(0)
@@ -134,6 +139,7 @@ model SchemeOfWork {
   updatedAt        DateTime             @updatedAt
 
   lessonPlans      LessonPlan[]
+  lessonRecords    LessonRecord[]
 
   @@index([teacherId])
   @@index([curriculumId])
@@ -354,4 +360,53 @@ model CurriculumSubStrand {
   learningExperiences String[]         @default([])
 
   @@index([strandId])
+}
+
+// --- Term Pack: the teacher's calendar, timetable and record of work ---
+
+/** One school term for one teacher: opening and closing dates plus breaks (half-term, exams). */
+model TeacherTerm {
+  id          String   @id @default(uuid())
+  teacherId   String
+  teacher     User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  year        Int
+  term        Int      // 1, 2 or 3
+  opensOn     DateTime @db.Date
+  closesOn    DateTime @db.Date
+  breaks      Json     @default("[]") // [{ from: "YYYY-MM-DD", to: "YYYY-MM-DD", label: string }]
+  updatedAt   DateTime @updatedAt
+
+  @@unique([teacherId, year, term])
+}
+
+/** When one class meets: one weekday (1 = Monday … 5 = Friday) per lesson, repeated for double lessons. */
+model ClassTimetable {
+  id          String   @id @default(uuid())
+  teacherId   String
+  teacher     User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  grade       String
+  subject     String
+  days        Int[]
+  updatedAt   DateTime @updatedAt
+
+  @@unique([teacherId, grade, subject])
+}
+
+/** A teacher's mark on one timetabled lesson. Taught lessons make up the record of work. */
+model LessonRecord {
+  id           String       @id @default(uuid())
+  teacherId    String
+  teacher      User         @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  schemeId     String
+  scheme       SchemeOfWork @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  date         DateTime     @db.Date
+  slot         Int          @default(0) // 0 for the first lesson that day, 1 for a second (double lesson)
+  lessonNumber Int
+  status       String       // "TAUGHT" | "CARRIED_OVER"
+  remarks      String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@unique([schemeId, date, slot])
+  @@index([teacherId, date])
 }

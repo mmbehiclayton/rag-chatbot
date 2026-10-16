@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, BookOpen, ChevronRight, ClipboardList, FileText, Info, NotebookPen, Plus } from "lucide-react";
+import { ArrowLeft, BookOpen, ChevronRight, ClipboardCheck, ClipboardList, FileText, Info, NotebookPen, Plus } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
@@ -137,6 +137,14 @@ export default async function ClassPage({ params }: { params: Promise<{ grade: s
                 </Button>
               </div>
             )}
+            <Link
+              href={`/dashboard/schemes/${current.id}/record`}
+              className="flex min-h-12 items-center gap-3 border-t px-4 py-3 text-sm transition-colors hover:bg-muted/60"
+            >
+              <ClipboardCheck className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+              <span className="flex-1 font-medium">Record of work</span>
+              <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            </Link>
           </div>
         ) : (
           <div className="space-y-3 rounded-xl border border-dashed bg-card p-4">

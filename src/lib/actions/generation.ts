@@ -6,6 +6,7 @@ import { generateObject } from "ai";
 import { explainAIError } from "@/lib/ai-errors";
 import { openai } from "@ai-sdk/openai";
 import { retrieveContext } from "@/lib/rag";
+import { schemeLessons } from "@/lib/term-pack";
 import { getPublishedMap, lessonGrounding, mapToPrompt, subStrandsForTerm, allSubStrands } from "@/lib/curriculum-map";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
@@ -261,14 +262,30 @@ const AssessmentSchema = z.object({
 
 // --- Server Actions ---
 
-async function generateSchemeOfWorkImpl(parameters: { grade: string, subject: string, term: string, weeks: number, holidays: number, lessonsPerWeek: number, durationMinutes: number, forceFresh?: boolean } | null) {
+async function generateSchemeOfWorkImpl(parameters: {
+  grade: string;
+  subject: string;
+  term: string;
+  weeks: number;
+  holidays: number;
+  lessonsPerWeek: number;
+  durationMinutes: number;
+  forceFresh?: boolean;
+  /** From the teacher's term dates and timetable, when set: the school year and the exact number of lessons. */
+  year?: number;
+  totalLessons?: number;
+} | null) {
   if (!parameters) throw new TeacherError("Fill in the form and try again.");
   const session = await requireSession();
 
   // Cache: reuse a verified scheme for the same grade/subject/term. A scheme from
   // another teacher is cloned so it lands in the requester's own library.
+  const totalLessons =
+    parameters.totalLessons && parameters.totalLessons > 0 && parameters.totalLessons <= 200 ? Math.round(parameters.totalLessons) : null;
+  const year = parameters.year && parameters.year >= 2024 && parameters.year <= 2100 ? parameters.year : null;
+
   if (!parameters.forceFresh) {
-    const cachedScheme = await db.schemeOfWork.findFirst({
+    const candidates = await db.schemeOfWork.findMany({
       where: {
         grade: parameters.grade,
         subject: parameters.subject,
@@ -276,7 +293,10 @@ async function generateSchemeOfWorkImpl(parameters: { grade: string, subject: st
         NOT: { title: { startsWith: "[Needs Review]" } },
       },
       orderBy: { createdAt: "desc" },
+      take: 10,
     });
+    // With a real timetable, only reuse a scheme that has the same number of lessons.
+    const cachedScheme = candidates.find((c) => !totalLessons || schemeLessons(c.content).length === totalLessons);
 
     if (cachedScheme && cachedScheme.teacherId === session.userId) return cachedScheme;
 
@@ -287,6 +307,7 @@ async function generateSchemeOfWorkImpl(parameters: { grade: string, subject: st
           grade: cachedScheme.grade,
           subject: cachedScheme.subject,
           term: cachedScheme.term,
+          year,
           content: cachedScheme.content as any,
           teacherId: session.userId,
           curriculumId: cachedScheme.curriculumId,
@@ -329,8 +350,12 @@ INPUT DATA:
 MANDATORY REQUIREMENTS:
 1. Cover the strands and sub-strands from the curriculum provided below${grounding.source === "map" ? ", sharing the lessons out in proportion to each sub-strand's suggested lessons" : ""}.
 2. Use the EXACT specific learning outcomes (DO NOT paraphrase).
-3. Calculate total lessons: (${parameters.weeks} - ${parameters.holidays}) × ${parameters.lessonsPerWeek} = TOTAL LESSONS.
-4. Structure into Weeks and Rows (Max 3 sub-strands per week).
+${
+    totalLessons
+      ? `3. Write exactly ${totalLessons} lessons (one row each) across ${parameters.weeks} teaching weeks, numbered 1 to ${parameters.weeks}. This comes from the teacher's real timetable, about ${parameters.lessonsPerWeek} lessons a week.`
+      : `3. Calculate total lessons: (${parameters.weeks} - ${parameters.holidays}) × ${parameters.lessonsPerWeek} = TOTAL LESSONS.`
+  }
+4. Structure into Weeks and Rows, one row per lesson. Keep each row brief: 1-3 outcomes, 1-2 inquiry questions, 2-3 learning experiences, 2-3 resources and 1-2 assessment methods, each a short phrase.
 5. Tag all 7 core competencies in activities.
 6. Include min 2 Community Service Learning and 2 Parental Engagement strategies.
 
@@ -341,6 +366,8 @@ ${groundingBlock(grounding)}
     model: openai("gpt-4o"),
     schema: SchemeOfWorkSchema,
     system: systemPrompt,
+    // A full term can be 60+ lessons, one row each.
+    maxOutputTokens: 16000,
     prompt: `Generate the complete Scheme of Work now mapped exactly to the detailed Zod schema format.`,
   });
 
@@ -350,6 +377,7 @@ ${groundingBlock(grounding)}
       grade: parameters.grade,
       subject: parameters.subject,
       term: parameters.term,
+      year,
       content: object as any,
       teacherId: session.userId,
       curriculumId: grounding.curriculumId

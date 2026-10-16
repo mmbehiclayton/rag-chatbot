@@ -1,5 +1,9 @@
 import { notFound, redirect } from "next/navigation";
-import { AlertTriangle } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, CalendarDays, ClipboardCheck } from "lucide-react";
+import { getSchemeSchedule } from "@/lib/term-pack-data";
+import { formatDay, formatRange, termLabel } from "@/lib/term-pack";
+import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
 import { classHref } from "@/lib/classes";
@@ -43,6 +47,13 @@ export default async function SchemeDetailPage({ params }: { params: Promise<{ i
   );
   if (!scheme) notFound();
 
+  const schedule = await getSchemeSchedule(scheme);
+  const dated = !!schedule.term && schedule.days.length > 0;
+  const weekDates = new Map(schedule.weeks.map((w) => [w.number, w]));
+  // The date each lesson falls on now, after any carried-over lessons.
+  const lessonDates = new Map<number, string>();
+  for (const s of schedule.slots) if (s.lessonNumber && !lessonDates.has(s.lessonNumber) && s.status !== "CARRIED_OVER") lessonDates.set(s.lessonNumber, s.date);
+
   const content = (scheme.content ?? {}) as Content;
   const overview = content.termlyOverview ?? {};
   const lessonIds = new Map(scheme.lessonPlans.map((l) => [l.lessonNumber, l.id]));
@@ -64,11 +75,14 @@ export default async function SchemeDetailPage({ params }: { params: Promise<{ i
         backHref={classHref(scheme.grade, scheme.subject)}
         backLabel={`${scheme.grade} ${scheme.subject}`}
         title={title}
-        meta={`${scheme.grade} · ${scheme.subject} · ${scheme.term} · ${counter} lessons`}
+        meta={`${scheme.grade} · ${scheme.subject} · ${schedule.term ? termLabel(schedule.term) : scheme.term} · ${counter} lessons`}
         needsReview={needsReview}
         actions={
           <>
             <ExportButton href={`/api/export?type=scheme&id=${scheme.id}`} />
+            <Button variant="outline" render={<Link href={`/dashboard/schemes/${scheme.id}/record`} />}>
+              <ClipboardCheck /> Record of work
+            </Button>
             {needsReview && <ApproveSchemeButton schemeId={scheme.id} />}
           </>
         }
@@ -78,6 +92,18 @@ export default async function SchemeDetailPage({ params }: { params: Promise<{ i
         <p className="flex gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
           Elimu's accuracy check flagged parts of this scheme. Compare the strands and learning outcomes with the curriculum design before you use it.
+        </p>
+      )}
+
+      {!dated && (
+        <p className="flex gap-2 rounded-lg border bg-card p-3 text-sm">
+          <CalendarDays className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+          <span>
+            <Link href="/dashboard/profile/term" className="font-medium text-primary hover:underline">
+              Add your term dates and timetable
+            </Link>{" "}
+            to see the date of each lesson and fill your record of work as you teach.
+          </span>
         </p>
       )}
 
@@ -103,15 +129,23 @@ export default async function SchemeDetailPage({ params }: { params: Promise<{ i
         <WeekLessons key={week.weekNumber} schemeId={scheme.id} rows={week.rows.map((r) => r.lesson)}>
           <section id={`week-${week.weekNumber}`} className="scroll-mt-20 rounded-xl border bg-card">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 sm:px-5">
-              <h2 className="text-base font-semibold">Week {week.weekNumber}</h2>
+              <h2 className="text-base font-semibold">
+                Week {week.weekNumber}
+                {weekDates.get(week.weekNumber) && (
+                  <span className="ml-2 text-sm font-normal text-muted-foreground">
+                    {formatRange(weekDates.get(week.weekNumber)!.from, weekDates.get(week.weekNumber)!.to)}
+                  </span>
+                )}
+              </h2>
               <WeekBatchButton rows={week.rows.map((r) => r.lesson)} />
             </div>
             <ol className="divide-y">
               {week.rows.map(({ row, lesson }) => (
-                <li key={lesson.lessonNumber} className="space-y-3 px-4 py-4 sm:px-5">
+                <li key={lesson.lessonNumber} id={`lesson-${lesson.lessonNumber}`} className="scroll-mt-20 space-y-3 px-4 py-4 sm:px-5">
                   <div>
                     <p className="text-xs text-muted-foreground">
-                      Lesson {lesson.lessonNumber} · {row.strand}
+                      Lesson {lesson.lessonNumber}
+                      {lessonDates.get(lesson.lessonNumber) && ` · ${formatDay(lessonDates.get(lesson.lessonNumber)!)}`} · {row.strand}
                     </p>
                     <p className="mt-0.5 font-medium">{row.subStrand}</p>
                   </div>

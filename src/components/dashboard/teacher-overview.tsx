@@ -8,6 +8,7 @@ import { parseTitle } from "@/components/document/doc-parts";
 import { EmptyState } from "@/components/shared/empty-state";
 import { LinkList, SectionTitle, type LinkListItem } from "@/components/shared/link-list";
 import { Button } from "@/components/ui/button";
+import { TodayLessons } from "@/components/term-pack/today-lessons";
 
 type Recent = LinkListItem & { updatedAt: Date };
 
@@ -133,6 +134,8 @@ export async function TeacherOverview({ session }: { session: { userId: string; 
           </span>
         </p>
       )}
+
+      <TodayLessons teacherId={teacherId} hasSchemes={schemes.length > 0} />
 
       {upNext.length > 0 && (
         <section className="space-y-2">

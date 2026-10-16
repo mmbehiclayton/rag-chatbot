@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getSchemeSchedule } from "@/lib/term-pack-data";
+import { formatDay, formatRange, termLabel } from "@/lib/term-pack";
 
 // Returns a print-ready HTML document for a scheme, lesson plan, or assessment.
 // Usage: GET /api/export?type=scheme&id=<id>
@@ -9,7 +11,7 @@ export async function GET(req: NextRequest) {
   if (!session?.userId) return new NextResponse("Unauthorized", { status: 401 });
 
   const { searchParams } = req.nextUrl;
-  const type = searchParams.get("type"); // scheme | lesson | assessment | notes
+  const type = searchParams.get("type"); // scheme | lesson | assessment | notes | record
   const id = searchParams.get("id");
   const grade = searchParams.get("grade");
   const subject = searchParams.get("subject");
@@ -57,7 +59,16 @@ export async function GET(req: NextRequest) {
         where: { id, teacherId: session.userId },
       });
       if (!scheme) return new NextResponse("Not found", { status: 404 });
-      html = buildSchemeHTML(scheme);
+      const schedule = await getSchemeSchedule(scheme);
+      const weekDates = new Map(schedule.weeks.map((w) => [w.number, formatRange(w.from, w.to)]));
+      html = buildSchemeHTML(scheme, weekDates);
+    } else if (type === "record") {
+      const scheme = await db.schemeOfWork.findFirst({
+        where: { id, teacherId: session.userId },
+        include: { teacher: { select: { name: true, schoolName: true, tenant: { select: { name: true } } } } },
+      });
+      if (!scheme) return new NextResponse("Not found", { status: 404 });
+      html = buildRecordHTML(scheme, await getSchemeSchedule(scheme));
     } else if (type === "lesson") {
       const lesson = await db.lessonPlan.findFirst({
         where: { id, teacherId: session.userId },
@@ -167,7 +178,7 @@ function esc(v: unknown): string {
     .replace(/>/g, "&gt;");
 }
 
-function schemeBody(scheme: any) {
+function schemeBody(scheme: any, weekDates?: Map<number, string>) {
   const c = scheme.content as any;
   const weeks = Array.isArray(c?.weeks) ? c.weeks : [];
 
@@ -180,7 +191,7 @@ function schemeBody(scheme: any) {
         .map(
           (row: any, ri: number) => `
       <tr>
-        <td class="wk">${ri === 0 ? `Wk ${esc(week.weekNumber)}` : ""}</td>
+        <td class="wk">${ri === 0 ? `Wk ${esc(week.weekNumber)}${weekDates?.get(week.weekNumber) ? `<br><small>${esc(weekDates.get(week.weekNumber))}</small>` : ""}` : ""}</td>
         <td class="b">${esc(row.strand)}</td>
         <td class="sub">${esc(row.subStrand)}</td>
         <td>${arr(row.specificLearningOutcomes).map((o) => `<div class="out">${esc(o)}</div>`).join("")}</td>
@@ -223,8 +234,57 @@ function schemeBody(scheme: any) {
   return body;
 }
 
-function buildSchemeHTML(scheme: any) {
-  return wrap(scheme.title, schemeBody(scheme), /* landscape */ true);
+function buildRecordHTML(scheme: any, schedule: Awaited<ReturnType<typeof getSchemeSchedule>>) {
+  const taught = schedule.slots.filter((s) => s.status === "TAUGHT" && s.lessonNumber);
+  const school = scheme.teacher?.schoolName || scheme.teacher?.tenant?.name || "";
+  const rows = taught
+    .map(
+      (s) => `
+      <tr>
+        <td class="center">${esc(s.week)}</td>
+        <td>${esc(formatDay(s.date))}</td>
+        <td class="center">${esc(s.lessonNumber)}</td>
+        <td><b>${esc(s.lesson?.strand)}</b><br>${esc(s.lesson?.subStrand)}</td>
+        <td>${arr(s.lesson?.outcomes).map((o) => `<div>${esc(o)}</div>`).join("")}</td>
+        <td>${esc(s.remarks)}</td>
+        <td></td>
+      </tr>`,
+    )
+    .join("");
+  const sign = (role: string) =>
+    `<div class="sign"><div class="line"></div><div>${role}: name, signature and date</div></div>`;
+  const body = `
+    <style>
+      table.record { table-layout: fixed; font-size: 11px; }
+      table.record td div { margin: 2px 0; }
+      .signs { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-top: 40px; font-size: 12px; page-break-inside: avoid; }
+      .sign .line { border-bottom: 1px solid #111; height: 36px; margin-bottom: 6px; }
+    </style>
+    <div class="center"><h1>Record of work</h1></div>
+    <div class="meta center">
+      ${school ? `<div>School: <span>${esc(school)}</span></div>` : ""}
+      <div>Teacher: <span>${esc(scheme.teacher?.name)}</span></div>
+      <div>Grade: <span>${esc(scheme.grade)}</span></div>
+      <div>Learning area: <span>${esc(scheme.subject)}</span></div>
+      <div>Term: <span>${esc(schedule.term ? termLabel(schedule.term) : scheme.term)}</span></div>
+    </div>
+    <table class="record">
+      <colgroup>
+        <col style="width:6%"><col style="width:11%"><col style="width:7%"><col style="width:22%">
+        <col style="width:28%"><col style="width:18%"><col style="width:8%">
+      </colgroup>
+      <thead><tr>
+        <th>Week</th><th>Date</th><th>Lesson</th><th>Strand / sub-strand</th><th>Work covered</th><th>Reflection</th><th>Sign</th>
+      </tr></thead>
+      <tbody>${rows || `<tr><td colspan="7" class="center">No lessons marked as taught yet.</td></tr>`}</tbody>
+    </table>
+    <div class="signs">${sign("Teacher")}${sign("Head of department")}${sign("Head teacher")}</div>
+  `;
+  return wrap(`Record of work · ${scheme.grade} ${scheme.subject}`, body);
+}
+
+function buildSchemeHTML(scheme: any, weekDates?: Map<number, string>) {
+  return wrap(scheme.title, schemeBody(scheme, weekDates), /* landscape */ true);
 }
 
 function lessonBody(lesson: any) {

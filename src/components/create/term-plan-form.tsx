@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Info } from "lucide-react";
+import { CalendarDays, Info } from "lucide-react";
 import { toast } from "sonner";
 import { generateAssessment, generateSchemeOfWork } from "@/lib/actions/generation";
 import type { GradeOption } from "@/lib/curriculum-options";
@@ -54,6 +55,12 @@ function NumberField({
   );
 }
 
+/** The teacher's saved terms, keyed "Term 1"…"Term 3": teaching weeks and timetabled lessons per class ("grade|subject"). */
+export type TermCalendar = Record<
+  string,
+  { year: number; label: string; weeks: number; opensOn: string; lessons: Record<string, number>; perWeek: Record<string, number> }
+>;
+
 /** Form for the curriculum-grounded generators: scheme of work and assessment. */
 export function TermPlanForm({
   kind,
@@ -61,17 +68,21 @@ export function TermPlanForm({
   myGrades,
   mySubjects,
   curricula,
+  calendar = {},
+  initialTerm,
 }: {
   kind: "scheme" | "assessment";
   grades: GradeOption[];
   myGrades: string[];
   mySubjects: string[];
   curricula: string[];
+  calendar?: TermCalendar;
+  initialTerm?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [target, setTarget] = useState(() => defaultGradeSubject(grades, myGrades, mySubjects));
-  const [term, setTerm] = useState("Term 1");
+  const [term, setTerm] = useState(initialTerm ?? "Term 1");
   const [weeks, setWeeks] = useState(12);
   const [breakWeeks, setBreakWeeks] = useState(1);
   const [lessonsPerWeek, setLessonsPerWeek] = useState(5);
@@ -81,8 +92,13 @@ export function TermPlanForm({
   const [marks, setMarks] = useState("50");
 
   const hasCurriculum = curricula.includes(`${target.grade}|${target.subject}`);
+  const termDates = calendar[term];
+  const classKey = `${target.grade}|${target.subject}`;
+  // With saved term dates and a timetable for this class, the lesson count comes from real dates.
+  const fromCalendar = kind === "scheme" && termDates && termDates.lessons[classKey] > 0 ? termDates : null;
   const numbersValid =
     kind === "assessment" ||
+    !!fromCalendar ||
     (weeks >= 4 && weeks <= 16 && breakWeeks >= 0 && breakWeeks < weeks && lessonsPerWeek >= 1 && lessonsPerWeek <= 10);
   const ready = !!target.grade && !!target.subject && hasCurriculum && numbersValid;
   const durationMinutes = Number.parseInt(duration, 10);
@@ -94,11 +110,17 @@ export function TermPlanForm({
           const result = await generateSchemeOfWork({
             ...target,
             term,
-            weeks,
-            holidays: breakWeeks,
-            lessonsPerWeek,
             durationMinutes,
             forceFresh,
+            ...(fromCalendar
+              ? {
+                  weeks: fromCalendar.weeks,
+                  holidays: 0,
+                  lessonsPerWeek: fromCalendar.perWeek[classKey],
+                  year: fromCalendar.year,
+                  totalLessons: fromCalendar.lessons[classKey],
+                }
+              : { weeks, holidays: breakWeeks, lessonsPerWeek }),
           });
           if (!result.ok) return void toast.error(result.error);
           toast.success("Scheme of work ready");
@@ -163,6 +185,26 @@ export function TermPlanForm({
 
           {kind === "scheme" ? (
             <>
+              {fromCalendar ? (
+                <div className="flex gap-3 rounded-md bg-muted p-3 text-sm">
+                  <CalendarDays className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+                  <p>
+                    From your {fromCalendar.label} dates and timetable: {fromCalendar.weeks} teaching weeks,{" "}
+                    {fromCalendar.lessons[classKey]} lessons.{" "}
+                    <Link href="/dashboard/profile/term" className="font-medium text-primary hover:underline">
+                      Change
+                    </Link>
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  <Link href="/dashboard/profile/term" className="font-medium text-primary hover:underline">
+                    Add your term dates and timetable
+                  </Link>{" "}
+                  so the scheme follows your real weeks and lessons.
+                </p>
+              )}
+              {!fromCalendar && (
               <div className="grid gap-4 sm:grid-cols-3">
                 <NumberField id="weeks" label="Weeks in the term" value={weeks} onChange={setWeeks} min={4} max={16} />
                 <NumberField
@@ -176,6 +218,7 @@ export function TermPlanForm({
                 />
                 <NumberField id="lessons" label="Lessons per week" value={lessonsPerWeek} onChange={setLessonsPerWeek} min={1} max={10} />
               </div>
+              )}
               <div className="space-y-2">
                 <p className="text-sm font-medium">Lesson length</p>
                 <ChoiceChips label="Lesson length" options={["30 min", "35 min", "40 min"]} value={[duration]} onChange={([d]) => d && setDuration(d)} />
