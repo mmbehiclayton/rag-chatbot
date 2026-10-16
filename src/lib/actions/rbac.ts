@@ -25,6 +25,8 @@ export async function updateUserRole(userId: string, newRole: string) {
       where: { id: userId },
       data: { role: newRole }
     });
+    // Sign the user out everywhere so their menus and route access match the new role.
+    await db.session.deleteMany({ where: { userId } });
 
     revalidatePath("/dashboard/teachers");
     return { success: true };

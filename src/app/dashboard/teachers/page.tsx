@@ -13,9 +13,10 @@ export default async function TeachersPage() {
     redirect("/dashboard");
   }
 
-  // Superadmins see all users for RBAC management. Admins typically only see their tenant.
-  // Here we'll display everyone for the demo sandbox.
+  // Superadmins see every user. School admins see only their own school (an admin with no school sees nobody).
+  const isSuperAdmin = session.role === "SUPERADMIN";
   const users = await db.user.findMany({
+    where: isSuperAdmin ? undefined : { tenantId: session.tenantId ?? "no-school", role: { not: "SUPERADMIN" } },
     orderBy: { createdAt: "desc" },
     include: {
       _count: {
@@ -28,8 +29,10 @@ export default async function TeachersPage() {
     <div className="space-y-8 animate-in fade-in duration-700 pb-10 mt-6 sm:mt-0">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">User & Access Management</h1>
-          <p className="text-muted-foreground mt-1 text-base">Superadmin Manual RBAC (Role-Based Access Control) assignment and monitoring.</p>
+          <h1 className="text-xl sm:text-2xl font-semibold text-foreground">{isSuperAdmin ? "Users and roles" : "Teachers"}</h1>
+          <p className="text-muted-foreground mt-1 text-sm">
+            {isSuperAdmin ? "Everyone on Elimu and the role each person has." : "Teachers in your school and how much they have prepared."}
+          </p>
         </div>
         <Button className="h-12 rounded-[20px] px-6 gap-2 text-sm font-bold shadow-[0_0_30px_-10px_rgba(59,130,246,0.5)] transition-all hover:scale-105">
           <Mail className="w-5 h-5" />
@@ -49,7 +52,7 @@ export default async function TeachersPage() {
           </div>
           <div className="flex items-center gap-3">
              <div className="px-4 py-2 rounded-full border border-border/50 bg-background/50 text-sm font-bold text-muted-foreground">
-               Total Identities: <span className="text-foreground">{users.length}</span>
+               People: <span className="text-foreground">{users.length}</span>
              </div>
           </div>
         </div>

@@ -62,13 +62,20 @@ export async function verifySession() {
     const payload = await decrypt(token);
     if (!payload?.sessionId) return null;
     
-    const validSession = await db.session.findUnique({ 
-      where: { id: payload.sessionId as string } 
+    const validSession = await db.session.findUnique({
+      where: { id: payload.sessionId as string },
+      include: { user: { select: { role: true, tenantId: true, email: true } } },
     });
-    
-    if (!validSession) return null;
 
-    return payload;
+    if (!validSession || validSession.expiresAt < new Date()) return null;
+
+    // Role and school come from the database, not the token, so a role change applies on the next request.
+    return {
+      ...payload,
+      role: validSession.user.role,
+      tenantId: validSession.user.tenantId,
+      email: validSession.user.email,
+    };
   } catch (error) {
     return null;
   }
