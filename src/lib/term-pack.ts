@@ -111,21 +111,40 @@ export function teachingWeeks(term: TermDates): TeachingWeek[] {
   return weeks;
 }
 
+/** One lesson on the weekly timetable: 1 = Monday … 5 = Friday, and the period that day (1 = first lesson). */
+export type Period = { weekday: number; period: number };
+
+/** `slot` is the period on the timetable that day. */
 export type Slot = { date: string; slot: number; week: number };
 
-/** Every timetabled lesson in the term. `days` holds one weekday per lesson; a repeat is a double lesson. */
-export function lessonSlots(term: TermDates, days: number[]): Slot[] {
-  const perDay = new Map<number, number>();
-  for (const d of days) if (d >= 1 && d <= 5) perDay.set(d, (perDay.get(d) ?? 0) + 1);
+/** Every timetabled lesson for one class in the term, in time order. Two periods on one day make a double lesson. */
+export function lessonSlots(term: TermDates, periods: Period[]): Slot[] {
+  const byDay = new Map<number, number[]>();
+  for (const p of periods) if (p.weekday >= 1 && p.weekday <= 5) byDay.set(p.weekday, [...(byDay.get(p.weekday) ?? []), p.period]);
+  for (const ps of byDay.values()) ps.sort((a, b) => a - b);
   const slots: Slot[] = [];
   for (const week of teachingWeeks(term)) {
     for (let t = toTime(week.from); t <= toTime(week.to); t += DAY) {
       const d = toDate(t);
       if (inBreak(d, term.breaks) || weekdayOf(d) > 5) continue;
-      for (let i = 0; i < (perDay.get(weekdayOf(d)) ?? 0); i++) slots.push({ date: d, slot: i, week: week.number });
+      for (const period of byDay.get(weekdayOf(d)) ?? []) slots.push({ date: d, slot: period, week: week.number });
     }
   }
   return slots;
+}
+
+/** "Grade 7" for a single-stream grade, "Grade 7 East" for a stream. */
+export function streamLabel(grade: string, stream: string) {
+  return stream ? `${grade} ${stream}` : grade;
+}
+
+/** "East, west , East" → ["East", "west"]: the streams a teacher typed for one grade. */
+export function parseStreams(text: string) {
+  const seen = new Set<string>();
+  return text
+    .split(",")
+    .map((s) => s.trim().replace(/\s+/g, " ").slice(0, 30))
+    .filter((s) => s && !seen.has(s.toLowerCase()) && seen.add(s.toLowerCase()));
 }
 
 export type LessonStatus = "TAUGHT" | "CARRIED_OVER";
@@ -150,6 +169,23 @@ export function scheduleLessons(slots: Slot[], marks: MarkedSlot[], total: numbe
     const lessonNumber = next <= total ? next++ : null;
     return { ...s, lessonNumber, status: null };
   });
+}
+
+export type Progress = { taught: number; carried: number; unmarked: number; total: number; finishes: boolean };
+
+/** How far one class is through its scheme on `today`, and whether the term is long enough to finish it. */
+export function scheduleProgress(slots: ScheduledSlot[], today: string, total: number): Progress {
+  let taught = 0;
+  let carried = 0;
+  let unmarked = 0;
+  for (const s of slots) {
+    if (!s.lessonNumber) continue;
+    if (s.status === "TAUGHT") taught++;
+    else if (s.status === "CARRIED_OVER") carried++;
+    else if (s.date < today) unmarked++;
+  }
+  const last = slots.findLast((s) => s.lessonNumber)?.lessonNumber ?? 0;
+  return { taught, carried, unmarked, total, finishes: total === 0 || last === total };
 }
 
 export type SchemeLesson = {

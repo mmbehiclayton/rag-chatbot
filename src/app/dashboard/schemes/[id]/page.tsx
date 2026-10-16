@@ -48,7 +48,7 @@ export default async function SchemeDetailPage({ params }: { params: Promise<{ i
   if (!scheme) notFound();
 
   const schedule = await getSchemeSchedule(scheme);
-  const dated = !!schedule.term && schedule.days.length > 0;
+  const dated = !!schedule.term && schedule.periods.length > 0;
   const weekDates = new Map(schedule.weeks.map((w) => [w.number, w]));
   // The date each lesson falls on now, after any carried-over lessons.
   const lessonDates = new Map<number, string>();

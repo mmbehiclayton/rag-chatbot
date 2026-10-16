@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { getGradeOptions, getIndexedCurricula, getTeachingProfile, preferClass } from "@/lib/curriculum-options";
 import { PageHeader } from "@/components/shared/page-header";
 import { TermPlanForm, type TermCalendar } from "@/components/create/term-plan-form";
-import { getTeacherTerms, getTimetables } from "@/lib/term-pack-data";
+import { getTeacherTerms, getTimetable, periodsFor, streamsFor } from "@/lib/term-pack-data";
 import { lessonSlots, pickTerm, teachingWeeks, termLabel, todayInKenya } from "@/lib/term-pack";
 
 
@@ -14,23 +14,31 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ [
   if (!session?.userId) redirect("/login");
   const query = await searchParams;
 
-  const [profile, grades, curricula, terms, timetables] = await Promise.all([
+  const [profile, grades, curricula, terms, timetable] = await Promise.all([
     getTeachingProfile(session.userId),
     getGradeOptions(),
     getIndexedCurricula(session.tenantId),
     getTeacherTerms(session.userId),
-    getTimetables(session.userId),
+    getTimetable(session.userId),
   ]);
 
   // For each term number, the teacher's term in progress or next to open, with lessons per class.
+  // Streams share one scheme, so it is sized for the stream with the most lessons.
   const today = todayInKenya();
+  const classes = [...new Set(timetable.map((e) => `${e.grade}|${e.subject}`))].map((key) => {
+    const [grade, subject] = key.split("|");
+    return { key, streams: streamsFor(timetable, grade, subject).map((s) => periodsFor(timetable, grade, s, subject)) };
+  });
   const calendar: TermCalendar = {};
   for (const n of [1, 2, 3]) {
     const t = pickTerm(terms.filter((x) => x.term === n && x.closesOn >= today), today);
     if (!t) continue;
     const lessons: Record<string, number> = {};
-    for (const [key, days] of timetables) lessons[key] = lessonSlots(t, days).length;
-    const perWeek = Object.fromEntries([...timetables].map(([key, days]) => [key, days.length]));
+    const perWeek: Record<string, number> = {};
+    for (const c of classes) {
+      lessons[c.key] = Math.max(...c.streams.map((p) => lessonSlots(t, p).length));
+      perWeek[c.key] = Math.max(...c.streams.map((p) => p.length));
+    }
     calendar[`Term ${n}`] = { year: t.year, label: termLabel(t), weeks: teachingWeeks(t).length, lessons, perWeek, opensOn: t.opensOn };
   }
   const current = pickTerm(terms.filter((x) => x.closesOn >= today), today);

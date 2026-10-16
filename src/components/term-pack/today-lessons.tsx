@@ -1,14 +1,15 @@
 import Link from "next/link";
-import { CalendarDays, ChevronRight, FileText } from "lucide-react";
-import { getTodayLessons } from "@/lib/term-pack-data";
+import { CalendarDays, ChevronRight } from "lucide-react";
+import { getTimetableView } from "@/lib/term-pack-data";
 import { formatDay, termLabel } from "@/lib/term-pack";
-import { MarkLesson } from "@/components/term-pack/mark-lesson";
+import { TimetableLessonCard } from "@/components/term-pack/timetable-lesson";
 import { SectionTitle } from "@/components/shared/link-list";
 import { Button } from "@/components/ui/button";
 
-/** Today's timetabled lessons with Taught / Carry over, or the next setup step if there are none. */
+/** Today's timetabled lessons in period order with Taught / Carry over, or the next setup step if there are none. */
 export async function TodayLessons({ teacherId, hasSchemes }: { teacherId: string; hasSchemes: boolean }) {
-  const { today, term, inTerm, hasTimetable, lessons, unmarked } = await getTodayLessons(teacherId);
+  const { today, term, inTerm, hasTimetable, lessons: week, unmarked } = await getTimetableView(teacherId);
+  const lessons = week.filter((l) => l.date === today);
 
   if (!term || !hasTimetable) {
     return (
@@ -44,43 +45,29 @@ export async function TodayLessons({ teacherId, hasSchemes }: { teacherId: strin
 
   return (
     <section className="space-y-2">
-      <SectionTitle title={`Today · ${formatDay(today)}`} />
+      <SectionTitle
+        title={`Today · ${formatDay(today)}`}
+        action={
+          <Link href="/dashboard/timetable" className="inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline">
+            This week
+          </Link>
+        }
+      />
       {lessons.length === 0 ? (
         <p className="rounded-xl border border-dashed bg-card p-4 text-sm text-muted-foreground">
-          {hasSchemes
-            ? "No lessons on your timetable today."
-            : `Create a scheme of work for ${termLabel(term)} and your lessons will show here.`}
+          {hasSchemes ? "No lessons on your timetable today." : `Create a scheme of work for ${termLabel(term)} and your lessons will show here.`}
         </p>
       ) : (
         <ul className="space-y-2">
           {lessons.map((l) => (
-            <li key={`${l.schemeId}-${l.slot}`} className="space-y-3 rounded-xl border bg-card p-4">
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  {l.grade} · {l.subject} · Week {l.week}, lesson {l.lessonNumber}
-                </p>
-                <p className="mt-0.5 text-sm font-medium">{l.topic}</p>
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <MarkLesson schemeId={l.schemeId} date={l.date} slot={l.slot} status={l.status} />
-                {l.lessonPlanId ? (
-                  <Button variant="ghost" render={<Link href={`/dashboard/lessons/${l.lessonPlanId}`} />}>
-                    <FileText /> Lesson plan
-                  </Button>
-                ) : (
-                  <Button variant="ghost" render={<Link href={`/dashboard/schemes/${l.schemeId}#lesson-${l.lessonNumber}`} />}>
-                    <FileText /> Prepare plan
-                  </Button>
-                )}
-              </div>
-            </li>
+            <TimetableLessonCard key={`${l.date}-${l.period}`} lesson={l} today={today} />
           ))}
         </ul>
       )}
       {unmarked.map((u) => (
         <Link
-          key={u.schemeId}
-          href={`/dashboard/schemes/${u.schemeId}/record`}
+          key={u.href}
+          href={u.href}
           className="flex min-h-12 items-center gap-3 rounded-xl border bg-card px-4 py-3 text-sm hover:bg-muted/60"
         >
           <span className="flex-1">

@@ -60,7 +60,7 @@ model User {
   mapsEdited       CurriculumMap[]      @relation("MapEditor")
   mapsChecked      CurriculumMap[]      @relation("MapChecker")
   terms            TeacherTerm[]
-  timetables       ClassTimetable[]
+  timetableSlots   TimetableSlot[]
   lessonRecords    LessonRecord[]
 
   @@index([tenantId])
@@ -379,17 +379,23 @@ model TeacherTerm {
   @@unique([teacherId, year, term])
 }
 
-/** When one class meets: one weekday (1 = Monday … 5 = Friday) per lesson, repeated for double lessons. */
-model ClassTimetable {
+/**
+ * One lesson on the teacher's weekly timetable: a weekday (1 = Monday … 5 = Friday) and lesson number,
+ * the grade, an optional stream ("" when the school has one class per grade) and the learning area.
+ */
+model TimetableSlot {
   id          String   @id @default(uuid())
   teacherId   String
   teacher     User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  weekday     Int
+  period      Int
   grade       String
+  stream      String   @default("")
   subject     String
-  days        Int[]
   updatedAt   DateTime @updatedAt
 
-  @@unique([teacherId, grade, subject])
+  @@unique([teacherId, weekday, period])
+  @@index([teacherId, grade, subject])
 }
 
 /** A teacher's mark on one timetabled lesson. Taught lessons make up the record of work. */
@@ -399,14 +405,16 @@ model LessonRecord {
   teacher      User         @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   schemeId     String
   scheme       SchemeOfWork @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  // Streams of one grade share the scheme but move at their own pace ("" for a single-stream grade)
+  stream       String       @default("")
   date         DateTime     @db.Date
-  slot         Int          @default(0) // 0 for the first lesson that day, 1 for a second (double lesson)
+  slot         Int          @default(0) // the lesson number on the timetable that day
   lessonNumber Int
   status       String       // "TAUGHT" | "CARRIED_OVER"
   remarks      String?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
-  @@unique([schemeId, date, slot])
+  @@unique([schemeId, stream, date, slot])
   @@index([teacherId, date])
 }

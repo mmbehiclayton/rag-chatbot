@@ -4,15 +4,15 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Info, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { saveTerm, saveTimetables } from "@/lib/actions/term-pack";
-import { WEEKDAYS, teachingDays, teachingWeeks, termLabel, type TermDates } from "@/lib/term-pack";
+import { saveTerm, saveTimetable } from "@/lib/actions/term-pack";
+import { WEEKDAYS, parseStreams, streamLabel, teachingDays, teachingWeeks, termLabel, type TermDates } from "@/lib/term-pack";
 import { ChoiceChips } from "@/components/shared/choice-chips";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
-import { cn } from "@/lib/utils";
 
 type TermOption = TermDates & { saved: boolean; estimate: boolean };
 
@@ -149,75 +149,148 @@ export function TermDatesForm({ options, initial }: { options: TermOption[]; ini
   );
 }
 
-type ClassDays = { grade: string; subject: string; days: number[] };
+type ClassOption = { grade: string; subject: string };
+type Entry = { weekday: number; period: number; grade: string; stream: string; subject: string };
+type Option = { key: string; label: string; grade: string; stream: string; subject: string };
 
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+const MAX_PERIODS = 12;
+const cellKey = (weekday: number, period: number) => `${weekday}-${period}`;
+const classKey = (c: { grade: string; stream: string; subject: string }) => `${c.grade}|${c.stream}|${c.subject}`;
 
-/** How many lessons each class has on each weekday. Tapping a day cycles 0 → 1 → 2 lessons. */
-export function TimetableForm({ classes }: { classes: ClassDays[] }) {
+/**
+ * The teacher's weekly timetable. Streams are optional: a grade with no streams is one class ("Grade 7"),
+ * otherwise each stream ("Grade 7 East") is its own class with its own record of work.
+ */
+export function TimetableForm({ classes, entries }: { classes: ClassOption[]; entries: Entry[] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [rows, setRows] = useState(classes);
+  const grades = useMemo(() => [...new Set(classes.map((c) => c.grade))], [classes]);
+  const [streamText, setStreamText] = useState<Record<string, string>>(() =>
+    Object.fromEntries(grades.map((g) => [g, [...new Set(entries.filter((e) => e.grade === g && e.stream).map((e) => e.stream))].join(", ")]))
+  );
+  const [cells, setCells] = useState<Record<string, string>>(() =>
+    Object.fromEntries(entries.map((e) => [cellKey(e.weekday, e.period), classKey(e)]))
+  );
+  const [day, setDay] = useState(1);
+  const [periods, setPeriods] = useState(() => Math.min(MAX_PERIODS, Math.max(8, ...entries.map((e) => e.period))));
 
-  const count = (days: number[], d: number) => days.filter((x) => x === d).length;
-  const cycle = (i: number, d: number) =>
-    setRows((rs) =>
-      rs.map((r, j) => {
-        if (j !== i) return r;
-        const n = (count(r.days, d) + 1) % 3;
-        return { ...r, days: [...r.days.filter((x) => x !== d), ...Array(n).fill(d)].sort() };
-      })
-    );
+  // Every class the teacher can put on the timetable: each learning area in each stream of its grade.
+  const options = useMemo(() => {
+    const list: Option[] = [];
+    for (const c of classes) {
+      const streams = parseStreams(streamText[c.grade] ?? "");
+      for (const stream of streams.length ? streams : [""]) {
+        list.push({ key: classKey({ ...c, stream }), label: `${streamLabel(c.grade, stream)} · ${c.subject}`, ...c, stream });
+      }
+    }
+    return list;
+  }, [classes, streamText]);
+  const byKey = useMemo(() => new Map(options.map((o) => [o.key, o])), [options]);
+  const valid = (k: string | undefined) => (k && byKey.has(k) ? k : "");
+
+  const filled = Object.entries(cells).filter(([, k]) => valid(k));
+  const perWeek = new Map<string, number>();
+  for (const [, k] of filled) perWeek.set(k, (perWeek.get(k) ?? 0) + 1);
+  const perDay = (d: number) => filled.filter(([c]) => c.startsWith(`${d}-`)).length;
+  const dayChip = (d: number) => (perDay(d) ? `${WEEKDAYS[d - 1]} · ${perDay(d)}` : WEEKDAYS[d - 1]);
 
   const submit = () =>
     startTransition(async () => {
-      const result = await saveTimetables(rows);
+      const rows = filled.map(([c, k]) => {
+        const [weekday, period] = c.split("-").map(Number);
+        const o = byKey.get(k)!;
+        return { weekday, period, grade: o.grade, stream: o.stream, subject: o.subject };
+      });
+      const result = await saveTimetable(rows);
       if (!result.success) return void toast.error(result.error);
       toast.success("Timetable saved");
       router.refresh();
     });
 
   return (
-    <div className="space-y-4">
-      <ul className="space-y-3">
-        {rows.map((r, i) => (
-          <li key={`${r.grade}|${r.subject}`}>
-            <Card>
-              <CardContent className="space-y-3">
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="text-sm font-medium">
-                    {r.grade} · {r.subject}
-                  </p>
-                  <p className="shrink-0 text-xs text-muted-foreground">
-                    {r.days.length} {r.days.length === 1 ? "lesson" : "lessons"} a week
-                  </p>
-                </div>
-                <div role="group" aria-label={`${r.grade} ${r.subject} lessons by day`} className="grid grid-cols-5 gap-2">
-                  {WEEKDAYS.map((name, di) => {
-                    const n = count(r.days, di + 1);
-                    return (
-                      <button
-                        key={name}
-                        type="button"
-                        onClick={() => cycle(i, di + 1)}
-                        aria-label={`${DAY_NAMES[di]}: ${n === 0 ? "no lesson" : n === 1 ? "1 lesson" : "double lesson"}`}
-                        className={cn(
-                          "flex min-h-14 flex-col items-center justify-center rounded-md border text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none",
-                          n > 0 ? "border-primary bg-accent text-accent-foreground" : "border-input bg-card text-muted-foreground hover:bg-muted"
-                        )}
-                      >
-                        {name}
-                        <span className="text-xs">{n === 0 ? "–" : n === 1 ? "1" : "2"}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          </li>
+    <div className="space-y-6">
+      <div className="space-y-3">
+        <div>
+          <p className="text-sm font-medium">Streams</p>
+          <p className="text-xs text-muted-foreground">
+            Only if your school has more than one class in a grade. Leave it empty when the grade is one class.
+          </p>
+        </div>
+        {grades.map((g) => (
+          <div key={g} className="space-y-2">
+            <Label htmlFor={`streams-${g}`}>{g} streams you teach</Label>
+            <Input
+              id={`streams-${g}`}
+              value={streamText[g] ?? ""}
+              placeholder="e.g. East, West"
+              maxLength={200}
+              onChange={(e) => setStreamText((t) => ({ ...t, [g]: e.target.value }))}
+            />
+          </div>
         ))}
-      </ul>
-      <p className="text-xs text-muted-foreground">Tap a day once for one lesson, twice for a double lesson, and again to clear it.</p>
+      </div>
+
+      <div className="space-y-3">
+        <div>
+          <p className="text-sm font-medium">Your lessons each day</p>
+          <p className="text-xs text-muted-foreground">
+            Pick the class you teach in each period. The same class in two periods makes a double lesson.
+          </p>
+        </div>
+        <ChoiceChips
+          label="Day"
+          options={[1, 2, 3, 4, 5].map(dayChip)}
+          value={[dayChip(day)]}
+          onChange={([v]) => v && setDay(WEEKDAYS.findIndex((d) => v.startsWith(d)) + 1)}
+        />
+        <Card>
+          <CardContent className="space-y-3">
+            <p className="text-sm font-medium">{DAY_NAMES[day - 1]}</p>
+            {Array.from({ length: periods }, (_, i) => i + 1).map((p) => (
+              <div key={p} className="flex items-center gap-3">
+                <Label htmlFor={`cell-${day}-${p}`} className="w-16 shrink-0 text-muted-foreground">
+                  Period {p}
+                </Label>
+                <NativeSelect
+                  id={`cell-${day}-${p}`}
+                  className="w-full flex-1"
+                  value={valid(cells[cellKey(day, p)])}
+                  onChange={(e) => setCells((c) => ({ ...c, [cellKey(day, p)]: e.target.value }))}
+                >
+                  <option value="">No lesson</option>
+                  {options.map((o) => (
+                    <option key={o.key} value={o.key}>
+                      {o.label}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </div>
+            ))}
+            {periods < MAX_PERIODS && (
+              <Button type="button" variant="outline" onClick={() => setPeriods((n) => n + 1)}>
+                <Plus /> Add a period
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {perWeek.size > 0 && (
+        <ul className="divide-y rounded-xl border bg-card text-sm">
+          {options
+            .filter((o) => perWeek.has(o.key))
+            .map((o) => (
+              <li key={o.key} className="flex items-baseline justify-between gap-3 px-4 py-3">
+                <span>{o.label}</span>
+                <span className="shrink-0 text-muted-foreground">
+                  {perWeek.get(o.key)} {perWeek.get(o.key) === 1 ? "lesson" : "lessons"} a week
+                </span>
+              </li>
+            ))}
+        </ul>
+      )}
+
       <Button size="lg" className="w-full sm:w-auto" onClick={submit} disabled={isPending}>
         {isPending && <Spinner />} Save timetable
       </Button>

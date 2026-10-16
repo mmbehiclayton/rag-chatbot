@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getSchemeSchedule } from "@/lib/term-pack-data";
-import { formatDay, formatRange, termLabel } from "@/lib/term-pack";
+import { formatDay, formatRange, streamLabel, termLabel } from "@/lib/term-pack";
 
 // Returns a print-ready HTML document for a scheme, lesson plan, or assessment.
 // Usage: GET /api/export?type=scheme&id=<id>
@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
         include: { teacher: { select: { name: true, schoolName: true, tenant: { select: { name: true } } } } },
       });
       if (!scheme) return new NextResponse("Not found", { status: 404 });
-      html = buildRecordHTML(scheme, await getSchemeSchedule(scheme));
+      html = buildRecordHTML(scheme, await getSchemeSchedule(scheme, searchParams.get("stream") ?? undefined));
     } else if (type === "lesson") {
       const lesson = await db.lessonPlan.findFirst({
         where: { id, teacherId: session.userId },
@@ -264,7 +264,7 @@ function buildRecordHTML(scheme: any, schedule: Awaited<ReturnType<typeof getSch
     <div class="meta center">
       ${school ? `<div>School: <span>${esc(school)}</span></div>` : ""}
       <div>Teacher: <span>${esc(scheme.teacher?.name)}</span></div>
-      <div>Grade: <span>${esc(scheme.grade)}</span></div>
+      <div>Grade: <span>${esc(streamLabel(scheme.grade, schedule.stream))}</span></div>
       <div>Learning area: <span>${esc(scheme.subject)}</span></div>
       <div>Term: <span>${esc(schedule.term ? termLabel(schedule.term) : scheme.term)}</span></div>
     </div>
@@ -280,7 +280,7 @@ function buildRecordHTML(scheme: any, schedule: Awaited<ReturnType<typeof getSch
     </table>
     <div class="signs">${sign("Teacher")}${sign("Head of department")}${sign("Head teacher")}</div>
   `;
-  return wrap(`Record of work · ${scheme.grade} ${scheme.subject}`, body);
+  return wrap(`Record of work · ${streamLabel(scheme.grade, schedule.stream)} ${scheme.subject}`, body);
 }
 
 function buildSchemeHTML(scheme: any, weekDates?: Map<number, string>) {

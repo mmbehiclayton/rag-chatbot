@@ -11,12 +11,14 @@ import { Button } from "@/components/ui/button";
 /** "Taught" / "Carry over" for one timetabled lesson. Once marked, shows the result with an undo. */
 export function MarkLesson({
   schemeId,
+  stream,
   date,
   slot,
   status,
   size = "lg",
 }: {
   schemeId: string;
+  stream: string;
   date: string;
   slot: number;
   status: LessonStatus | null;
@@ -29,7 +31,7 @@ export function MarkLesson({
   const set = (next: LessonStatus | null) =>
     startTransition(async () => {
       setShown(next);
-      const result = await markLesson({ schemeId, date, slot, status: next });
+      const result = await markLesson({ schemeId, stream, date, slot, status: next });
       if (!result.success) toast.error(result.error);
       router.refresh();
     });

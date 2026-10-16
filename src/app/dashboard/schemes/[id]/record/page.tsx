@@ -4,17 +4,25 @@ import { ArrowLeft, CalendarDays } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
 import { getSchemeSchedule } from "@/lib/term-pack-data";
-import { formatDay, formatRange, termLabel } from "@/lib/term-pack";
+import { formatDay, formatRange, streamLabel, termLabel } from "@/lib/term-pack";
 import { ExportButton, parseTitle } from "@/components/document/doc-parts";
 import { LessonRemarks } from "@/components/term-pack/lesson-remarks";
 import { MarkLesson } from "@/components/term-pack/mark-lesson";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-export default async function RecordOfWorkPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function RecordOfWorkPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ stream?: string | string[] }>;
+}) {
   const session = await auth();
   if (!session?.userId) redirect("/login");
 
   const { id } = await params;
+  const query = await searchParams;
   const scheme = await withDbRetry(() =>
     db.schemeOfWork.findFirst({
       where: { id, teacherId: session.userId },
@@ -23,9 +31,10 @@ export default async function RecordOfWorkPage({ params }: { params: Promise<{ i
   );
   if (!scheme) notFound();
 
-  const schedule = await getSchemeSchedule(scheme);
-  const { term, today } = schedule;
-  const ready = !!term && schedule.days.length > 0;
+  const schedule = await getSchemeSchedule(scheme, typeof query.stream === "string" ? query.stream : undefined);
+  const { term, today, stream, streams } = schedule;
+  const ready = !!term && schedule.periods.length > 0;
+  const streamHref = (s: string) => `/dashboard/schemes/${scheme.id}/record${s ? `?${new URLSearchParams({ stream: s })}` : ""}`;
 
   // Lessons up to today, plus the next few so the teacher can see what's coming.
   const slots = schedule.slots.filter((s) => s.lessonNumber);
@@ -54,10 +63,32 @@ export default async function RecordOfWorkPage({ params }: { params: Promise<{ i
         <div>
           <h1 className="text-xl font-semibold sm:text-2xl">Record of work</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {scheme.grade} · {scheme.subject} · {term ? termLabel(term) : scheme.term} · {parseTitle(scheme.title).title}
+            {streamLabel(scheme.grade, stream)} · {scheme.subject} · {term ? termLabel(term) : scheme.term} · {parseTitle(scheme.title).title}
           </p>
         </div>
-        {ready && <ExportButton href={`/api/export?type=record&id=${scheme.id}`} label="Print for signing" />}
+        {streams.length > 1 && (
+          <nav aria-label="Streams" className="flex flex-wrap gap-2">
+            {streams.map((s) => (
+              <Link
+                key={s}
+                href={streamHref(s)}
+                aria-current={s === stream ? "page" : undefined}
+                className={cn(
+                  "inline-flex min-h-11 items-center rounded-md border px-3.5 text-sm font-medium transition-colors",
+                  s === stream ? "border-primary bg-accent text-accent-foreground" : "border-input bg-card hover:bg-muted"
+                )}
+              >
+                {streamLabel(scheme.grade, s)}
+              </Link>
+            ))}
+          </nav>
+        )}
+        {ready && (
+          <ExportButton
+            href={`/api/export?${new URLSearchParams({ type: "record", id: scheme.id, ...(stream ? { stream } : {}) })}`}
+            label="Print for signing"
+          />
+        )}
       </div>
 
       {!ready ? (
@@ -117,13 +148,13 @@ export default async function RecordOfWorkPage({ params }: { params: Promise<{ i
                       <li key={`${s.date}-${s.slot}`} className="space-y-3 px-4 py-4">
                         <div>
                           <p className="text-xs text-muted-foreground">
-                            {formatDay(s.date)} · Lesson {s.lessonNumber}
+                            {formatDay(s.date)} · Period {s.slot} · Lesson {s.lessonNumber}
                             {s.lesson?.strand ? ` · ${s.lesson.strand}` : ""}
                           </p>
                           <p className="mt-0.5 text-sm font-medium">{s.lesson?.subStrand || `Lesson ${s.lessonNumber}`}</p>
                         </div>
-                        <MarkLesson schemeId={scheme.id} date={s.date} slot={s.slot} status={s.status} size="default" />
-                        {s.status === "TAUGHT" && <LessonRemarks schemeId={scheme.id} date={s.date} slot={s.slot} initial={s.remarks} />}
+                        <MarkLesson schemeId={scheme.id} stream={stream} date={s.date} slot={s.slot} status={s.status} size="default" />
+                        {s.status === "TAUGHT" && <LessonRemarks schemeId={scheme.id} stream={stream} date={s.date} slot={s.slot} initial={s.remarks} />}
                       </li>
                     ))}
                   </ol>

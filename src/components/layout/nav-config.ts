@@ -59,6 +59,7 @@ const TITLES: [string, string][] = [
   ["/dashboard/create/assessment", "New assessment"],
   ["/dashboard/create", "Create"],
   ["/dashboard/profile/term", "Term dates and timetable"],
+  ["/dashboard/timetable", "This week"],
   ["/dashboard/classes", "My classes"],
   ["/dashboard/curriculum", "Curriculum maps"],
   ["/dashboard/library", "Library"],

@@ -60,30 +60,29 @@ export async function saveTerm(input: TermInputData): Promise<Result> {
 const TimetableInput = z
   .array(
     z.object({
+      weekday: z.number().int().min(1).max(5),
+      period: z.number().int().min(1).max(12),
       grade: z.string().trim().min(1).max(100),
+      stream: z.string().trim().max(30),
       subject: z.string().trim().min(1).max(100),
-      days: z.array(z.number().int().min(1).max(5)).max(15),
     })
   )
-  .max(30);
+  .max(60)
+  .refine((rows) => new Set(rows.map((r) => `${r.weekday}-${r.period}`)).size === rows.length, "Each period can only have one class.");
 
-/** Saves how many lessons each class has on each weekday. A class with no lessons is removed. */
-export async function saveTimetables(input: z.infer<typeof TimetableInput>): Promise<Result> {
+/** Replaces the teacher's weekly timetable. Each entry is one period: day, period, grade, optional stream, learning area. */
+export async function saveTimetable(input: z.infer<typeof TimetableInput>): Promise<Result> {
   const userId = await teacherId();
   if (!userId) return { success: false, error: "Please sign in again." };
   const parsed = TimetableInput.safeParse(input);
-  if (!parsed.success) return { success: false, error: "Check the timetable and try again." };
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Check the timetable and try again." };
 
-  await db.$transaction(
-    parsed.data.map((c) => {
-      const where = { teacherId_grade_subject: { teacherId: userId, grade: c.grade, subject: c.subject } };
-      const days = [...c.days].sort();
-      return days.length === 0
-        ? db.classTimetable.deleteMany({ where: { teacherId: userId, grade: c.grade, subject: c.subject } })
-        : db.classTimetable.upsert({ where, create: { teacherId: userId, grade: c.grade, subject: c.subject, days }, update: { days } });
-    })
-  );
+  await db.$transaction([
+    db.timetableSlot.deleteMany({ where: { teacherId: userId } }),
+    db.timetableSlot.createMany({ data: parsed.data.map((r) => ({ ...r, teacherId: userId })) }),
+  ]);
   refresh();
+  revalidatePath("/dashboard/timetable");
   return { success: true };
 }
 
@@ -91,7 +90,13 @@ export async function saveTimetables(input: z.infer<typeof TimetableInput>): Pro
  * Marks one timetabled lesson as taught or carried over, or clears the mark (status null).
  * The lesson number comes from the schedule on the server, not from the browser.
  */
-export async function markLesson(input: { schemeId: string; date: string; slot: number; status: "TAUGHT" | "CARRIED_OVER" | null }): Promise<Result> {
+export async function markLesson(input: {
+  schemeId: string;
+  stream: string;
+  date: string;
+  slot: number;
+  status: "TAUGHT" | "CARRIED_OVER" | null;
+}): Promise<Result> {
   const userId = await teacherId();
   if (!userId) return { success: false, error: "Please sign in again." };
   if (!isIsoDate(input.date) || !Number.isInteger(input.slot)) return { success: false, error: "That lesson couldn't be found." };
@@ -103,34 +108,35 @@ export async function markLesson(input: { schemeId: string; date: string; slot: 
   });
   if (!scheme) return { success: false, error: "That scheme couldn't be found." };
 
-  const key = { schemeId_date_slot: { schemeId: scheme.id, date: date(input.date), slot: input.slot } };
+  const where = { schemeId: scheme.id, stream: input.stream, date: date(input.date), slot: input.slot };
   if (input.status === null) {
-    await db.lessonRecord.deleteMany({ where: { schemeId: scheme.id, date: date(input.date), slot: input.slot } });
+    await db.lessonRecord.deleteMany({ where });
   } else {
-    const schedule = await getSchemeSchedule(scheme);
-    const slot = schedule.slots.find((s) => s.date === input.date && s.slot === input.slot);
+    const schedule = await getSchemeSchedule(scheme, input.stream);
+    const slot = schedule.stream === input.stream ? schedule.slots.find((s) => s.date === input.date && s.slot === input.slot) : undefined;
     if (!slot?.lessonNumber) return { success: false, error: "There is no lesson in the timetable at that time." };
     const data = { lessonNumber: slot.lessonNumber, status: input.status };
     await db.lessonRecord.upsert({
-      where: key,
-      create: { teacherId: userId, schemeId: scheme.id, date: date(input.date), slot: input.slot, ...data },
+      where: { schemeId_stream_date_slot: where },
+      create: { teacherId: userId, ...where, ...data },
       update: data,
     });
   }
   revalidatePath("/dashboard");
+  revalidatePath("/dashboard/timetable");
   revalidatePath(`/dashboard/schemes/${scheme.id}`);
   revalidatePath(`/dashboard/schemes/${scheme.id}/record`);
   return { success: true };
 }
 
 /** The teacher's reflection on a taught lesson, printed on the record of work. */
-export async function saveLessonRemarks(input: { schemeId: string; date: string; slot: number; remarks: string }): Promise<Result> {
+export async function saveLessonRemarks(input: { schemeId: string; stream: string; date: string; slot: number; remarks: string }): Promise<Result> {
   const userId = await teacherId();
   if (!userId) return { success: false, error: "Please sign in again." };
   if (!isIsoDate(input.date)) return { success: false, error: "That lesson couldn't be found." };
   const remarks = input.remarks.trim().slice(0, 500) || null;
   const { count } = await db.lessonRecord.updateMany({
-    where: { schemeId: input.schemeId, teacherId: userId, date: date(input.date), slot: input.slot },
+    where: { schemeId: input.schemeId, teacherId: userId, stream: input.stream, date: date(input.date), slot: input.slot },
     data: { remarks },
   });
   if (count === 0) return { success: false, error: "Mark the lesson as taught first." };
