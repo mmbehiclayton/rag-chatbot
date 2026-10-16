@@ -5,7 +5,8 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { deleteCurriculum, retryCurriculum } from "@/lib/actions/curriculum";
 import { Button } from "@/components/ui/button";
-import { Trash2, Loader2, RefreshCw, RotateCcw } from "lucide-react";
+import { Spinner } from "@/components/ui/spinner";
+import { Trash2, RefreshCw, RotateCcw } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,48 +36,43 @@ export function KnowledgeRefreshButton() {
   return (
     <Button
       variant="outline"
+      size="icon-lg"
+      aria-label="Refresh"
       onClick={() => startTransition(() => router.refresh())}
-      className="h-12 w-12 rounded-[20px] p-0 border-border/50 bg-background/50 hover:bg-muted transition-all"
       disabled={isRefreshing}
     >
-      <RefreshCw className={`w-5 h-5 text-muted-foreground ${isRefreshing ? "animate-spin" : ""}`} />
+      <RefreshCw className={isRefreshing ? "animate-spin" : undefined} />
     </Button>
   );
 }
 
-export function DeleteCurriculumButton({ documentId }: { documentId: string }) {
+export function DeleteCurriculumButton({ documentId, title }: { documentId: string; title: string }) {
   const [isPending, startTransition] = useTransition();
 
   const handleDelete = () => {
     startTransition(async () => {
       const result = await deleteCurriculum(documentId);
-      if (result.success) {
-        toast.success("Curriculum document and all its vectors have been completely deleted.");
-      } else {
-        toast.error(result.error);
-      }
+      if (result.success) toast.success("Curriculum design deleted");
+      else toast.error(result.error);
     });
   };
 
   return (
     <AlertDialog>
-      <AlertDialogTrigger
-        className="h-8 w-8 rounded-full hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors inline-flex items-center justify-center disabled:opacity-50"
-        disabled={isPending}
-      >
-        {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+      <AlertDialogTrigger render={<Button variant="ghost" size="icon-lg" aria-label={`Delete ${title}`} disabled={isPending} />}>
+        {isPending ? <Spinner /> : <Trash2 />}
       </AlertDialogTrigger>
-      <AlertDialogContent className="rounded-[32px] border-border/40 bg-card/95 backdrop-blur-2xl shadow-2xl p-8">
+      <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle className="text-2xl font-black text-red-500">Delete Knowledge Vectors?</AlertDialogTitle>
-          <AlertDialogDescription className="text-base font-medium">
-            This will permanently delete this curriculum document and immediately purge all its associated extracted vector chunks from the database. This action cannot be undone.
+          <AlertDialogTitle>Delete this curriculum design?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Ask Elimu and document generation will stop using “{title}”. Its curriculum map, if any, is kept. This can't be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter className="mt-6">
-          <AlertDialogCancel className="h-12 rounded-[20px] font-bold">Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={handleDelete} className="h-12 rounded-[20px] font-bold bg-red-600 hover:bg-red-700 text-white border-0">
-            Yes, Delete Permanently
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction variant="destructive" onClick={handleDelete}>
+            Delete
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -84,23 +80,26 @@ export function DeleteCurriculumButton({ documentId }: { documentId: string }) {
   );
 }
 
-export function RetryButton({ documentId }: { documentId: string }) {
+/** Reads the PDF again. Used after a failure, or to add page numbers to designs indexed before they were recorded. */
+export function RetryButton({ documentId, label = "Try again" }: { documentId: string; label?: string }) {
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   return (
-    <button
+    <Button
+      variant="outline"
       onClick={() =>
         startTransition(async () => {
           const result = await retryCurriculum(documentId);
-          if (result.success) toast.success("Re-ingestion queued — page auto-refreshes when complete.");
-          else toast.error(result.error ?? "Failed to retry.");
+          if (result.success) {
+            toast.success("Indexing started. This page updates when it's done.");
+            router.refresh();
+          } else toast.error(result.error ?? "Couldn't start indexing.");
         })
       }
       disabled={isPending}
-      title="Retry ingestion"
-      className="h-8 w-8 rounded-full hover:bg-orange-500/10 text-muted-foreground hover:text-orange-500 transition-colors inline-flex items-center justify-center disabled:opacity-50"
     >
-      {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
-    </button>
+      {isPending ? <Spinner /> : <RotateCcw />} {label}
+    </Button>
   );
 }

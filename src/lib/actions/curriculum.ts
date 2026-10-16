@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import fs from "fs/promises";
 import path from "path";
 import { processPDF } from "./pdf";
@@ -74,9 +75,9 @@ export async function ingestCurriculum(formData: FormData) {
       }
     });
 
-    // 4. Abstractly trigger the heavy Langchain extraction asynchronously
-    // Background execution pattern
-    processPDF(doc.id).catch(err => console.error("Background PDF processing failed:", err));
+    // 4. Index the design and draft its map after the response, so the upload returns quickly.
+    // `after` keeps the work alive on serverless hosts, up to the page's maxDuration.
+    after(() => processPDF(doc.id).catch(err => console.error("Background PDF processing failed:", err)));
 
     revalidatePath("/dashboard/knowledge");
     return { success: true };
@@ -137,9 +138,7 @@ export async function retryCurriculum(documentId: string) {
       data: { status: "pending", errorMessage: null },
     });
 
-    processPDF(documentId).catch((err) =>
-      console.error("Background PDF re-processing failed:", err)
-    );
+    after(() => processPDF(documentId).catch((err) => console.error("Background PDF re-processing failed:", err)));
 
     revalidatePath("/dashboard/knowledge");
     return { success: true };

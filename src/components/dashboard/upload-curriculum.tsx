@@ -84,8 +84,8 @@ export function UploadCurriculumModal({
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!file) return toast.error("Please upload a KICD PDF document.");
-    if (!gradeLevel || !subject) return toast.error("Please select a Grade and Learning Area.");
+    if (!file) return toast.error("Choose the curriculum design PDF.");
+    if (!gradeLevel || !subject) return toast.error("Choose a grade and learning area.");
 
     const formData = new FormData();
     formData.append("file", file);
@@ -99,13 +99,13 @@ export function UploadCurriculumModal({
       if (result.success) {
         toast.success(
           confirmOverwrite
-            ? "Curriculum overwritten and queued for indexing."
-            : "Curriculum uploaded and queued for indexing."
+            ? "Design replaced. Elimu is reading it now."
+            : "Design uploaded. Elimu is reading it and will draft its curriculum map."
         );
         handleClose();
       } else if (result.duplicate) {
         setDuplicateFound(result.existingDoc);
-        toast.warning("A document already exists for this grade and subject.");
+        toast.warning("A design for this grade and learning area is already uploaded.");
       } else {
         toast.error(result.error);
       }
@@ -119,30 +119,30 @@ export function UploadCurriculumModal({
     <>
       <Button
         onClick={() => setIsOpen(true)}
-        className="h-12 rounded-[20px] px-6 gap-2 text-sm font-bold shadow-[0_0_30px_-10px_rgba(59,130,246,0.5)] bg-blue-600 hover:bg-blue-700 text-white transition-all hover:scale-105"
+        className="h-12 rounded-xl px-6 gap-2 text-sm font-semibold shadow-sm bg-primary hover:bg-primary text-primary-foreground transition-all "
       >
         <UploadCloud className="w-5 h-5" />
-        <span className="hidden sm:inline">Upload Curriculum</span>
+        <span className="hidden sm:inline">Upload design</span>
         <span className="sm:hidden">Upload</span>
       </Button>
 
       <Dialog open={isOpen} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-[480px] w-[95vw] rounded-[28px] p-0 border-border/40 bg-card shadow-2xl overflow-hidden gap-0 max-h-[95vh] flex flex-col">
+        <DialogContent className="sm:max-w-[480px] w-[95vw] rounded-xl p-0 border-border/40 bg-card shadow-sm overflow-hidden gap-0 max-h-[95vh] flex flex-col">
 
           {/* Header */}
           <div className="px-6 pt-6 pb-5 border-b border-border/40 bg-muted/20 shrink-0 relative overflow-hidden">
-            <div className="absolute -top-8 -right-8 w-28 h-28 bg-blue-500/10 rounded-full blur-2xl" />
+            <div className="absolute -top-8 -right-8 w-28 h-28 bg-info/10 rounded-full " />
             <DialogHeader className="relative z-10 space-y-0">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-9 h-9 rounded-xl bg-blue-500/15 text-blue-500 flex items-center justify-center border border-blue-500/20 shrink-0">
+                <div className="w-9 h-9 rounded-xl bg-info/15 text-info flex items-center justify-center border border-info/20 shrink-0">
                   <Sparkles className="w-4 h-4" />
                 </div>
-                <DialogTitle className="text-xl font-black leading-tight">
-                  Upload Curriculum PDF
+                <DialogTitle className="text-xl font-semibold leading-tight">
+                  Upload a curriculum design
                 </DialogTitle>
               </div>
               <DialogDescription className="text-sm text-muted-foreground font-medium leading-snug ml-12">
-                KICD-verified document · extracted, chunked &amp; embedded for AI routing
+                The KICD curriculum design PDF for one grade and learning area
               </DialogDescription>
             </DialogHeader>
 
@@ -152,18 +152,18 @@ export function UploadCurriculumModal({
                 <div
                   key={s}
                   className={cn(
-                    "h-1 rounded-full transition-all duration-300",
-                    s < step ? "bg-blue-500 flex-1" :
-                    s === step ? "bg-blue-500/60 flex-[2]" :
+ "h-1 rounded-full transition-all duration-300",
+                    s < step ? "bg-primary flex-1" :
+                    s === step ? "bg-info/60 flex-[2]" :
                     "bg-border/60 flex-1"
                   )}
                 />
               ))}
             </div>
-            <div className="flex justify-between text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest mt-1.5 ml-12">
+            <div className="flex justify-between text-xs font-semibold text-muted-foreground/60 mt-1.5 ml-12">
               <span>File</span>
               <span>Grade</span>
-              <span>Subject</span>
+              <span>Learning area</span>
               <span>Ready</span>
             </div>
           </div>
@@ -174,17 +174,17 @@ export function UploadCurriculumModal({
 
               {/* ── Compact Dropzone ── */}
               <div>
-                <label className="text-[11px] font-black uppercase text-muted-foreground tracking-wider mb-2 flex items-center gap-1.5">
-                  <UploadCloud className="w-3.5 h-3.5" /> PDF Document <span className="text-red-500">*</span>
+                <label className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <UploadCloud className="w-3.5 h-3.5" /> PDF Document <span className="text-destructive">*</span>
                 </label>
                 <div
                   className={cn(
-                    "relative flex items-center gap-4 px-4 py-3.5 rounded-[16px] border-2 border-dashed transition-all duration-200 group",
+ "relative flex items-center gap-4 px-4 py-3.5 rounded-xl border-2 border-dashed transition-all duration-200 group",
                     isDragging
-                      ? "border-blue-500 bg-blue-500/5 scale-[1.01]"
+                      ? "border-info bg-info/5 scale-[1.01]"
                       : file
-                      ? "border-green-500/50 bg-green-500/5 border-solid"
-                      : "border-border/50 hover:border-blue-400/60 hover:bg-muted/30 cursor-pointer"
+                      ? "border-success/50 bg-success/5 border-solid"
+                      : "border-border/50 hover:border-info/60 hover:bg-muted/30 cursor-pointer"
                   )}
                   onClick={!file ? () => fileInputRef.current?.click() : undefined}
                   onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
@@ -207,39 +207,39 @@ export function UploadCurriculumModal({
 
                   {file ? (
                     <>
-                      <div className="w-10 h-10 rounded-[12px] bg-green-500/10 text-green-500 flex items-center justify-center shrink-0 border border-green-500/20">
+                      <div className="w-10 h-10 rounded-md bg-success/10 text-success flex items-center justify-center shrink-0 border border-success/20">
                         <FileText className="w-5 h-5" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-foreground truncate leading-tight">
+                        <p className="text-sm font-semibold text-foreground truncate leading-tight">
                           {file.name}
                         </p>
-                        <p className="text-[11px] font-bold text-green-600 dark:text-green-500 mt-0.5 tracking-wide">
+                        <p className="text-xs font-semibold text-success mt-0.5 ">
                           {formatBytes(file.size)} &middot; PDF Ready
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setFile(null); }}
-                        className="shrink-0 w-8 h-8 rounded-full hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors flex items-center justify-center"
+                        className="shrink-0 w-8 h-8 rounded-full hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors flex items-center justify-center"
                       >
                         <X className="w-4 h-4" />
                       </button>
                     </>
                   ) : (
                     <>
-                      <div className="w-10 h-10 rounded-[12px] bg-muted/60 text-muted-foreground flex items-center justify-center shrink-0 border border-border/40 group-hover:bg-blue-500/10 group-hover:text-blue-500 group-hover:border-blue-400/40 transition-all">
+                      <div className="w-10 h-10 rounded-md bg-muted/60 text-muted-foreground flex items-center justify-center shrink-0 border border-border/40 group-hover:bg-info/10 group-hover:text-info group-hover:border-info/40 transition-all">
                         <UploadCloud className="w-5 h-5" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-foreground group-hover:text-blue-500 transition-colors">
+                        <p className="text-sm font-semibold text-foreground group-hover:text-info transition-colors">
                           {isDragging ? "Drop to upload" : "Click to browse or drag & drop"}
                         </p>
-                        <p className="text-[11px] font-medium text-muted-foreground mt-0.5">
+                        <p className="text-xs font-medium text-muted-foreground mt-0.5">
                           PDF only · Max 50 MB
                         </p>
                       </div>
-                      <span className="shrink-0 text-[10px] font-black uppercase tracking-widest text-muted-foreground/50 border border-border/40 px-2.5 py-1 rounded-full hidden sm:block">
+                      <span className="shrink-0 text-xs font-semibold text-muted-foreground/50 border border-border/40 px-2.5 py-1 rounded-full hidden sm:block">
                         Browse
                       </span>
                     </>
@@ -249,24 +249,24 @@ export function UploadCurriculumModal({
 
               {/* ── Grade Level (full width) ── */}
               <div className="space-y-2">
-                <label className="text-[11px] font-black uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
-                  <BookOpen className="w-3.5 h-3.5" /> Grade Level <span className="text-red-500">*</span>
+                <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                  <BookOpen className="w-3.5 h-3.5" /> Grade Level <span className="text-destructive">*</span>
                 </label>
                 <Select value={gradeLevel} onValueChange={(val) => setGradeLevel(val || "")}>
-                  <SelectTrigger className="h-12 rounded-[14px] bg-background border-border/50 text-sm font-bold shadow-sm focus:ring-blue-500/20 w-full">
+                  <SelectTrigger className="h-12 rounded-xl bg-background border-border/50 text-sm font-semibold shadow-sm focus:ring-info/20 w-full">
                     <SelectValue placeholder="Select a grade level" />
                   </SelectTrigger>
-                  <SelectContent className="rounded-[20px] border-border/40 bg-card/95 backdrop-blur-xl shadow-2xl max-h-[280px]">
+                  <SelectContent className="rounded-xl border-border/40 bg-card/95 shadow-sm max-h-[280px]">
                     {cbcStructure.map((level) => (
                       <div key={level.id} className="p-1">
-                        <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 bg-muted/30 rounded-lg mb-1">
+                        <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground/60 bg-muted/30 rounded-lg mb-1">
                           {level.name}
                         </div>
                         {level.grades.map((grade: any) => (
                           <SelectItem
                             key={grade.id}
                             value={grade.name}
-                            className="text-sm font-bold rounded-xl focus:bg-primary/10 transition-colors my-0.5"
+                            className="text-sm font-semibold rounded-xl focus:bg-primary/10 transition-colors my-0.5"
                           >
                             {grade.name}
                           </SelectItem>
@@ -280,10 +280,10 @@ export function UploadCurriculumModal({
               {/* ── Learning Area (full width, cascades from grade) ── */}
               <div className="space-y-2">
                 <label className={cn(
-                  "text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-colors",
+ "text-xs font-semibold   flex items-center gap-1.5 transition-colors",
                   gradeLevel ? "text-muted-foreground" : "text-muted-foreground/40"
                 )}>
-                  <FileText className="w-3.5 h-3.5" /> Learning Area <span className="text-red-500">*</span>
+                  <FileText className="w-3.5 h-3.5" /> Learning Area <span className="text-destructive">*</span>
                 </label>
                 <Select
                   value={subject}
@@ -292,9 +292,9 @@ export function UploadCurriculumModal({
                 >
                   <SelectTrigger
                     className={cn(
-                      "h-12 rounded-[14px] border text-sm font-bold shadow-sm w-full transition-all",
+ "h-12 rounded-xl border text-sm font-semibold shadow-sm w-full transition-all",
                       gradeLevel
-                        ? "bg-background border-border/50 focus:ring-blue-500/20"
+                        ? "bg-background border-border/50 focus:ring-info/20"
                         : "bg-muted/30 border-border/20 text-muted-foreground/50 cursor-not-allowed"
                     )}
                   >
@@ -302,26 +302,26 @@ export function UploadCurriculumModal({
                       placeholder={gradeLevel ? "Select a learning area" : "Select a grade first"}
                     />
                   </SelectTrigger>
-                  <SelectContent className="rounded-[20px] border-border/40 bg-card/95 backdrop-blur-xl shadow-2xl max-h-[240px]">
+                  <SelectContent className="rounded-xl border-border/40 bg-card/95 shadow-sm max-h-[240px]">
                     {filteredLearningAreas.length > 0 ? (
                       filteredLearningAreas.map((subj: string) => (
                         <SelectItem
                           key={subj}
                           value={subj}
-                          className="text-sm font-bold rounded-xl focus:bg-primary/10 transition-colors my-0.5"
+                          className="text-sm font-semibold rounded-xl focus:bg-primary/10 transition-colors my-0.5"
                         >
                           {subj}
                         </SelectItem>
                       ))
                     ) : (
-                      <div className="p-4 text-center text-xs font-bold text-muted-foreground italic">
+                      <div className="p-4 text-center text-xs font-semibold text-muted-foreground italic">
                         No learning areas defined for this grade
                       </div>
                     )}
                   </SelectContent>
                 </Select>
                 {gradeLevel && filteredLearningAreas.length > 0 && !subject && (
-                  <p className="text-[11px] text-blue-500/70 font-bold flex items-center gap-1 ml-1">
+                  <p className="text-xs text-info/70 font-semibold flex items-center gap-1 ml-1">
                     <ChevronDown className="w-3 h-3" />
                     {filteredLearningAreas.length} area{filteredLearningAreas.length !== 1 ? "s" : ""} available for {gradeLevel}
                   </p>
@@ -330,23 +330,23 @@ export function UploadCurriculumModal({
 
               {/* ── Duplicate Warning ── */}
               {duplicateFound && (
-                <div className="p-4 rounded-[16px] bg-orange-500/10 border border-orange-500/20 animate-in slide-in-from-top-2 duration-200">
+                <div className="p-4 rounded-xl bg-warning/10 border border-warning/20 animate-in slide-in-from-top-2 duration-200">
                   <div className="flex items-start gap-3">
-                    <AlertCircle className="w-4 h-4 text-orange-500 mt-0.5 shrink-0" />
+                    <AlertCircle className="w-4 h-4 text-warning mt-0.5 shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-orange-700 dark:text-orange-400">
+                      <p className="text-sm font-semibold text-warning ">
                         Document already exists
                       </p>
-                      <p className="text-[11px] text-orange-600/80 font-medium mt-0.5">
+                      <p className="text-xs text-warning/80 font-medium mt-0.5">
                         Uploaded {new Date(duplicateFound.uploadDate).toLocaleDateString()} &middot; {duplicateFound.chunks} chunks indexed
                       </p>
                       <label className="flex items-center gap-2 mt-3 cursor-pointer select-none">
                         <div
                           className={cn(
-                            "w-4 h-4 rounded border-2 flex items-center justify-center transition-all shrink-0",
+ "w-4 h-4 rounded border-2 flex items-center justify-center transition-all shrink-0",
                             confirmOverwrite
-                              ? "bg-orange-500 border-orange-500"
-                              : "border-orange-400/50 bg-background"
+                              ? "bg-warning border-warning"
+                              : "border-warning/50 bg-background"
                           )}
                           onClick={() => setConfirmOverwrite(!confirmOverwrite)}
                         >
@@ -356,9 +356,9 @@ export function UploadCurriculumModal({
                             checked={confirmOverwrite}
                             onChange={(e) => setConfirmOverwrite(e.target.checked)}
                           />
-                          {confirmOverwrite && <CheckCircle2 className="w-2.5 h-2.5 text-white" />}
+                          {confirmOverwrite && <CheckCircle2 className="w-2.5 h-2.5 text-primary-foreground" />}
                         </div>
-                        <span className="text-[11px] font-black text-orange-700 dark:text-orange-400 uppercase tracking-wide">
+                        <span className="text-xs font-semibold text-warning ">
                           Replace existing curriculum
                         </span>
                       </label>
@@ -374,21 +374,21 @@ export function UploadCurriculumModal({
                 type="submit"
                 disabled={isPending || !isReady}
                 className={cn(
-                  "w-full h-12 rounded-[16px] font-black text-[15px] shadow-lg transition-all duration-200 relative overflow-hidden group",
+ "w-full h-12 rounded-xl font-semibold text-sm shadow-sm transition-all duration-200 relative overflow-hidden group",
                   isReady && !isPending
-                    ? "bg-blue-600 hover:bg-blue-700 text-white hover:shadow-blue-500/30 hover:shadow-xl hover:scale-[1.01] active:scale-[0.99]"
+                    ? "bg-primary hover:bg-primary text-primary-foreground   hover:scale-[1.01] active:scale-[0.99]"
                     : "bg-muted text-muted-foreground shadow-none cursor-not-allowed"
                 )}
               >
                 {isPending ? (
                   <span className="flex items-center justify-center gap-2.5">
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    Processing &amp; Vectorising…
+                    Uploading…
                   </span>
                 ) : (
                   <>
                     <span className="relative flex items-center justify-center gap-2">
-                      Inject into Pipeline
+                      Upload
                       <CheckCircle2 className="w-5 h-5" />
                     </span>
                   </>
@@ -396,7 +396,7 @@ export function UploadCurriculumModal({
               </Button>
 
               {!isReady && !isPending && (
-                <p className="text-center text-[11px] text-muted-foreground/60 font-medium mt-2">
+                <p className="text-center text-xs text-muted-foreground/60 font-medium mt-2">
                   {!file ? "Upload a PDF to continue" : !gradeLevel ? "Select a grade level" : "Select a learning area"}
                 </p>
               )}

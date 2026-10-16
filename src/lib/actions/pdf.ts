@@ -11,8 +11,8 @@ import { pathToFileURL } from "url";
 import { draftMapAfterUpload } from "@/lib/map-drafting";
 
 export async function processPDF(documentId: string) {
-  const { userId } = await auth();
-  if (!userId) throw new Error("Unauthorized");
+  const { userId, role } = await auth();
+  if (!userId || role !== "SUPERADMIN") throw new Error("Unauthorized");
 
   // 1. Fetch document from DB
   const doc = await db.curriculumDocument.findUnique({
@@ -56,9 +56,11 @@ export async function processPDF(documentId: string) {
     for (let i = 1; i <= pdfDocument.numPages; i++) {
       const page = await pdfDocument.getPage(i);
       const content = await page.getTextContent();
+      // One line per page, so each chunk's starting line is its page number.
       const pageText = content.items
         .map((item: any) => item.str)
-        .join(" ");
+        .join(" ")
+        .replace(/\s*\n\s*/g, " ");
       text += pageText + "\n";
     }
 
@@ -70,6 +72,7 @@ export async function processPDF(documentId: string) {
 
     const chunks = await splitter.createDocuments([text]);
     const chunkTexts = chunks.map(chunk => chunk.pageContent);
+    const chunkPages = chunks.map(chunk => Number(chunk.metadata?.loc?.lines?.from) || null);
 
     // 5. Generate Vectors (1536 dimensions)
     let embeddings: number[][] = [];
@@ -91,8 +94,8 @@ export async function processPDF(documentId: string) {
       const vectorString = `[${embedding.join(",")}]`;
 
       await db.$executeRaw`
-        INSERT INTO "CurriculumChunk" ("id", "curriculumId", "chunkText", "chunkIndex", "embedding")
-        VALUES (gen_random_uuid(), ${documentId}, ${chunkText}, ${i}, ${vectorString}::vector)
+        INSERT INTO "CurriculumChunk" ("id", "curriculumId", "chunkText", "chunkIndex", "pageNumber", "embedding")
+        VALUES (gen_random_uuid(), ${documentId}, ${chunkText}, ${i}, ${chunkPages[i]}, ${vectorString}::vector)
       `;
     }
 

@@ -31,11 +31,11 @@ export default async function CBCStructurePage() {
   ]);
 
   return (
-    <div className="space-y-5 animate-in fade-in duration-700 pb-20 mt-6 sm:mt-0">
+    <div className="space-y-5 pb-20 mt-6 sm:mt-0">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Curriculum Structure</h1>
-          <p className="text-muted-foreground mt-1 text-sm font-medium">Configure the core CBC hierarchy for the entire ecosystem.</p>
+          <h1 className="text-2xl font-semibold text-foreground">Curriculum structure</h1>
+          <p className="text-muted-foreground mt-1 text-sm font-medium">The levels, grades and learning areas teachers choose from. Curriculum designs and maps follow this structure.</p>
         </div>
       </div>
 
@@ -48,7 +48,7 @@ function XIcon({ className }: { className?: string }) {
   return (
     <svg 
       className={className} 
-      xmlns="http://www.w3.org/2000/svg" 
+ xmlns="http://www.w3.org/2000/svg" 
       width="24" 
       height="24" 
       viewBox="0 0 24 24" 
