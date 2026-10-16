@@ -245,6 +245,11 @@ export default async function KnowledgePage(props: Props) {
                             {doc.errorMessage}
                           </p>
                         )}
+                        {doc.status === "completed" && doc.errorMessage && (
+                          <p className="line-clamp-2 text-xs text-destructive" title={doc.errorMessage}>
+                            Reading it again failed, so the earlier version is still in use. {doc.errorMessage}
+                          </p>
+                        )}
                         {doc.status === "completed" && withoutPages.has(doc.id) && (
                           <p className="text-xs text-muted-foreground">No page numbers yet. Index it again so Ask Elimu can cite pages.</p>
                         )}

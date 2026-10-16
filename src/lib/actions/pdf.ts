@@ -5,66 +5,44 @@ import { auth } from "@/lib/auth";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { embedMany } from "ai";
 import { openai } from "@ai-sdk/openai";
-import path from "path";
-import fs from "fs";
-import { pathToFileURL } from "url";
+import { extractText, getDocumentProxy } from "unpdf";
 import { draftMapAfterUpload } from "@/lib/map-drafting";
+import { MISSING_FILE, readCurriculumFile } from "@/lib/curriculum-files";
 
 export async function processPDF(documentId: string) {
   const { userId, role } = await auth();
   if (!userId || role !== "SUPERADMIN") throw new Error("Unauthorized");
 
-  // 1. Fetch document from DB
   const doc = await db.curriculumDocument.findUnique({
-    where: { id: documentId }
+    where: { id: documentId },
+    select: { id: true, fileUrl: true, status: true, _count: { select: { chunks: true } } },
   });
 
   if (!doc) throw new Error("Document not found");
-  if (doc.status === "processing" || doc.status === "completed") {
-    return { success: false, message: "Document already processed or processing." };
+  if (doc.status === "processing") {
+    return { success: false, message: "This design is already being read." };
   }
+  // A design that's already indexed keeps its old sections until the new ones are ready.
+  const hadChunks = doc._count.chunks > 0;
 
-  // Set status
   await db.curriculumDocument.update({
     where: { id: documentId },
-    data: { status: "processing" }
+    data: { status: "processing", errorMessage: null },
   });
 
   try {
-    // 2. Read the PDF from local disk storage
-    const docPath = path.resolve(process.cwd(), "public", doc.fileUrl.replace(/^\//, ""));
-    const buffer = await fs.promises.readFile(docPath);
+    // 1. Get the PDF (UploadThing for new uploads, local disk for old local ones)
+    const buffer = await readCurriculumFile(doc.fileUrl);
+    if (!buffer) throw new Error(MISSING_FILE);
 
-    // 3. Extract text using pdfjs-dist
-    // pdfjs-dist is in serverExternalPackages (not bundled), so its internal
-    // dynamic import for the worker resolves correctly via Node.js module resolution.
-    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    // 2. Extract the text one page at a time. unpdf is a pdfjs build made for servers.
+    const pdf = await getDocumentProxy(new Uint8Array(buffer));
+    const { text: pages } = await extractText(pdf, { mergePages: false });
+    // One line per page, so each chunk's starting line is its page number.
+    const text = pages.map((p) => p.replace(/\s*\n\s*/g, " ")).join("\n");
+    if (!text.trim()) throw new Error("No text found in this PDF. It may be a scan. Upload a PDF with selectable text.");
 
-    // Point pdfjs to the actual worker file in node_modules so its fake-worker
-    // dynamic import doesn't try to load a non-existent bundled chunk.
-    const workerPath = path.resolve(
-      process.cwd(),
-      "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs"
-    );
-    pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href;
-
-    const data = new Uint8Array(buffer);
-    const loadingTask = pdfjs.getDocument({ data });
-    const pdfDocument = await loadingTask.promise;
-
-    let text = "";
-    for (let i = 1; i <= pdfDocument.numPages; i++) {
-      const page = await pdfDocument.getPage(i);
-      const content = await page.getTextContent();
-      // One line per page, so each chunk's starting line is its page number.
-      const pageText = content.items
-        .map((item: any) => item.str)
-        .join(" ")
-        .replace(/\s*\n\s*/g, " ");
-      text += pageText + "\n";
-    }
-
-    // 4. Chunking Strategy (KICD size constraints)
+    // 3. Chunking Strategy (KICD size constraints)
     const splitter = new RecursiveCharacterTextSplitter({
       chunkSize: 800,
       chunkOverlap: 150,
@@ -74,7 +52,7 @@ export async function processPDF(documentId: string) {
     const chunkTexts = chunks.map(chunk => chunk.pageContent);
     const chunkPages = chunks.map(chunk => Number(chunk.metadata?.loc?.lines?.from) || null);
 
-    // 5. Generate Vectors (1536 dimensions)
+    // 4. Generate Vectors (1536 dimensions)
     let embeddings: number[][] = [];
     if (process.env.OPENAI_API_KEY) {
       const res = await embedMany({
@@ -87,21 +65,19 @@ export async function processPDF(documentId: string) {
       embeddings = chunkTexts.map(() => Array.from({ length: 1536 }, () => Math.random() - 0.5));
     }
 
-    // 6. Vector Storage (pgvector + Prisma raw queries)
+    // 5. Swap the old sections for the new ones (pgvector + Prisma raw queries)
+    await db.curriculumChunk.deleteMany({ where: { curriculumId: documentId } });
     for (let i = 0; i < chunks.length; i++) {
-      const chunkText = chunkTexts[i];
-      const embedding = embeddings[i];
-      const vectorString = `[${embedding.join(",")}]`;
-
+      const vectorString = `[${embeddings[i].join(",")}]`;
       await db.$executeRaw`
         INSERT INTO "CurriculumChunk" ("id", "curriculumId", "chunkText", "chunkIndex", "pageNumber", "embedding")
-        VALUES (gen_random_uuid(), ${documentId}, ${chunkText}, ${i}, ${chunkPages[i]}, ${vectorString}::vector)
+        VALUES (gen_random_uuid(), ${documentId}, ${chunkTexts[i]}, ${i}, ${chunkPages[i]}, ${vectorString}::vector)
       `;
     }
 
     await db.curriculumDocument.update({
       where: { id: documentId },
-      data: { status: "completed" }
+      data: { status: "completed", errorMessage: null }
     });
 
     console.log(`[PDF Extraction & Vectors] Completed for ${documentId}. Inserted ${chunks.length} chunks.`);
@@ -111,10 +87,12 @@ export async function processPDF(documentId: string) {
     return { success: true, chunksCount: chunks.length };
   } catch (error: any) {
     console.error("[PDF Extraction Error]", error);
+    const stillHasChunks = hadChunks && (await db.curriculumChunk.count({ where: { curriculumId: documentId } })) > 0;
     await db.curriculumDocument.update({
       where: { id: documentId },
       data: {
-        status: "error",
+        // If the old sections are still there, the design stays usable.
+        status: stillHasChunks ? "completed" : "error",
         errorMessage: error.message || "Unknown PDF parsing error."
       }
     });

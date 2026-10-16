@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { UploadCloud, CheckCircle2, Loader2, FileText, X, Sparkles, BookOpen, AlertCircle, ChevronDown } from "lucide-react";
 import { ingestCurriculum } from "@/lib/actions/curriculum";
+import { useUploadThing } from "@/utils/uploadthing";
 import { cn } from "@/lib/utils";
 
 function formatBytes(bytes: number) {
@@ -49,6 +50,10 @@ export function UploadCurriculumModal({
     chunks: number;
   } | null>(null);
   const [confirmOverwrite, setConfirmOverwrite] = useState(false);
+  // The PDF goes straight from the browser to file storage; we keep its link so a
+  // "Replace" confirmation doesn't upload it twice.
+  const [uploaded, setUploaded] = useState<{ file: File; url: string } | null>(null);
+  const { startUpload } = useUploadThing("curriculumUploader");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const availableGrades = useMemo(
@@ -80,6 +85,7 @@ export function UploadCurriculumModal({
     setSubject("");
     setDuplicateFound(null);
     setConfirmOverwrite(false);
+    setUploaded(null);
   };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -87,15 +93,18 @@ export function UploadCurriculumModal({
     if (!file) return toast.error("Choose the curriculum design PDF.");
     if (!gradeLevel || !subject) return toast.error("Choose a grade and learning area.");
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.set("gradeLevel", gradeLevel);
-    formData.set("subject", subject);
-    formData.set("title", `${gradeLevel} - ${subject}`);
-    if (confirmOverwrite) formData.set("overwrite", "true");
-
     startTransition(async () => {
-      const result = await ingestCurriculum(formData);
+      let fileUrl = uploaded?.file === file ? uploaded.url : "";
+      if (!fileUrl) {
+        const res = await startUpload([file]).catch((e: Error) => {
+          console.error("[upload]", e);
+          return undefined;
+        });
+        fileUrl = res?.[0]?.ufsUrl ?? "";
+        if (!fileUrl) return void toast.error("The PDF didn't upload. Check your connection and try again.");
+        setUploaded({ file, url: fileUrl });
+      }
+      const result = await ingestCurriculum({ gradeLevel, subject, fileUrl, overwrite: confirmOverwrite });
       if (result.success) {
         toast.success(
           confirmOverwrite
@@ -236,7 +245,7 @@ export function UploadCurriculumModal({
                           {isDragging ? "Drop to upload" : "Click to browse or drag & drop"}
                         </p>
                         <p className="text-xs font-medium text-muted-foreground mt-0.5">
-                          PDF only · Max 50 MB
+                          PDF only · Max 64 MB
                         </p>
                       </div>
                       <span className="shrink-0 text-xs font-semibold text-muted-foreground/50 border border-border/40 px-2.5 py-1 rounded-full hidden sm:block">
