@@ -163,6 +163,8 @@ export function ChatInterface({ sessions, activeId, initialMessages }: { session
 
             {messages.map((m) => {
               const sources = m.parts.filter((p) => p.type === "source-document");
+              // A reply that failed before any text arrived would show as an empty bubble.
+              if (m.role === "assistant" && !m.parts.some((p) => p.type === "text" && p.text)) return null;
               return (
                 <Message key={m.id} from={m.role}>
                   <MessageContent>
@@ -191,7 +193,9 @@ export function ChatInterface({ sessions, activeId, initialMessages }: { session
             )}
             {error && (
               <div className="flex flex-wrap items-center gap-2 text-sm text-destructive">
-                Elimu could not answer. Check your connection.
+                {/^(Failed to fetch|NetworkError|Load failed)/i.test(error.message) || !error.message
+                  ? "Elimu could not answer. Check your connection."
+                  : error.message}
                 <Button variant="outline" size="sm" onClick={() => regenerate({ body: { sessionId } })}>
                   <RotateCw /> Try again
                 </Button>
@@ -208,7 +212,7 @@ export function ChatInterface({ sessions, activeId, initialMessages }: { session
             </PromptInputBody>
             <PromptInputFooter>
               <PromptInputTools />
-              <PromptInputSubmit status={status} disabled={busy} />
+              <PromptInputSubmit status={busy ? status : undefined} disabled={busy} />
             </PromptInputFooter>
           </PromptInput>
         </div>

@@ -2,7 +2,8 @@
 
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
-import { APICallError, NoObjectGeneratedError, generateObject } from "ai";
+import { generateObject } from "ai";
+import { explainAIError } from "@/lib/ai-errors";
 import { openai } from "@ai-sdk/openai";
 import { retrieveContext } from "@/lib/rag";
 import { getPublishedMap, lessonGrounding, mapToPrompt, subStrandsForTerm, allSubStrands } from "@/lib/curriculum-map";
@@ -19,15 +20,7 @@ class TeacherError extends Error {}
 export type GenerationResult = { ok: true; id: string } | { ok: false; error: string };
 
 function explain(label: string, e: unknown): string {
-  if (e instanceof TeacherError) return e.message;
-  console.error(`[generation] ${label} failed:`, e);
-  if (NoObjectGeneratedError.isInstance(e)) {
-    return e.finishReason === "length"
-      ? "This was too long to write in one go. Try fewer weeks or fewer lessons per week."
-      : "Elimu couldn't finish writing this. Please try again.";
-  }
-  if (APICallError.isInstance(e) && e.statusCode === 429) return "Elimu is busy right now. Wait a minute and try again.";
-  return "Something went wrong while writing this. Please try again in a minute.";
+  return e instanceof TeacherError ? e.message : explainAIError(label, e);
 }
 
 async function asResult(label: string, fn: () => Promise<{ id: string }>): Promise<GenerationResult> {

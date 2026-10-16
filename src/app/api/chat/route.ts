@@ -3,6 +3,7 @@ import { openai } from "@ai-sdk/openai";
 import { retrieveContext } from "@/lib/rag";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { explainAIError } from "@/lib/ai-errors";
 
 // AI SDK v6 UI messages carry their text in `parts`, not `content`.
 function extractText(message: any): string {
@@ -102,9 +103,9 @@ ${contextText}
                         }
                     },
                 });
-                writer.merge(result.toUIMessageStream());
+                writer.merge(result.toUIMessageStream({ onError: (e) => explainAIError("chat", e) }));
             },
-            onError: () => "Elimu could not answer just now. Please try again.",
+            onError: (e) => explainAIError("chat", e),
         });
 
         return createUIMessageStreamResponse({ stream });
