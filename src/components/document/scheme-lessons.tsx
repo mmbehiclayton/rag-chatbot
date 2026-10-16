@@ -1,0 +1,158 @@
+"use client";
+
+import { createContext, use, useState, useTransition } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { AlertCircle, Check, ChevronRight, Plus, RotateCw } from "lucide-react";
+import { toast } from "sonner";
+import { generateLessonPlan, reviewScheme } from "@/lib/actions/generation";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+
+type RowLesson = { lessonNumber: number; topic: string; lessonId: string | null };
+type RowState = { status: "idle" | "running" | "done" | "failed"; lessonId?: string; error?: string };
+
+type WeekContext = {
+  states: Record<number, RowState>;
+  run: (rows: RowLesson[]) => Promise<void>;
+  busy: boolean;
+};
+
+const Week = createContext<WeekContext | null>(null);
+
+function useWeek() {
+  const ctx = use(Week);
+  if (!ctx) throw new Error("Lesson actions must be inside <WeekLessons>");
+  return ctx;
+}
+
+/**
+ * Holds lesson-generation state for one week of a scheme so the week's batch
+ * button and each row's button share progress. Lessons run one at a time and a
+ * failure doesn't stop the rest; failed rows offer a retry.
+ */
+export function WeekLessons({ schemeId, rows, children }: { schemeId: string; rows: RowLesson[]; children: React.ReactNode }) {
+  const router = useRouter();
+  const [states, setStates] = useState<Record<number, RowState>>(() =>
+    Object.fromEntries(rows.map((r) => [r.lessonNumber, r.lessonId ? { status: "done", lessonId: r.lessonId } : { status: "idle" }]))
+  );
+  const [busy, startTransition] = useTransition();
+
+  const run = (targets: RowLesson[]) =>
+    new Promise<void>((resolve) =>
+      startTransition(async () => {
+        let failed = 0;
+        for (const row of targets) {
+          setStates((s) => ({ ...s, [row.lessonNumber]: { status: "running" } }));
+          try {
+            const plan = await generateLessonPlan(schemeId, row.lessonNumber, row.topic);
+            setStates((s) => ({ ...s, [row.lessonNumber]: { status: "done", lessonId: plan.id } }));
+          } catch (e) {
+            failed++;
+            const error = e instanceof Error ? e.message : "Failed";
+            setStates((s) => ({ ...s, [row.lessonNumber]: { status: "failed", error } }));
+            // Stop early on limits that would fail every remaining lesson too.
+            if (/rate limit|quota/i.test(error)) {
+              toast.error(error);
+              break;
+            }
+          }
+        }
+        if (failed) toast.error(`${failed} lesson plan${failed === 1 ? "" : "s"} could not be created. Tap Retry to try again.`);
+        else if (targets.length > 1) toast.success(`${targets.length} lesson plans ready`);
+        router.refresh();
+        resolve();
+      })
+    );
+
+  return <Week value={{ states, run, busy }}>{children}</Week>;
+}
+
+export function WeekBatchButton({ rows }: { rows: RowLesson[] }) {
+  const { states, run, busy } = useWeek();
+  const todo = rows.filter((r) => states[r.lessonNumber]?.status !== "done");
+  const running = rows.findIndex((r) => states[r.lessonNumber]?.status === "running");
+
+  if (todo.length === 0) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-sm text-success">
+        <Check className="size-4" /> All lesson plans created
+      </span>
+    );
+  }
+
+  return (
+    <Button variant="outline" size="sm" disabled={busy} onClick={() => run(todo)}>
+      {busy && running >= 0 ? (
+        <>
+          <Spinner /> Lesson {running + 1} of {rows.length}…
+        </>
+      ) : (
+        <>
+          <Plus /> Create {todo.length === rows.length ? "this week's" : `${todo.length} remaining`} lesson plan{todo.length === 1 ? "" : "s"}
+        </>
+      )}
+    </Button>
+  );
+}
+
+export function LessonRowAction({ row }: { row: RowLesson }) {
+  const { states, run, busy } = useWeek();
+  const state = states[row.lessonNumber] ?? { status: "idle" };
+
+  if (state.status === "done" && state.lessonId) {
+    return (
+      <Button variant="ghost" size="sm" render={<Link href={`/dashboard/lessons/${state.lessonId}`} />}>
+        Open lesson plan <ChevronRight />
+      </Button>
+    );
+  }
+  if (state.status === "running") {
+    return (
+      <span role="status" className="inline-flex min-h-9 items-center gap-2 text-sm text-muted-foreground">
+        <Spinner /> Writing lesson plan…
+      </span>
+    );
+  }
+  if (state.status === "failed") {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 text-sm text-destructive">
+          <AlertCircle className="size-4" /> Not created
+        </span>
+        <Button variant="outline" size="sm" disabled={busy} onClick={() => run([row])}>
+          <RotateCw /> Retry
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <Button variant="outline" size="sm" disabled={busy} onClick={() => run([row])}>
+      <Plus /> Create lesson plan
+    </Button>
+  );
+}
+
+export function ApproveSchemeButton({ schemeId }: { schemeId: string }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  return (
+    <Button
+      variant="outline"
+      disabled={isPending}
+      onClick={() =>
+        startTransition(async () => {
+          try {
+            await reviewScheme(schemeId);
+            toast.success("Marked as reviewed");
+            router.refresh();
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Could not update the scheme");
+          }
+        })
+      }
+    >
+      {isPending ? <Spinner /> : <Check />} Mark as reviewed
+    </Button>
+  );
+}

@@ -189,10 +189,53 @@ const AssessmentSchema = z.object({
 
 // --- Server Actions ---
 
-export async function generateSchemeOfWork(parameters: { grade: string, subject: string, term: string, weeks: number, holidays: number, lessonsPerWeek: number, durationMinutes: number } | null) {
+export async function generateSchemeOfWork(parameters: { grade: string, subject: string, term: string, weeks: number, holidays: number, lessonsPerWeek: number, durationMinutes: number, forceFresh?: boolean } | null) {
   if (!parameters) throw new Error("Invalid parameters: data cannot be null");
   const session = await auth();
   if (!session?.userId) throw new Error("Unauthorized");
+
+  // Cache: reuse a verified scheme for the same grade/subject/term. A scheme from
+  // another teacher is cloned so it lands in the requester's own library.
+  if (!parameters.forceFresh) {
+    const cachedScheme = await db.schemeOfWork.findFirst({
+      where: {
+        grade: parameters.grade,
+        subject: parameters.subject,
+        term: parameters.term,
+        NOT: { title: { startsWith: "[Needs Review]" } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (cachedScheme && cachedScheme.teacherId === session.userId) return cachedScheme;
+
+    if (cachedScheme) {
+      const clone = await db.schemeOfWork.create({
+        data: {
+          title: cachedScheme.title,
+          grade: cachedScheme.grade,
+          subject: cachedScheme.subject,
+          term: cachedScheme.term,
+          content: cachedScheme.content as any,
+          teacherId: session.userId,
+          curriculumId: cachedScheme.curriculumId,
+        },
+      });
+      await db.generationLog.create({
+        data: {
+          userId: session.userId,
+          tenantId: session.tenantId,
+          contentType: "SCHEME_OF_WORK",
+          promptTokens: 0,
+          completionTokens: 0,
+          totalTokens: 0,
+          model: "cache",
+        },
+      });
+      revalidatePath("/dashboard/library");
+      return clone;
+    }
+  }
 
   await checkGenerationGuards(session);
 
@@ -210,15 +253,6 @@ export async function generateSchemeOfWork(parameters: { grade: string, subject:
   
   if (!docExists) {
      throw new Error(`MISSING CURRICULUM: No KICD Design uploaded for "${parameters.grade} ${parameters.subject}". To prevent AI hallucinations, please ask your Administrator to upload the curriculum PDF first.`);
-  }
-
-  // Check Cache
-  const cachedScheme = await db.schemeOfWork.findFirst({
-    where: { grade: parameters.grade, subject: parameters.subject, term: parameters.term }
-  });
-
-  if (cachedScheme) {
-    return cachedScheme;
   }
 
   const query = `Curriculum for ${parameters.grade} ${parameters.subject} Term ${parameters.term}`;
@@ -295,7 +329,7 @@ ${contextText}
     });
   }
 
-  revalidatePath("/dashboard/schemes");
+  revalidatePath("/dashboard/library");
   return scheme;
 }
 
@@ -343,7 +377,7 @@ export async function deleteAsset(type: "SCHEMES" | "LESSONS" | "NOTES" | "ASSES
   revalidatePath("/dashboard/lessons");
   revalidatePath("/dashboard/notes");
   revalidatePath("/dashboard/assessments");
-  revalidatePath("/dashboard/workstation");
+  revalidatePath("/dashboard/library");
   return { success: true };
 }
 
@@ -353,7 +387,7 @@ export async function generateLessonPlan(schemeId: string, lessonNumber: number,
 
   await checkGenerationGuards(session);
 
-  const scheme = await db.schemeOfWork.findUnique({ where: { id: schemeId } });
+  const scheme = await db.schemeOfWork.findFirst({ where: { id: schemeId, teacherId: session.userId } });
   if (!scheme) throw new Error("Scheme not found");
 
   const customRule = await db.generationRule.findUnique({ where: { contentType: "LESSON_PLAN" } });
@@ -386,6 +420,8 @@ ${JSON.stringify(scheme.content)}
       objectives: object.specificLearningOutcomes,
       content: object as any,
       schemeId,
+      grade: scheme.grade,
+      subject: scheme.subject,
       teacherId: session.userId
     }
   });
@@ -403,8 +439,90 @@ ${JSON.stringify(scheme.content)}
     }
   });
 
-  revalidatePath("/dashboard/lessons");
+  revalidatePath("/dashboard/library");
   return lessonPlan;
+}
+
+/**
+ * Quick path: a single lesson plan straight from grade, learning area and topic,
+ * without a scheme of work. Grounded on the curriculum design when one is indexed.
+ */
+export async function generateQuickLessonPlan(parameters: { grade: string; subject: string; topic: string; durationMinutes: number }) {
+  const session = await auth();
+  if (!session?.userId) throw new Error("Unauthorized");
+
+  const topic = parameters.topic.trim().slice(0, 200);
+  if (!parameters.grade || !parameters.subject || !topic) throw new Error("Choose a grade, learning area and topic.");
+  const durationMinutes = [30, 35, 40, 60, 70, 80].includes(parameters.durationMinutes) ? parameters.durationMinutes : 40;
+
+  await checkGenerationGuards(session);
+
+  const contextChunks = await retrieveContext(`${parameters.grade} ${parameters.subject} ${topic}`, 8, {
+    grade: parameters.grade,
+    subject: parameters.subject,
+    tenantId: session.tenantId ?? undefined,
+  });
+  const contextText = contextChunks.map((c) => c.chunkText).join("\n\n");
+
+  const customRule = await db.generationRule.findUnique({ where: { contentType: "LESSON_PLAN" } });
+  const customRuleText = customRule?.customPrompt ? `\n\nCUSTOM PLATFORM GUIDELINES (STRICTLY ENFORCE):\n${customRule.customPrompt}\n` : "";
+
+  const groundingText = contextText
+    ? `CURRICULUM DESIGN EXTRACTS (use the strand, sub-strand and learning outcomes exactly as written here):\n${contextText}`
+    : "No curriculum design extract is available for this grade and learning area. Use your knowledge of the KICD CBC curriculum design and keep strand and sub-strand names conservative.";
+
+  const systemPrompt = `You are an expert KICD-trained teacher. Generate a highly detailed Lesson Plan conforming to strict CBC architecture.${customRuleText}
+
+INPUT DATA:
+- Grade: ${parameters.grade}
+- Learning area: ${parameters.subject}
+- Topic / sub-strand: ${topic}
+- Lesson duration: ${durationMinutes} minutes
+
+MANDATORY REQUIREMENTS:
+1. Follow the 3-part lesson structure (10-15% Intro, 70-80% Main, 10-15% Conclusion); durations must add up to ${durationMinutes} minutes.
+2. Write step-by-step activities with specific teacher and learner actions, using locally available Kenyan resources.
+3. Include differentiation for 3 levels (Support/Average/Advanced).
+4. Create a 4-level CBC assessment rubric with observable behaviours.
+5. Provide 3-5 Multimedia Suggestions.
+
+${groundingText}
+`;
+
+  const { object, usage } = await generateObject({
+    model: openai("gpt-4o"),
+    schema: LessonPlanSchema,
+    system: systemPrompt,
+    prompt: `Generate the full Lesson Plan for "${topic}".`,
+  });
+
+  const lessonPlan = await db.lessonPlan.create({
+    data: {
+      topic: object.topic,
+      objectives: object.specificLearningOutcomes,
+      content: object as any,
+      grade: parameters.grade,
+      subject: parameters.subject,
+      durationMinutes,
+      teacherId: session.userId,
+    },
+  });
+
+  await db.generationLog.create({
+    data: {
+      userId: session.userId,
+      tenantId: session.tenantId,
+      contentType: "LESSON_PLAN",
+      promptTokens: usage.inputTokens ?? 0,
+      completionTokens: usage.outputTokens ?? 0,
+      totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
+      model: "gpt-4o",
+    },
+  });
+
+  revalidatePath("/dashboard/library");
+  revalidatePath("/dashboard");
+  return { id: lessonPlan.id };
 }
 
 export async function generateLessonNotes(lessonPlanId: string) {
@@ -413,7 +531,7 @@ export async function generateLessonNotes(lessonPlanId: string) {
 
   await checkGenerationGuards(session);
 
-  const lessonPlan = await db.lessonPlan.findUnique({ where: { id: lessonPlanId } });
+  const lessonPlan = await db.lessonPlan.findFirst({ where: { id: lessonPlanId, teacherId: session.userId } });
   if (!lessonPlan) throw new Error("Lesson Plan not found");
 
   const customRule = await db.generationRule.findUnique({ where: { contentType: "LESSON_NOTES" } });
@@ -586,25 +704,26 @@ export async function updateLessonPlan(id: string, content: any) {
   const session = await auth();
   if (!session?.userId) throw new Error("Unauthorized");
 
-  const updated = await db.lessonPlan.update({
+  if (!content || typeof content !== "object" || Array.isArray(content)) throw new Error("Invalid lesson plan");
+  const topic = typeof content.topic === "string" && content.topic.trim() ? content.topic.trim().slice(0, 300) : undefined;
+  const objectives = Array.isArray(content.specificLearningOutcomes) ? content.specificLearningOutcomes.filter((o: unknown) => typeof o === "string") : undefined;
+
+  await db.lessonPlan.update({
     where: { id, teacherId: session.userId },
-    data: { 
-      content: content as any,
-      topic: content.topic || undefined,
-      objectives: content.specificLearningOutcomes || undefined
-    }
+    data: { content: content as any, topic, objectives }
   });
 
-  revalidatePath("/dashboard/lessons");
-  return updated;
+  revalidatePath(`/dashboard/lessons/${id}`);
+  revalidatePath("/dashboard/library");
+  return { id };
 }
 
 export async function getSchemeLessonsStatus(schemeId: string) {
   const session = await auth();
   if (!session?.userId) throw new Error("Unauthorized");
 
-  const scheme = await db.schemeOfWork.findUnique({ 
-    where: { id: schemeId },
+  const scheme = await db.schemeOfWork.findFirst({
+    where: { id: schemeId, teacherId: session.userId },
     include: { lessonPlans: { select: { lessonNumber: true, topic: true } } }
   });
 

@@ -12,10 +12,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { cjk } from "@streamdown/cjk";
-import { code } from "@streamdown/code";
-import { math } from "@streamdown/math";
-import { mermaid } from "@streamdown/mermaid";
 import type { UIMessage } from "ai";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import type { ComponentProps, HTMLAttributes, ReactElement } from "react";
@@ -321,7 +317,8 @@ export const MessageBranchPage = ({
 
 export type MessageResponseProps = ComponentProps<typeof Streamdown>;
 
-const streamdownPlugins = { cjk, code, math, mermaid };
+// No code/math/mermaid plugins: they add a lot of JS for teachers on mobile data.
+const streamdownPlugins = {};
 
 export const MessageResponse = memo(
   ({ className, ...props }: MessageResponseProps) => (

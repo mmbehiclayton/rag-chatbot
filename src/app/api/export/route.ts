@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   if (!session?.userId) return new NextResponse("Unauthorized", { status: 401 });
 
   const { searchParams } = req.nextUrl;
-  const type = searchParams.get("type"); // scheme | lesson | assessment
+  const type = searchParams.get("type"); // scheme | lesson | assessment | notes
   const id = searchParams.get("id");
   const grade = searchParams.get("grade");
   const subject = searchParams.get("subject");
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
         html = buildCombinedHTML("scheme", items, grade, subject);
       } else if (type === "lesson") {
         const items = await db.lessonPlan.findMany({
-          where: { teacherId: session.userId, scheme: { grade, subject } },
+          where: { teacherId: session.userId, OR: [{ grade, subject }, { scheme: { grade, subject } }] },
           orderBy: { lessonNumber: "asc" },
         });
         if (!items.length) return new NextResponse("Not found", { status: 404 });
@@ -70,6 +70,13 @@ export async function GET(req: NextRequest) {
       });
       if (!assessment) return new NextResponse("Not found", { status: 404 });
       html = buildAssessmentHTML(assessment);
+    } else if (type === "notes") {
+      const note = await db.lessonNote.findFirst({
+        where: { id, teacherId: session.userId },
+        include: { lessonPlan: { select: { topic: true, grade: true, subject: true, scheme: { select: { grade: true, subject: true } } } } },
+      });
+      if (!note) return new NextResponse("Not found", { status: 404 });
+      html = buildNotesHTML(note);
     } else {
       return new NextResponse("Invalid type", { status: 400 });
     }
@@ -145,7 +152,7 @@ function wrap(title: string, body: string, landscape = false) {
       @page { size: ${SIZE}; margin: ${PAD}; }
     }
   `;
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title><style>${baseCSS}${paper}</style></head><body>${printScript}<div class="page">${body}</div></body></html>`;
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)}</title><style>${baseCSS}${paper}</style></head><body>${printScript}<div class="page">${body}</div></body></html>`;
 }
 
 function arr(v: unknown): string[] {
@@ -229,31 +236,31 @@ function lessonBody(lesson: any) {
 
   const mainRows = main.map((a: any) => `
     <tr>
-      <td><strong>${a.activityName}</strong></td>
-      <td>${a.duration ?? ""} min</td>
-      <td>${a.grouping ?? ""}</td>
-      <td><ul>${arr(a.teacherActions).map(t => `<li>${t}</li>`).join("")}</ul></td>
-      <td><ul>${arr(a.learnerActions).map(l => `<li>${l}</li>`).join("")}</ul></td>
+      <td><strong>${esc(a.activityName)}</strong></td>
+      <td>${esc(a.duration)} min</td>
+      <td>${esc(a.grouping)}</td>
+      <td><ul>${arr(a.teacherActions).map(t => `<li>${esc(t)}</li>`).join("")}</ul></td>
+      <td><ul>${arr(a.learnerActions).map(l => `<li>${esc(l)}</li>`).join("")}</ul></td>
     </tr>
   `).join("");
 
   const body = `
-    <h1>${lesson.topic}</h1>
+    <h1>${esc(lesson.topic)}</h1>
     <div class="meta">
-      <div>Strand: <span>${c?.strand ?? ""}</span></div>
-      <div>Sub-Strand: <span>${c?.subStrand ?? ""}</span></div>
+      <div>Strand: <span>${esc(c?.strand)}</span></div>
+      <div>Sub-Strand: <span>${esc(c?.subStrand)}</span></div>
     </div>
 
     <div class="section">
       <h2>Learning Outcomes</h2>
-      <ul>${arr(c?.specificLearningOutcomes).map(o => `<li>${o}</li>`).join("")}</ul>
+      <ul>${arr(c?.specificLearningOutcomes).map(o => `<li>${esc(o)}</li>`).join("")}</ul>
     </div>
 
     <div class="section">
-      <h2>Introduction (${intro?.duration ?? ""}min)</h2>
-      <p><strong>Recap:</strong> ${intro?.recap ?? ""}</p>
-      <p><strong>Learning Intention:</strong> ${intro?.learningIntentions ?? ""}</p>
-      <p><strong>Success Criteria:</strong> ${intro?.successCriteria ?? ""}</p>
+      <h2>Introduction (${esc(intro?.duration)}min)</h2>
+      <p><strong>Recap:</strong> ${esc(intro?.recap)}</p>
+      <p><strong>Learning Intention:</strong> ${esc(intro?.learningIntentions)}</p>
+      <p><strong>Success Criteria:</strong> ${esc(intro?.successCriteria)}</p>
     </div>
 
     <div class="section">
@@ -269,18 +276,18 @@ function lessonBody(lesson: any) {
       <table>
         <tr><th>Learners Needing Support</th><th>Average Learners</th><th>Advanced Learners</th></tr>
         <tr>
-          <td>${diff?.learnersNeedingSupport ?? ""}</td>
-          <td>${diff?.averageLearners ?? ""}</td>
-          <td>${diff?.advancedLearners ?? ""}</td>
+          <td>${esc(diff?.learnersNeedingSupport)}</td>
+          <td>${esc(diff?.averageLearners)}</td>
+          <td>${esc(diff?.advancedLearners)}</td>
         </tr>
       </table>
     </div>
 
     <div class="section">
-      <h2>Conclusion (${conc?.duration ?? ""}min)</h2>
-      <p><strong>Summary:</strong> ${conc?.summary ?? ""}</p>
-      <p><strong>Exit Ticket:</strong> ${conc?.exitTicket ?? ""}</p>
-      <p><strong>Homework:</strong> ${conc?.homework ?? ""}</p>
+      <h2>Conclusion (${esc(conc?.duration)}min)</h2>
+      <p><strong>Summary:</strong> ${esc(conc?.summary)}</p>
+      <p><strong>Exit Ticket:</strong> ${esc(conc?.exitTicket)}</p>
+      <p><strong>Homework:</strong> ${esc(conc?.homework)}</p>
     </div>
   `;
   return body;
@@ -298,20 +305,20 @@ function assessmentBody(assessment: any) {
     const questions = Array.isArray(section.questions) ? section.questions : [];
     const qRows = questions.map((q: any) => `
       <tr>
-        <td style="width:30px;text-align:center">${q.questionNumber}</td>
-        <td>${q.questionText ?? ""}</td>
-        <td style="width:50px;text-align:center">${q.marks}</td>
+        <td style="width:30px;text-align:center">${esc(q.questionNumber)}</td>
+        <td>${esc(q.questionText)}</td>
+        <td style="width:50px;text-align:center">${esc(q.marks)}</td>
       </tr>
       <tr style="background:#fafafa">
         <td></td>
-        <td colspan="2"><em>Answer: ${q.modelAnswer ?? ""}</em>${q.rubric ? `<br><small>Rubric: ${q.rubric}</small>` : ""}</td>
+        <td colspan="2"><em>Answer: ${esc(q.modelAnswer)}</em>${q.rubric ? `<br><small>Rubric: ${esc(q.rubric)}</small>` : ""}</td>
       </tr>
     `).join("");
 
     return `
       <div class="section">
-        <h2>Section ${si + 1}: ${section.sectionTitle}</h2>
-        <p><em>${section.instructions}</em></p>
+        <h2>Section ${si + 1}: ${esc(section.sectionTitle)}</h2>
+        <p><em>${esc(section.instructions)}</em></p>
         <table>
           <thead><tr><th>#</th><th>Question</th><th>Marks</th></tr></thead>
           <tbody>${qRows}</tbody>
@@ -321,15 +328,15 @@ function assessmentBody(assessment: any) {
   }).join("");
 
   const gradingScale = Array.isArray(c?.markingScheme?.gradingScale) ? c.markingScheme.gradingScale : [];
-  const scaleHTML = gradingScale.map((g: any) => `<tr><td>${g.range}</td><td>${g.descriptor}</td></tr>`).join("");
+  const scaleHTML = gradingScale.map((g: any) => `<tr><td>${esc(g.range)}</td><td>${esc(g.descriptor)}</td></tr>`).join("");
 
   const body = `
-    <h1>${assessment.title}</h1>
+    <h1>${esc(assessment.title)}</h1>
     <div class="meta">
-      <div>Grade: <span>${assessment.grade}</span></div>
-      <div>Subject: <span>${assessment.subject}</span></div>
-      <div>Type: <span>${assessment.type}</span></div>
-      <div>Total Marks: <span>${c?.markingScheme?.totalMarks ?? ""}</span></div>
+      <div>Grade: <span>${esc(assessment.grade)}</span></div>
+      <div>Subject: <span>${esc(assessment.subject)}</span></div>
+      <div>Type: <span>${esc(assessment.type)}</span></div>
+      <div>Total Marks: <span>${esc(c?.markingScheme?.totalMarks)}</span></div>
     </div>
     ${sectionsHTML}
     ${gradingScale.length > 0 ? `
@@ -338,6 +345,51 @@ function assessmentBody(assessment: any) {
     ` : ""}
   `;
   return body;
+}
+
+function buildNotesHTML(note: any) {
+  const c = (note.resources ?? {}) as any;
+  const plan = note.lessonPlan ?? {};
+  const overview = c.conceptOverview ?? {};
+  const list = (items: unknown) => `<ul>${arr(items).map((i) => `<li>${esc(i)}</li>`).join("")}</ul>`;
+
+  const examples = (Array.isArray(c.workedExamples) ? c.workedExamples : []).map((ex: any, i: number) => `
+    <h3>${esc(ex.title || `Example ${i + 1}`)} <span class="badge">${esc(ex.level ?? "")}</span></h3>
+    <ol>${arr(ex.procedure).map((step) => `<li>${esc(step)}</li>`).join("")}</ol>
+    ${ex.thinkAloudCommentary ? `<p><em>Think aloud: ${esc(ex.thinkAloudCommentary)}</em></p>` : ""}
+  `).join("");
+
+  const questions = (Array.isArray(c.questioningSequences) ? c.questioningSequences : []).map((q: any) => `
+    <tr>
+      <td><strong>${esc(q.initialQuestion)}</strong>${q.trigger ? `<br><small>${esc(q.trigger)}</small>` : ""}</td>
+      <td>${esc(q.expectedAnswer)}</td>
+      <td>${esc(q.followUpIfWrong)}</td>
+      <td>${esc(q.followUpIfCorrect)}</td>
+    </tr>
+  `).join("");
+
+  const misconceptions = (Array.isArray(c.misconceptions) ? c.misconceptions : []).map((m: any) => `
+    <tr><td>${esc(m.misconception)}</td><td>${esc(m.correction)}</td></tr>
+  `).join("");
+
+  const body = `
+    <h1>${esc(plan.topic ?? "Lesson notes")}</h1>
+    <div class="meta">
+      <div>Grade: <span>${esc(plan.grade ?? plan.scheme?.grade ?? "")}</span></div>
+      <div>Learning area: <span>${esc(plan.subject ?? plan.scheme?.subject ?? "")}</span></div>
+      <div><span>Lesson notes</span></div>
+    </div>
+    <div class="section">
+      <h2>Concept overview</h2>
+      <p>${esc(overview.whatLearnersNeedToKnow ?? note.notes ?? "")}</p>
+      ${overview.backgroundContext ? `<p>${esc(overview.backgroundContext)}</p>` : ""}
+      ${arr(overview.keyDefinitions).length ? `<h3>Key definitions</h3>${list(overview.keyDefinitions)}` : ""}
+    </div>
+    ${examples ? `<div class="section"><h2>Worked examples</h2>${examples}</div>` : ""}
+    ${questions ? `<div class="section"><h2>Questioning</h2><table><thead><tr><th>Question</th><th>Expected answer</th><th>If incorrect</th><th>If correct</th></tr></thead><tbody>${questions}</tbody></table></div>` : ""}
+    ${misconceptions ? `<div class="section"><h2>Common misconceptions</h2><table><thead><tr><th>Misconception</th><th>Correction</th></tr></thead><tbody>${misconceptions}</tbody></table></div>` : ""}
+  `;
+  return wrap(`${plan.topic ?? "Lesson"} – Notes`, body);
 }
 
 function buildAssessmentHTML(assessment: any) {

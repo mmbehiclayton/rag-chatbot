@@ -6,7 +6,7 @@ const secretKey = process.env.JWT_SECRET_KEY || "development_secret_do_not_use_i
 const key = new TextEncoder().encode(secretKey);
 
 // Define protected route patterns
-const publicRoutes = ['/', '/login', '/register', '/api/uploadthing']
+const publicRoutes = ['/', '/login', '/register', '/forgot-password', '/reset-password', '/verify-email', '/api/uploadthing']
 const isPublicRoute = (path: string) => publicRoutes.includes(path) || path.startsWith('/_next')
 
 export async function proxy(request: NextRequest) {
@@ -48,11 +48,14 @@ export async function proxy(request: NextRequest) {
     "/dashboard/global-settings": ["SUPERADMIN"],
     "/dashboard/knowledge": ["SUPERADMIN"],
     "/dashboard/tenants": ["SUPERADMIN"],
+    "/dashboard/structure": ["SUPERADMIN"],
+    "/dashboard/rules": ["SUPERADMIN"],
+    "/dashboard/rbac": ["SUPERADMIN"],
+    "/dashboard/verification": ["SUPERADMIN", "ADMIN"],
+    "/dashboard/admin": ["SUPERADMIN", "ADMIN"],
     "/dashboard/teachers": ["SUPERADMIN", "ADMIN"],
     "/dashboard/settings": ["SUPERADMIN", "ADMIN"],
-    "/dashboard/schemes": ["SUPERADMIN", "ADMIN", "TEACHER"],
-    "/dashboard/lessons": ["SUPERADMIN", "ADMIN", "TEACHER"],
-    "/dashboard/assessments": ["SUPERADMIN", "ADMIN", "TEACHER"],
+    "/dashboard/notifications": ["SUPERADMIN", "ADMIN"], // mock data; hidden from teachers until real notifications exist
     "/dashboard": ["SUPERADMIN", "ADMIN", "TEACHER"], // Core dashboard access
   };
 
@@ -61,8 +64,9 @@ export async function proxy(request: NextRequest) {
     if (path.startsWith(routePrefix)) {
       const allowedRoles = protectedRoutes[routePrefix as keyof typeof protectedRoutes];
       if (!allowedRoles.includes(role as string)) {
-        // Redirect to a generic dashboard if the user doesn't have access to the specific sub-dashboard
-        return NextResponse.redirect(new URL('/dashboard', request.url));
+        // Teachers looking for settings get their own profile; everything else goes home
+        const fallback = routePrefix === '/dashboard/settings' ? '/dashboard/profile' : '/dashboard'
+        return NextResponse.redirect(new URL(fallback, request.url));
       }
     }
   }

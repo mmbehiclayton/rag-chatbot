@@ -6,13 +6,13 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-full border border-transparent bg-clip-padding text-[13px] font-semibold whitespace-nowrap transition-all outline-none select-none focus-visible:ring-2 focus-visible:ring-primary/30 active:scale-95 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:w-4 [&_svg:not([class*='size-'])]:h-4",
+  "group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-colors outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:w-4 [&_svg:not([class*='size-'])]:h-4",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/80",
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
         outline:
-          "border-border hover:bg-input/50 hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:bg-input/30",
+          "border-input bg-card hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:bg-input/30",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:
@@ -22,14 +22,14 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-10 gap-2 px-5 text-sm",
+        default: "h-10 gap-2 px-4 text-sm",
         xs: "h-7 gap-1 px-3 text-xs",
-        sm: "h-9 gap-1 px-4 text-xs",
-        lg: "h-12 gap-2 px-6 text-base shadow-lg",
+        sm: "h-9 gap-1.5 px-3 text-sm",
+        lg: "h-12 gap-2 px-6 text-base",
         icon: "w-10 h-10",
         "icon-xs": "w-7 h-7",
         "icon-sm": "w-9 h-9",
-        "icon-lg": "w-12 h-12 shadow-lg",
+        "icon-lg": "w-12 h-12",
       },
     },
     defaultVariants: {

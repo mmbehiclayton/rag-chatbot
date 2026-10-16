@@ -8,12 +8,12 @@ export async function getChatSessions() {
   const session = await auth();
   if (!session?.userId) throw new Error("Unauthorized");
 
+  // List only: messages load for the open conversation (getChatSession).
   return db.chatSession.findMany({
     where: { userId: session.userId },
     orderBy: { updatedAt: "desc" },
-    include: {
-      messages: { orderBy: { createdAt: "asc" } },
-    },
+    take: 50,
+    select: { id: true, title: true, updatedAt: true },
   });
 }
 
@@ -23,7 +23,7 @@ export async function getChatSession(sessionId: string) {
 
   return db.chatSession.findFirst({
     where: { id: sessionId, userId: session.userId },
-    include: { messages: { orderBy: { createdAt: "asc" } } },
+    include: { messages: { orderBy: { createdAt: "asc" }, take: 200 } },
   });
 }
 
@@ -36,46 +36,10 @@ export async function createChatSession(title?: string) {
       userId: session.userId,
       title: title ?? "New Conversation",
     },
-    include: { messages: true },
+    select: { id: true, title: true, updatedAt: true },
   });
 
-  revalidatePath("/dashboard/chat");
   return chatSession;
-}
-
-export async function appendChatMessage(
-  sessionId: string,
-  role: "user" | "assistant",
-  content: string
-) {
-  const session = await auth();
-  if (!session?.userId) throw new Error("Unauthorized");
-
-  // Verify ownership
-  const chatSession = await db.chatSession.findFirst({
-    where: { id: sessionId, userId: session.userId },
-  });
-  if (!chatSession) throw new Error("Session not found");
-
-  const message = await db.chatMessage.create({
-    data: { sessionId, role, content },
-  });
-
-  // Auto-title the session from the first user message
-  if (role === "user" && chatSession.title === "New Conversation") {
-    const title = content.slice(0, 60) + (content.length > 60 ? "…" : "");
-    await db.chatSession.update({
-      where: { id: sessionId },
-      data: { title, updatedAt: new Date() },
-    });
-  } else {
-    await db.chatSession.update({
-      where: { id: sessionId },
-      data: { updatedAt: new Date() },
-    });
-  }
-
-  return message;
 }
 
 export async function deleteChatSession(sessionId: string) {

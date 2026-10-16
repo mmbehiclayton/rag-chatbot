@@ -1,240 +1,229 @@
 "use client";
 
-import { useState, Fragment, useCallback } from "react";
-import { useChat } from "@ai-sdk/react";
+import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport, type UIMessage } from "ai";
+import { History, MessageSquare, Plus, RotateCw, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import {
   PromptInput,
   PromptInputBody,
   type PromptInputMessage,
+  PromptInputFooter,
   PromptInputSubmit,
   PromptInputTextarea,
-  PromptInputFooter,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
 import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/ai-elements/conversation";
-import { Spinner as Loader } from "@/components/ui/spinner";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
+import { Source, Sources, SourcesContent, SourcesTrigger } from "@/components/ai-elements/sources";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { PlusIcon, MessageSquareIcon, Trash2Icon, BookOpenIcon } from "lucide-react";
-import { createChatSession, appendChatMessage, deleteChatSession } from "@/lib/actions/chat";
-import type { ChatSession, ChatMessage } from "@prisma/client";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Spinner } from "@/components/ui/spinner";
+import { createChatSession, deleteChatSession } from "@/lib/actions/chat";
+import { cn } from "@/lib/utils";
 
-type SessionWithMessages = ChatSession & { messages: ChatMessage[] };
-type UIMessageInit = { id: string; role: "user" | "assistant"; content: string; parts: { type: "text"; text: string }[] };
+type SessionRow = { id: string; title: string; updatedAt: Date };
 
-interface Props {
-  initialSessions: SessionWithMessages[];
-}
+const SUGGESTIONS = [
+  "What are the specific learning outcomes for Grade 5 Science, Living Things?",
+  "Give me a group activity for teaching fractions with local materials",
+  "How do I assess the core competency of critical thinking?",
+  "Explain the CBC rubric levels in simple terms for parents",
+];
 
-// Inner chat area — receives a `key` so it fully remounts when the session changes
-function ChatArea({
-  sessionId,
-  initialMessages,
-  onNewSession,
-}: {
-  sessionId: string | null;
-  initialMessages: UIMessageInit[];
-  onNewSession: (id: string) => void;
-}) {
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(sessionId);
-
-  const { messages, sendMessage, status } = useChat({
-    messages: initialMessages as any,
-    onFinish: async ({ message }: { message: any }) => {
-      const sid = activeSessionId;
-      if (!sid) return;
-      const textPart = message.parts?.find((p: any) => p.type === "text");
-      const content = textPart?.text ?? message.content ?? "";
-      if (content) await appendChatMessage(sid, "assistant", content);
-    },
-  });
-
-  const handleSubmit = useCallback(
-    async (promptMsg: PromptInputMessage) => {
-      if (!promptMsg.text.trim()) return;
-
-      let sid = activeSessionId;
-      if (!sid) {
-        const newSession = await createChatSession();
-        setActiveSessionId(newSession.id);
-        onNewSession(newSession.id);
-        sid = newSession.id;
-      }
-
-      await appendChatMessage(sid, "user", promptMsg.text);
-      // @ts-ignore
-      await sendMessage({ text: promptMsg.text });
-    },
-    [activeSessionId, sendMessage, onNewSession]
-  );
-
-  return (
-    <>
-      <Conversation className="flex-1 min-h-0 bg-background/40 rounded-2xl border border-border/40 shadow-inner overflow-hidden relative">
-        <ConversationContent className="h-full p-4 sm:p-6">
-          {messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full gap-3 text-center text-muted-foreground">
-              <BookOpenIcon className="size-12 opacity-30" />
-              <p className="text-lg font-medium">Ask Elimu AI anything</p>
-              <p className="text-sm max-w-sm opacity-70">
-                Ask about CBC curriculum, lesson ideas, assessment strategies, or KICD guidelines.
-              </p>
-            </div>
-          )}
-          {messages.map((message) => (
-            <div key={message.id}>
-              {message.parts.map((part: any, i: number) => {
-                if (part.type !== "text") return null;
-                return (
-                  <Fragment key={`${message.id}-${i}`}>
-                    <Message from={message.role}>
-                      <MessageContent>
-                        <MessageResponse>{part.text}</MessageResponse>
-                      </MessageContent>
-                    </Message>
-                  </Fragment>
-                );
-              })}
-            </div>
-          ))}
-          {(status === "submitted" || status === "streaming") && (
-            <div className="flex justify-center my-4">
-              <Loader />
-            </div>
-          )}
-        </ConversationContent>
-        <ConversationScrollButton />
-      </Conversation>
-
-      <PromptInput
-        onSubmit={handleSubmit}
-        className="shrink-0 mt-2 bg-background/90 backdrop-blur-xl border border-border/40 rounded-[32px] shadow-2xl shadow-primary/5 transition-all focus-within:shadow-primary/10 focus-within:border-primary/40 p-1"
-      >
-        <PromptInputBody>
-          <PromptInputTextarea
-            placeholder="Message Elimu AI..."
-            className="resize-none bg-transparent placeholder:text-muted-foreground/70"
-          />
-        </PromptInputBody>
-        <PromptInputFooter className="px-4 py-3 border-t border-border/40">
-          <PromptInputTools />
-          <PromptInputSubmit className="transition-transform active:scale-95 shadow-sm" />
-        </PromptInputFooter>
-      </PromptInput>
-    </>
-  );
-}
-
-export function ChatInterface({ initialSessions }: Props) {
+function SessionList({ sessions, activeId, onNavigate }: { sessions: SessionRow[]; activeId: string | null; onNavigate?: () => void }) {
   const router = useRouter();
-  const [sessions, setSessions] = useState<SessionWithMessages[]>(initialSessions);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(initialSessions[0]?.id ?? null);
 
-  const activeSession = sessions.find((s) => s.id === activeSessionId);
-
-  const initialMessages: UIMessageInit[] =
-    activeSession?.messages.map((m) => ({
-      id: m.id,
-      role: m.role as "user" | "assistant",
-      content: m.content,
-      parts: [{ type: "text" as const, text: m.content }],
-    })) ?? [];
-
-  const handleNewChat = async () => {
-    const newSession = await createChatSession();
-    setSessions((prev) => [{ ...newSession, messages: [] }, ...prev]);
-    setActiveSessionId(newSession.id);
-  };
-
-  const handleSelectSession = (session: SessionWithMessages) => {
-    setActiveSessionId(session.id);
-  };
-
-  const handleDeleteSession = async (e: React.MouseEvent, sessionId: string) => {
-    e.stopPropagation();
-    await deleteChatSession(sessionId);
-    const remaining = sessions.filter((s) => s.id !== sessionId);
-    setSessions(remaining);
-    if (activeSessionId === sessionId) {
-      setActiveSessionId(remaining[0]?.id ?? null);
+  const remove = async (id: string) => {
+    try {
+      await deleteChatSession(id);
+      if (id === activeId) router.push("/dashboard/chat");
+      router.refresh();
+    } catch {
+      toast.error("Could not delete the conversation");
     }
-    router.refresh();
   };
 
-  const handleNewSessionCreated = (id: string) => {
-    // When a session is auto-created on first message, update the list
-    setSessions((prev) => prev.map((s) => (s.id === id ? s : s)));
+  if (sessions.length === 0) {
+    return <p className="px-3 py-8 text-center text-sm text-muted-foreground">No conversations yet</p>;
+  }
+
+  return (
+    <ul className="space-y-0.5">
+      {sessions.map((s) => (
+        <li key={s.id} className="group flex items-center gap-1">
+          <Link
+            href={`/dashboard/chat?c=${s.id}`}
+            onClick={onNavigate}
+            aria-current={s.id === activeId ? "page" : undefined}
+            className={cn(
+              "flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-md px-3 text-sm hover:bg-muted",
+              s.id === activeId ? "bg-muted font-medium text-foreground" : "text-muted-foreground"
+            )}
+          >
+            <MessageSquare className="size-4 shrink-0" />
+            <span className="truncate">{s.title}</span>
+          </Link>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="shrink-0 text-muted-foreground md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
+            aria-label={`Delete ${s.title}`}
+            onClick={() => remove(s.id)}
+          >
+            <Trash2 />
+          </Button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function ChatInterface({ sessions, activeId, initialMessages }: { sessions: SessionRow[]; activeId: string | null; initialMessages: UIMessage[] }) {
+  const router = useRouter();
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [sessionId, setSessionId] = useState(activeId);
+  const [list, setList] = useState(sessions);
+
+  const { messages, sendMessage, status, error, regenerate } = useChat({
+    messages: initialMessages,
+    transport: new DefaultChatTransport({ api: "/api/chat" }),
+  });
+  const busy = status === "submitted" || status === "streaming";
+
+  const send = async (text: string) => {
+    const t = text.trim();
+    if (!t || busy) return;
+    let sid = sessionId;
+    if (!sid) {
+      try {
+        const created = await createChatSession();
+        sid = created.id;
+        setSessionId(sid);
+        setList((l) => [{ ...created, title: t.slice(0, 60) }, ...l]);
+        // Update the address without a navigation so the stream isn't interrupted.
+        window.history.replaceState(null, "", `/dashboard/chat?c=${sid}`);
+      } catch {
+        toast.error("Could not start a conversation. Check your connection.");
+        return;
+      }
+    }
+    sendMessage({ text: t }, { body: { sessionId: sid } });
+  };
+
+  const onSubmit = (msg: PromptInputMessage) => send(msg.text);
+  const newChat = () => {
+    setHistoryOpen(false);
+    router.push("/dashboard/chat");
   };
 
   return (
-    <div className="flex h-[calc(100dvh-8rem)] gap-3 p-2 sm:p-4">
-      {/* Session Sidebar */}
-      <div className="hidden md:flex flex-col w-64 shrink-0 bg-card/60 backdrop-blur-xl border border-border/50 rounded-2xl overflow-hidden">
-        <div className="p-3 border-b border-border/40">
-          <Button onClick={handleNewChat} className="w-full gap-2" variant="default" size="sm">
-            <PlusIcon className="size-4" />
-            New Conversation
+    <div className="-mx-4 -mt-4 -mb-24 flex h-[calc(100dvh-7.5rem-env(safe-area-inset-bottom))] sm:-mx-6 md:m-0 md:h-[calc(100dvh-7rem)] md:gap-4">
+      <aside className="hidden w-64 shrink-0 flex-col rounded-xl border bg-card md:flex">
+        <div className="border-b p-3">
+          <Button className="w-full" onClick={newChat}>
+            <Plus /> New conversation
+          </Button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-2">
+          <SessionList sessions={list} activeId={sessionId} />
+        </div>
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col bg-card md:rounded-xl md:border">
+        <div className="flex items-center justify-between gap-2 border-b px-3 py-2 md:hidden">
+          <Button variant="ghost" size="sm" onClick={() => setHistoryOpen(true)}>
+            <History /> History
+          </Button>
+          <Button variant="ghost" size="sm" onClick={newChat}>
+            <Plus /> New
           </Button>
         </div>
 
-        <ScrollArea className="flex-1 px-2 py-2">
-          {sessions.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-12 text-center text-muted-foreground">
-              <MessageSquareIcon className="size-8 opacity-40" />
-              <p className="text-sm">No conversations yet</p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-1">
-              {sessions.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => handleSelectSession(s)}
-                  className={`group w-full flex items-start gap-2 px-3 py-2 rounded-xl text-left text-sm transition-colors hover:bg-accent/60 ${
-                    activeSessionId === s.id ? "bg-primary/10 text-primary" : "text-muted-foreground"
-                  }`}
-                >
-                  <MessageSquareIcon className="size-4 mt-0.5 shrink-0 opacity-60" />
-                  <span className="flex-1 truncate">{s.title}</span>
-                  <Trash2Icon
-                    className="size-3.5 shrink-0 opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity mt-0.5"
-                    onClick={(e) => handleDeleteSession(e, s.id)}
-                  />
-                </button>
-              ))}
-            </div>
-          )}
-        </ScrollArea>
+        <Conversation className="min-h-0 flex-1">
+          <ConversationContent className="p-4 sm:p-6">
+            {messages.length === 0 && (
+              <div className="mx-auto max-w-lg space-y-4 py-6">
+                <div className="space-y-1">
+                  <h2 className="text-lg font-semibold">Ask Elimu</h2>
+                  <p className="text-sm text-muted-foreground">Ask about the CBC curriculum, lesson ideas or assessment. Answers use KICD curriculum designs where available.</p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  {SUGGESTIONS.map((s) => (
+                    <Button key={s} variant="outline" className="h-auto min-h-11 justify-start whitespace-normal py-2 text-left font-normal" onClick={() => send(s)}>
+                      {s}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-        <Separator />
-        <div className="p-3 flex items-center gap-2 text-xs text-muted-foreground">
-          <BookOpenIcon className="size-3.5" />
-          <span>Powered by KICD curriculum</span>
+            {messages.map((m) => {
+              const sources = m.parts.filter((p) => p.type === "source-document");
+              return (
+                <Message key={m.id} from={m.role}>
+                  <MessageContent>
+                    {m.parts.map((p, i) => (p.type === "text" ? <MessageResponse key={i}>{p.text}</MessageResponse> : null))}
+                    {sources.length > 0 && (
+                      <Sources className="mt-3 mb-0">
+                        <SourcesTrigger count={sources.length} className="min-h-9">
+                          <span className="font-medium">From {sources.length} curriculum document{sources.length === 1 ? "" : "s"}</span>
+                        </SourcesTrigger>
+                        <SourcesContent>
+                          {sources.map((s) => (
+                            <Source key={s.sourceId} title={s.title} />
+                          ))}
+                        </SourcesContent>
+                      </Sources>
+                    )}
+                  </MessageContent>
+                </Message>
+              );
+            })}
+
+            {status === "submitted" && (
+              <div role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Spinner /> Thinking…
+              </div>
+            )}
+            {error && (
+              <div className="flex flex-wrap items-center gap-2 text-sm text-destructive">
+                Elimu could not answer. Check your connection.
+                <Button variant="outline" size="sm" onClick={() => regenerate({ body: { sessionId } })}>
+                  <RotateCw /> Try again
+                </Button>
+              </div>
+            )}
+          </ConversationContent>
+          <ConversationScrollButton />
+        </Conversation>
+
+        <div className="border-t p-3">
+          <PromptInput onSubmit={onSubmit}>
+            <PromptInputBody>
+              <PromptInputTextarea placeholder="Ask Elimu…" className="text-base" />
+            </PromptInputBody>
+            <PromptInputFooter>
+              <PromptInputTools />
+              <PromptInputSubmit status={status} disabled={busy} />
+            </PromptInputFooter>
+          </PromptInput>
         </div>
       </div>
 
-      {/* Chat Area — key forces remount when session changes */}
-      <div className="flex flex-col flex-1 min-w-0 bg-card/60 backdrop-blur-3xl border border-border/50 rounded-[2rem] shadow-2xl p-4 sm:p-6 relative overflow-hidden animate-in fade-in zoom-in-95 duration-500">
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
-
-        {/* Mobile new chat button */}
-        <div className="md:hidden flex justify-end mb-3">
-          <Button onClick={handleNewChat} size="sm" variant="outline" className="gap-2">
-            <PlusIcon className="size-4" />
-            New
-          </Button>
-        </div>
-
-        <ChatArea
-          key={activeSessionId ?? "new"}
-          sessionId={activeSessionId}
-          initialMessages={initialMessages}
-          onNewSession={handleNewSessionCreated}
-        />
-      </div>
+      <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
+        <SheetContent side="left" className="w-[85vw] max-w-sm gap-0 p-0">
+          <SheetHeader className="border-b">
+            <SheetTitle>Conversations</SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto p-2">
+            <SessionList sessions={list} activeId={sessionId} onNavigate={() => setHistoryOpen(false)} />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

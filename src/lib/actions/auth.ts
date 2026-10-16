@@ -14,12 +14,15 @@ export async function register(prevState: any, formData: FormData) {
   const password = formData.get("password") as string;
 
   if (!email || !password || !name) {
-    return { error: "Missing fields" };
+    return { error: "Fill in your name, email and password." };
+  }
+  if (password.length < 8) {
+    return { error: "Use a password with at least 8 characters." };
   }
 
   const existingUser = await db.user.findUnique({ where: { email } });
   if (existingUser) {
-    return { error: "User already exists" };
+    return { error: "An account with this email already exists. Sign in instead." };
   }
 
   // Auto-create a default tenant for independent teachers during public registration
@@ -57,7 +60,7 @@ export async function register(prevState: any, formData: FormData) {
   // Auto-login after registration
   await createSession(user);
 
-  redirect("/dashboard");
+  redirect("/onboarding");
 }
 
 export async function login(prevState: any, formData: FormData) {
@@ -65,7 +68,7 @@ export async function login(prevState: any, formData: FormData) {
   const password = formData.get("password") as string;
 
   if (!email || !password) {
-    return { error: "Missing fields" };
+    return { error: "Enter your email and password." };
   }
 
   const headerStore = await headers();
@@ -86,12 +89,12 @@ export async function login(prevState: any, formData: FormData) {
 
   const user = await db.user.findUnique({ where: { email } });
   if (!user || !user.passwordHash) {
-    return { error: "Invalid credentials" };
+    return { error: "That email and password don't match. Try again or reset your password." };
   }
 
   const isValid = await bcrypt.compare(password, user.passwordHash);
   if (!isValid) {
-    return { error: "Invalid credentials" };
+    return { error: "That email and password don't match. Try again or reset your password." };
   }
 
   // Skip email verification for now as per user request
@@ -115,7 +118,7 @@ export async function logout() {
 
 export async function forgotPassword(prevState: any, formData: FormData) {
   const email = formData.get("email") as string;
-  if (!email) return { error: "Email is required" };
+  if (!email) return { error: "Enter your email address." };
 
   const user = await db.user.findUnique({ where: { email } });
   if (!user) {
@@ -140,13 +143,13 @@ export async function resetPassword(prevState: any, formData: FormData) {
   const confirmPassword = formData.get("confirmPassword") as string;
 
   if (!token || !password || !confirmPassword) return { error: "Missing fields" };
-  if (password !== confirmPassword) return { error: "Passwords do not match" };
-  if (password.length < 8) return { error: "Password must be at least 8 characters" };
+  if (password !== confirmPassword) return { error: "The two passwords don't match." };
+  if (password.length < 8) return { error: "Use a password with at least 8 characters." };
 
   const resetToken = await db.passwordResetToken.findUnique({ where: { token } });
   
   if (!resetToken || resetToken.expiresAt < new Date()) {
-    return { error: "Invalid or expired token" };
+    return { error: "This link has expired or was already used. Request a new one." };
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
@@ -174,7 +177,7 @@ export async function verifyEmail(prevState: any, formData: FormData) {
   const verificationToken = await db.emailVerificationToken.findUnique({ where: { token } });
   
   if (!verificationToken || verificationToken.expiresAt < new Date()) {
-    return { error: "Invalid or expired token" };
+    return { error: "This link has expired or was already used. Request a new one." };
   }
 
   await db.user.update({

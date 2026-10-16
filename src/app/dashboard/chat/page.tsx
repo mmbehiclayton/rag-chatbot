@@ -1,13 +1,25 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { getChatSessions } from "@/lib/actions/chat";
+import { getChatSession, getChatSessions } from "@/lib/actions/chat";
 import { ChatInterface } from "@/components/dashboard/chat-interface";
 
-export default async function RAGChatBot() {
+export default async function ChatPage({ searchParams }: { searchParams: Promise<{ c?: string }> }) {
   const session = await auth();
   if (!session?.userId) redirect("/login");
 
-  const sessions = await getChatSessions();
+  const { c } = await searchParams;
+  const [sessions, active] = await Promise.all([getChatSessions(), c ? getChatSession(c) : null]);
 
-  return <ChatInterface initialSessions={sessions} />;
+  return (
+    <ChatInterface
+      key={active?.id ?? "new"}
+      sessions={sessions}
+      activeId={active?.id ?? null}
+      initialMessages={(active?.messages ?? []).map((m) => ({
+        id: m.id,
+        role: m.role === "assistant" ? "assistant" : "user",
+        parts: [{ type: "text", text: m.content }],
+      }))}
+    />
+  );
 }

@@ -30,6 +30,10 @@ const DEMO_USERS = [
 ] as const;
 
 export async function ensureDemoUsers() {
+  // This creates accounts with a known password, including a super admin, so it must
+  // never run outside an explicit demo/evaluation deployment.
+  if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true") throw new Error("Demo mode is disabled");
+
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
 
   for (const demo of DEMO_USERS) {
