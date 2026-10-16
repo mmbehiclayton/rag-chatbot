@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { jwtVerify } from 'jose'
 import { db } from '@/lib/db'
+import { ROUTE_ACCESS } from '@/lib/access'
 
 const secretKey = process.env.JWT_SECRET_KEY || "development_secret_do_not_use_in_prod";
 const key = new TextEncoder().encode(secretKey);
@@ -62,28 +63,12 @@ export async function proxy(request: NextRequest) {
 
   // 5. Role-based route protection
 
-  // Define route prefixes and the roles allowed to access them
-  const protectedRoutes = {
-    "/dashboard/global-settings": ["SUPERADMIN"],
-    "/dashboard/knowledge": ["SUPERADMIN"],
-    "/dashboard/pilot": ["SUPERADMIN"],
-    "/dashboard/tenants": ["SUPERADMIN"],
-    "/dashboard/structure": ["SUPERADMIN"],
-    "/dashboard/rules": ["SUPERADMIN"],
-    "/dashboard/rbac": ["SUPERADMIN"],
-    "/dashboard/verification": ["SUPERADMIN", "ADMIN"],
-    "/dashboard/admin": ["SUPERADMIN", "ADMIN"],
-    "/dashboard/teachers": ["SUPERADMIN", "ADMIN"],
-    "/dashboard/settings": ["SUPERADMIN", "ADMIN"],
-    "/dashboard/notifications": ["SUPERADMIN", "ADMIN"], // mock data; hidden from teachers until real notifications exist
-    "/dashboard": ["SUPERADMIN", "ADMIN", "TEACHER"], // Core dashboard access
-  };
+  // Route prefixes and the roles allowed in them live in src/lib/access.ts (also shown on the Access control page)
 
   // Check if the current path is a protected dashboard route
-  for (const routePrefix in protectedRoutes) {
+  for (const { prefix: routePrefix, roles: allowedRoles } of ROUTE_ACCESS) {
     if (path.startsWith(routePrefix)) {
-      const allowedRoles = protectedRoutes[routePrefix as keyof typeof protectedRoutes];
-      if (!allowedRoles.includes(role as string)) {
+      if (!(allowedRoles as string[]).includes(role as string)) {
         // Teachers looking for settings get their own profile; everything else goes home
         const fallback = routePrefix === '/dashboard/settings' ? '/dashboard/profile' : '/dashboard'
         return NextResponse.redirect(new URL(fallback, request.url));

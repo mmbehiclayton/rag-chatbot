@@ -10,7 +10,7 @@ export default async function DashboardIndex() {
 
   return (
     <div className="flex flex-col gap-12 sm:gap-16">
-      {session.role === "SUPERADMIN" && <SuperAdminOverview session={session} />}
+      {session.role === "SUPERADMIN" && <SuperAdminOverview />}
       {(session.role === "SUPERADMIN" || session.role === "ADMIN") && <AdminOverview session={session} />}
       {session.role === "TEACHER" && <TeacherOverview session={session} />}
     </div>
