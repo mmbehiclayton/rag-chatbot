@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { PRICE_LIMITS, TERM_PRICE_KEY, getAccess } from "@/lib/plans";
+import { PRICE_LIMITS, TERM_PRICE_KEY, TEST_MODE_KEY, getAccess } from "@/lib/plans";
 import { initializeCheckout, paystackOn } from "@/lib/paystack";
 
 type Result = { success: true } | { success: false; error: string };
@@ -80,6 +80,20 @@ export async function startCheckout(): Promise<{ success: true; url: string } | 
     console.error("[paystack] initialize failed", e);
     return { success: false, error: "We couldn't open the payment page. Check your connection and try again." };
   }
+}
+
+/** Test mode on: everything is free. Off: teachers need a trial, their free class or a term pass. */
+export async function setTestMode(input: { on: boolean }): Promise<Result> {
+  const session = await auth();
+  if (!session?.userId || session.role !== "SUPERADMIN") return { success: false, error: "Only Elimu staff can do this." };
+  const value = input.on ? "on" : "off";
+  await db.platformSetting.upsert({
+    where: { key: TEST_MODE_KEY },
+    create: { key: TEST_MODE_KEY, value, updatedById: session.userId },
+    update: { value, updatedById: session.userId },
+  });
+  revalidatePath("/", "layout");
+  return { success: true };
 }
 
 /** Elimu staff set the term pass price for everyone. Teachers who already paid keep their pass. */

@@ -6,12 +6,17 @@ import { SUGGESTED_TERMS, pickTerm, termLabel, todayInKenya } from "@/lib/term-p
  * Plans for the pilot (see docs/strategy/research-and-pilot-plan.md, section 5):
  * - Trial: everything, for the first TRIAL_DAYS after joining.
  * - Free: one class (grade + learning area), with the full Term Pack and printing for it.
- * - Term pass: every class for one term, paid by M-Pesa Paybill and checked by Elimu staff.
- * Limits apply only when ELIMU_PLANS=on, so nobody is locked out before the pilot starts.
+ * - Term pass: every class for one term, paid through Paystack (or a typed M-Pesa code staff check).
+ * In test mode nothing needs paying. Elimu staff switch test mode on the Pilot page;
+ * until they first do, ELIMU_PLANS=on means payments are required.
  */
 export const TRIAL_DAYS = 14;
+export const TEST_MODE_KEY = "testMode";
 
-export function plansOn() {
+/** True when teachers must pay (test mode off). */
+export async function plansOn() {
+  const saved = await withDbRetry(() => db.platformSetting.findUnique({ where: { key: TEST_MODE_KEY }, select: { value: true } })).catch(() => null);
+  if (saved) return saved.value === "off";
   return process.env.ELIMU_PLANS === "on";
 }
 
@@ -74,10 +79,11 @@ async function firstClass(userId: string): Promise<ClassRef | null> {
 }
 
 export async function getAccess(userId: string): Promise<Access> {
-  const [user, term, price] = await Promise.all([
+  const [user, term, price, paying] = await Promise.all([
     withDbRetry(() => db.user.findUnique({ where: { id: userId }, select: { role: true, createdAt: true } })),
     sellingTerm(userId),
     termPrice(),
+    plansOn(),
   ]);
   const pass = await withDbRetry(() =>
     db.termPass.findUnique({
@@ -88,7 +94,7 @@ export async function getAccess(userId: string): Promise<Access> {
   const trialEndsOn = user ? new Date(user.createdAt.getTime() + TRIAL_DAYS * 86_400_000) : null;
   const base = { term, pass, trialEndsOn, price, freeClass: null };
 
-  if (!plansOn() || !user || user.role !== "TEACHER") return { ...base, kind: "unlimited" };
+  if (!paying || !user || user.role !== "TEACHER") return { ...base, kind: "unlimited" };
   if (pass?.status === "ACTIVE") return { ...base, kind: "paid" };
   if (trialEndsOn && trialEndsOn > new Date()) return { ...base, kind: "trial" };
   return { ...base, kind: "free", freeClass: await firstClass(userId) };

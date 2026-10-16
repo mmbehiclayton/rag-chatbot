@@ -54,7 +54,7 @@ async function passesVerification(content: unknown, context: string) {
 
 async function checkGenerationGuards(session: { userId: string; tenantId?: string | null }, cls: ClassRef) {
   // 0. Plan: the free plan covers one class
-  if (plansOn()) {
+  if (await plansOn()) {
     const access = await getAccess(session.userId);
     if (!coversClass(access, cls)) throw new TeacherError(freePlanMessage(access));
   }

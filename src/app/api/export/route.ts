@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
       return new NextResponse("Invalid type", { status: 400 });
     }
 
-    if (cls && plansOn()) {
+    if (cls && (await plansOn())) {
       const access = await getAccess(session.userId);
       if (!coversClass(access, cls)) {
         return new NextResponse(wrap("Term pass needed", `<h1>Term pass needed</h1><p>${esc(freePlanMessage(access))}</p>`), {

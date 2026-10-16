@@ -4,9 +4,10 @@ import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
 import { getTimetableView } from "@/lib/term-pack-data";
 import { SUGGESTED_TERMS, pickTerm, termLabel, todayInKenya } from "@/lib/term-pack";
-import { PRICE_LIMITS, termPrice } from "@/lib/plans";
+import { PRICE_LIMITS, plansOn, termPrice } from "@/lib/plans";
 import { PaymentReview } from "@/components/pilot/payment-review";
 import { PriceForm } from "@/components/pilot/price-form";
+import { TestModeToggle } from "@/components/pilot/test-mode-toggle";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { cn } from "@/lib/utils";
@@ -43,7 +44,7 @@ export default async function PilotPage() {
   const since = new Date(now - 8 * WEEK);
   const current = pickTerm(SUGGESTED_TERMS, todayInKenya()) ?? SUGGESTED_TERMS.at(-1)!;
 
-  const price = await termPrice();
+  const [price, paying] = await Promise.all([termPrice(), plansOn()]);
   const [teachers, firstSchemes, gens, records, passes, pending, reviews] = await withDbRetry(() =>
     Promise.all([
       db.user.findMany({
@@ -112,6 +113,20 @@ export default async function PilotPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-8">
       <PageHeader title="Pilot" description="How teachers are using Elimu, against the go-to-scale targets in the pilot plan." />
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold">Test mode</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {paying
+              ? "Payments are on. New teachers get a 14-day trial, then one free class, and a term pass opens every class."
+              : "Test mode is on. Every teacher can use every class, and nobody is asked to pay."}
+          </p>
+        </div>
+        <div className="rounded-xl border bg-card p-4">
+          <TestModeToggle on={!paying} />
+        </div>
+      </section>
 
       <section className="space-y-3">
         <div>
