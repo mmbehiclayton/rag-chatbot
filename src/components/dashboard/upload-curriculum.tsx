@@ -349,26 +349,15 @@ export function UploadCurriculumModal({
                       <p className="text-xs text-warning/80 font-medium mt-0.5">
                         Uploaded {new Date(duplicateFound.uploadDate).toLocaleDateString()} &middot; {duplicateFound.chunks} chunks indexed
                       </p>
-                      <label className="flex items-center gap-2 mt-3 cursor-pointer select-none">
-                        <div
-                          className={cn(
- "w-4 h-4 rounded border-2 flex items-center justify-center transition-all shrink-0",
-                            confirmOverwrite
-                              ? "bg-warning border-warning"
-                              : "border-warning/50 bg-background"
-                          )}
-                          onClick={() => setConfirmOverwrite(!confirmOverwrite)}
-                        >
-                          <input
-                            type="checkbox"
-                            className="hidden"
-                            checked={confirmOverwrite}
-                            onChange={(e) => setConfirmOverwrite(e.target.checked)}
-                          />
-                          {confirmOverwrite && <CheckCircle2 className="w-2.5 h-2.5 text-primary-foreground" />}
-                        </div>
-                        <span className="text-xs font-semibold text-warning ">
-                          Replace existing curriculum
+                      <label className="mt-2 flex min-h-11 cursor-pointer select-none items-center gap-2">
+                        <input
+                          type="checkbox"
+                          className="size-4 shrink-0 accent-[var(--warning)]"
+                          checked={confirmOverwrite}
+                          onChange={(e) => setConfirmOverwrite(e.target.checked)}
+                        />
+                        <span className="text-xs font-semibold text-warning">
+                          Replace the existing design
                         </span>
                       </label>
                     </div>
