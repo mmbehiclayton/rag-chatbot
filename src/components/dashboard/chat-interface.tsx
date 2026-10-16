@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import { History, MessageSquare, Plus, RotateCw, Trash2 } from "lucide-react";
+import { ChevronDown, History, MessageSquare, Plus, RotateCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   PromptInput,
@@ -173,6 +173,7 @@ export function ChatInterface({ sessions, activeId, initialMessages }: { session
                       <Sources className="mt-3 mb-0">
                         <SourcesTrigger count={sources.length} className="min-h-9">
                           <span className="font-medium">From {sources.length} curriculum document{sources.length === 1 ? "" : "s"}</span>
+                          <ChevronDown className="size-4" aria-hidden />
                         </SourcesTrigger>
                         <SourcesContent>
                           {sources.map((s) => (

@@ -1,8 +1,9 @@
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { embed } from "ai";
 import { openai } from "@ai-sdk/openai";
 
-export async function retrieveContext(query: string, k = 5, filters?: { grade?: string, subject?: string, tenantId?: string }) {
+export async function retrieveContext(query: string, k = 5, filters?: { grade?: string, subject?: string, tenantId?: string, grades?: string[] }) {
   try {
     // Generate embedding for the user query
     const { embedding } = await embed({
@@ -34,13 +35,16 @@ export async function retrieveContext(query: string, k = 5, filters?: { grade?: 
 
     // Pass 2: broad search, only when no class was given. With a grade and learning area we never
     // pad the results with another class's curriculum: it reads as plausible but is wrong.
+    // `grades` narrows it to the classes the teacher teaches.
     if (!(filters?.grade && filters?.subject)) {
+      const inGrades = filters?.grades?.length ? Prisma.sql`AND d."gradeLevel" = ANY(${filters.grades})` : Prisma.empty;
       results = await db.$queryRaw`
         SELECT c."chunkText", c."pageNumber", c."curriculumId",
                1 - (c."embedding" <=> ${vectorString}::vector) as similarity
         FROM "CurriculumChunk" c
         JOIN "CurriculumDocument" d ON c."curriculumId" = d."id"
         WHERE (d."tenantId" = ${filters?.tenantId ?? null} OR d."tenantId" IS NULL)
+          ${inGrades}
         ORDER BY c."embedding" <=> ${vectorString}::vector
         LIMIT ${k}
       `;

@@ -4,7 +4,7 @@ import { retrieveContext } from "@/lib/rag";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { explainAIError } from "@/lib/ai-errors";
-import { getGradeOptions } from "@/lib/curriculum-options";
+import { getGradeOptions, getTeachingProfile } from "@/lib/curriculum-options";
 import { allSubStrands, findSubStrand, getPublishedMap, lessonGrounding, mapToPrompt } from "@/lib/curriculum-map";
 import { detectClass, pageLabel } from "@/lib/chat-grounding";
 
@@ -63,6 +63,15 @@ export async function POST(req: Request) {
             console.error("Failed to fetch chat rules:", dbError);
         }
 
+        // The grades the teacher teaches, so general questions are answered for their classes.
+        const profile = await getTeachingProfile(session.userId).catch(() => null);
+        const myGrades = profile?.gradesTaught ?? [];
+        const classNote = myGrades.length
+            ? `
+The teacher teaches ${myGrades.join(", ")}. Unless they name another class, answer for these grades (for example, use the assessment levels used at that level).
+`
+            : "";
+
         let contextText = "";
         let sources: { id: string; title: string }[] = [];
         if (query) {
@@ -79,7 +88,7 @@ export async function POST(req: Request) {
                 } else {
                     const found = await retrieveContext(query, 5, {
                         tenantId: tenantId ?? undefined,
-                        ...(asked ? { grade: asked.grade, subject: asked.subject } : {}),
+                        ...(asked ? { grade: asked.grade, subject: asked.subject } : { grades: myGrades }),
                     });
                     // Without a class filter, keep only close matches so another grade's design isn't quoted.
                     const chunks = asked ? found : found.filter((c) => c.similarity >= MIN_SIMILARITY);
@@ -106,7 +115,8 @@ ${customRuleText}
 
 If the context doesn't contain the answer, say so briefly, then rely on your general educational knowledge.
 Keep answers clear and practical for a Kenyan classroom. Use short paragraphs and lists. Use Kenyan English.
-
+Start with the answer itself, not "Certainly" or "Great question".
+${classNote}
 ${contextText}
 `;
 
