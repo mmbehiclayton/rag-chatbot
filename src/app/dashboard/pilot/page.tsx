@@ -4,7 +4,9 @@ import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
 import { getTimetableView } from "@/lib/term-pack-data";
 import { SUGGESTED_TERMS, pickTerm, termLabel, todayInKenya } from "@/lib/term-pack";
+import { PRICE_LIMITS, termPrice } from "@/lib/plans";
 import { PaymentReview } from "@/components/pilot/payment-review";
+import { PriceForm } from "@/components/pilot/price-form";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { cn } from "@/lib/utils";
@@ -41,6 +43,7 @@ export default async function PilotPage() {
   const since = new Date(now - 8 * WEEK);
   const current = pickTerm(SUGGESTED_TERMS, todayInKenya()) ?? SUGGESTED_TERMS.at(-1)!;
 
+  const price = await termPrice();
   const [teachers, firstSchemes, gens, records, passes, pending, reviews] = await withDbRetry(() =>
     Promise.all([
       db.user.findMany({
@@ -109,6 +112,18 @@ export default async function PilotPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-8">
       <PageHeader title="Pilot" description="How teachers are using Elimu, against the go-to-scale targets in the pilot plan." />
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold">Term pass price</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Applies to every new payment straight away. Teachers who already paid keep their pass, and a payment already started keeps the price it opened with.
+          </p>
+        </div>
+        <div className="rounded-xl border bg-card p-4">
+          <PriceForm price={price} min={PRICE_LIMITS.min} max={PRICE_LIMITS.max} />
+        </div>
+      </section>
 
       <section className="space-y-3">
         <h2 className="text-base font-semibold">Payments to check ({pending.length})</h2>

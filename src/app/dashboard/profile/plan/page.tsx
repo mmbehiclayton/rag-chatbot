@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, Check, Clock, Info } from "lucide-react";
 import { auth } from "@/lib/auth";
-import { getAccess, paybill, termPrice } from "@/lib/plans";
+import { getAccess, paybill } from "@/lib/plans";
 import { paystackOn } from "@/lib/paystack";
 import { CheckoutButton } from "@/components/pilot/checkout-button";
 import { PaymentForm } from "@/components/pilot/payment-form";
@@ -18,7 +18,7 @@ export default async function TermPassPage({ searchParams }: { searchParams: Pro
   const { payment } = await searchParams;
   const access = await getAccess(session.userId);
   const { term, pass } = access;
-  const price = termPrice();
+  const { price } = access;
   const pay = paybill();
   const paid = pass?.status === "ACTIVE";
   // A Paystack pass waits as PENDING only until checkout finishes, so only typed M-Pesa codes are "being checked".

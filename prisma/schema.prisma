@@ -476,3 +476,13 @@ model LessonRecord {
   @@unique([schemeId, stream, date, slot])
   @@index([teacherId, date])
 }
+
+/**
+ * Platform-wide settings Elimu staff can change without a redeploy, e.g. "termPrice" (KES).
+ */
+model PlatformSetting {
+  key         String   @id
+  value       String
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+}

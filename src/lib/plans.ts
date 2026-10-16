@@ -15,9 +15,17 @@ export function plansOn() {
   return process.env.ELIMU_PLANS === "on";
 }
 
-export function termPrice() {
-  const n = Number.parseInt(process.env.ELIMU_TERM_PRICE ?? "", 10);
-  return n > 0 ? n : 400;
+export const TERM_PRICE_KEY = "termPrice";
+export const PRICE_LIMITS = { min: 50, max: 5000 };
+
+/** The term pass price in KES: set by Elimu staff on the Pilot page, else ELIMU_TERM_PRICE, else 400. */
+export async function termPrice() {
+  const saved = await withDbRetry(() => db.platformSetting.findUnique({ where: { key: TERM_PRICE_KEY }, select: { value: true } })).catch(() => null);
+  for (const raw of [saved?.value, process.env.ELIMU_TERM_PRICE]) {
+    const n = Number.parseInt(raw ?? "", 10);
+    if (n > 0) return n;
+  }
+  return 400;
 }
 
 /** Where teachers pay. Without ELIMU_PAYBILL the pay screen says payment details are coming soon. */
@@ -32,6 +40,8 @@ export type Access = {
   /** The term a pass is sold for now: the teacher's term in progress or next to open. */
   term: { year: number; term: number; label: string };
   trialEndsOn: Date | null;
+  /** Today's term pass price in KES. A checkout already started keeps the price it was opened with. */
+  price: number;
   freeClass: ClassRef | null;
   pass: { status: string; method: string; reference: string; amount: number; note: string | null } | null;
 };
@@ -64,9 +74,10 @@ async function firstClass(userId: string): Promise<ClassRef | null> {
 }
 
 export async function getAccess(userId: string): Promise<Access> {
-  const [user, term] = await Promise.all([
+  const [user, term, price] = await Promise.all([
     withDbRetry(() => db.user.findUnique({ where: { id: userId }, select: { role: true, createdAt: true } })),
     sellingTerm(userId),
+    termPrice(),
   ]);
   const pass = await withDbRetry(() =>
     db.termPass.findUnique({
@@ -75,7 +86,7 @@ export async function getAccess(userId: string): Promise<Access> {
     })
   );
   const trialEndsOn = user ? new Date(user.createdAt.getTime() + TRIAL_DAYS * 86_400_000) : null;
-  const base = { term, pass, trialEndsOn, freeClass: null };
+  const base = { term, pass, trialEndsOn, price, freeClass: null };
 
   if (!plansOn() || !user || user.role !== "TEACHER") return { ...base, kind: "unlimited" };
   if (pass?.status === "ACTIVE") return { ...base, kind: "paid" };
@@ -91,5 +102,5 @@ export function coversClass(access: Access, c: ClassRef) {
 
 export function freePlanMessage(access: Access) {
   const free = access.freeClass ? `${access.freeClass.grade} ${access.freeClass.subject}` : "one class";
-  return `Your free plan covers ${free}. Get a term pass for KES ${termPrice()} to plan all your classes: Me, then Term pass.`;
+  return `Your free plan covers ${free}. Get a term pass for KES ${access.price} to plan all your classes: Me, then Term pass.`;
 }

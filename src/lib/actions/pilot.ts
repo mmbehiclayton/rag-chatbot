@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getAccess, termPrice } from "@/lib/plans";
+import { PRICE_LIMITS, TERM_PRICE_KEY, getAccess } from "@/lib/plans";
 import { initializeCheckout, paystackOn } from "@/lib/paystack";
 
 type Result = { success: true } | { success: false; error: string };
@@ -29,10 +29,10 @@ export async function submitPayment(input: z.input<typeof PaymentInput>): Promis
   const parsed = PaymentInput.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Check the code and try again." };
 
-  const { term, pass } = await getAccess(session.userId);
+  const { term, pass, price } = await getAccess(session.userId);
   if (pass?.status === "ACTIVE") return { success: false, error: `Your term pass for ${term.label} is already active.` };
 
-  const data = { method: "MPESA_CODE", reference: parsed.data.mpesaCode, phone: parsed.data.phone || null, amount: termPrice(), status: "PENDING", note: null };
+  const data = { method: "MPESA_CODE", reference: parsed.data.mpesaCode, phone: parsed.data.phone || null, amount: price, status: "PENDING", note: null };
   try {
     await db.termPass.upsert({
       where: { teacherId_year_term: { teacherId: session.userId, year: term.year, term: term.term } },
@@ -58,12 +58,12 @@ export async function startCheckout(): Promise<{ success: true; url: string } | 
   const user = await db.user.findUnique({ where: { id: session.userId }, select: { email: true } });
   if (!user) return { success: false, error: "Please sign in again." };
 
-  const { term, pass } = await getAccess(session.userId);
+  const { term, pass, price } = await getAccess(session.userId);
   if (pass?.status === "ACTIVE") return { success: false, error: `Your term pass for ${term.label} is already active.` };
 
   // A new reference each time, so a teacher who closed the checkout can start again.
   const reference = `elimu-${randomUUID()}`;
-  const amount = termPrice();
+  const amount = price;
   const where = { teacherId_year_term: { teacherId: session.userId, year: term.year, term: term.term } };
   const data = { method: "PAYSTACK", reference, amount, status: "PENDING", note: null, phone: null, reviewedAt: null, reviewedById: null };
   await db.termPass.upsert({ where, create: { teacherId: session.userId, year: term.year, term: term.term, ...data }, update: data });
@@ -80,6 +80,24 @@ export async function startCheckout(): Promise<{ success: true; url: string } | 
     console.error("[paystack] initialize failed", e);
     return { success: false, error: "We couldn't open the payment page. Check your connection and try again." };
   }
+}
+
+/** Elimu staff set the term pass price for everyone. Teachers who already paid keep their pass. */
+export async function setTermPrice(input: { price: number }): Promise<Result> {
+  const session = await auth();
+  if (!session?.userId || session.role !== "SUPERADMIN") return { success: false, error: "Only Elimu staff can do this." };
+  const price = Math.round(Number(input.price));
+  if (!Number.isFinite(price) || price < PRICE_LIMITS.min || price > PRICE_LIMITS.max) {
+    return { success: false, error: `Enter a price between KES ${PRICE_LIMITS.min} and ${PRICE_LIMITS.max}.` };
+  }
+  await db.platformSetting.upsert({
+    where: { key: TERM_PRICE_KEY },
+    create: { key: TERM_PRICE_KEY, value: String(price), updatedById: session.userId },
+    update: { value: String(price), updatedById: session.userId },
+  });
+  revalidatePath("/dashboard/pilot");
+  revalidatePath("/dashboard/profile/plan");
+  return { success: true };
 }
 
 /** Elimu staff confirm a payment against the M-Pesa statement, or turn it down with a reason the teacher sees. */
