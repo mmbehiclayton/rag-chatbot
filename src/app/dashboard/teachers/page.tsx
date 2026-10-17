@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RoleSelector } from "@/components/dashboard/role-selector";
 import { CuratorToggle } from "@/components/dashboard/curator-toggle";
+import { SchoolInvite } from "@/components/admin/school-invite";
+import { getInviteCode, inviteUrl } from "@/lib/invites";
 
 const PAGE_SIZE = 20;
 
@@ -61,6 +63,18 @@ export default async function TeachersPage(props: Props) {
     ])
   );
 
+  // School admins get a link that brings teachers into their school.
+  const school = isSuperAdmin
+    ? null
+    : await withDbRetry(() => db.tenant.findUnique({ where: { id: session.tenantId ?? "no-school" }, select: { name: true, type: true } }));
+  const [inviteCode, joined] =
+    school?.type === "SCHOOL"
+      ? await Promise.all([
+          getInviteCode(session.userId).catch(() => null),
+          withDbRetry(() => db.user.count({ where: { invitedById: session.userId } })).catch(() => 0),
+        ])
+      : [null, 0];
+
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const href = (p: number) => {
     const s = new URLSearchParams();
@@ -80,6 +94,13 @@ export default async function TeachersPage(props: Props) {
             : "Teachers in your school and how much they have prepared."
         }
       />
+
+      {inviteCode && school && <SchoolInvite url={inviteUrl(inviteCode)} school={school.name} joined={joined} />}
+      {!isSuperAdmin && school?.type !== "SCHOOL" && (
+        <p className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
+          Your account isn't linked to a school yet, so you can't invite teachers. Ask Elimu to add your school.
+        </p>
+      )}
 
       <form method="GET" action="/dashboard/teachers" className="relative w-full sm:max-w-xs">
         <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />

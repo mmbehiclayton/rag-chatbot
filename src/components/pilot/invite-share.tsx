@@ -5,8 +5,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
 /** Share the teacher's invite link on WhatsApp, or copy it to paste anywhere. */
-export function InviteShare({ url }: { url: string }) {
-  const message = `I use Elimu to draft my schemes of work, lesson plans and records of work. Try it free: ${url}`;
+export function InviteShare({ url, message: customMessage }: { url: string; message?: string }) {
+  const message = customMessage ?? `I use Elimu to draft my schemes of work, lesson plans and records of work. Try it free: ${url}`;
 
   const copy = async () => {
     try {

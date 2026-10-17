@@ -6,7 +6,7 @@ import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { randomBytes } from "crypto";
 import { cookies, headers } from "next/headers";
-import { INVITE_COOKIE } from "@/lib/invites";
+import { INVITE_COOKIE, findInviter } from "@/lib/invites";
 import { sendVerificationEmail, sendPasswordResetEmail } from "@/lib/email";
 
 export async function register(prevState: any, formData: FormData) {
@@ -26,20 +26,24 @@ export async function register(prevState: any, formData: FormData) {
     return { error: "An account with this email already exists. Sign in instead." };
   }
 
-  // Auto-create a default tenant for independent teachers during public registration
-  const tenant = await db.tenant.create({
-    data: {
-      name: `${name}'s Workspace`,
-      type: "INDEPENDENT_TEACHER",
-    }
-  });
-
-  const passwordHash = await bcrypt.hash(password, 10);
-
-  // A colleague's invite link leaves their code in a cookie, so we can count who brought whom.
+  // An invite link leaves the inviter's code in a cookie, so we can count who brought whom.
   const cookieStore = await cookies();
   const inviteCode = cookieStore.get(INVITE_COOKIE)?.value;
-  const inviter = inviteCode ? await db.user.findUnique({ where: { inviteCode }, select: { id: true } }) : null;
+  const inviter = await findInviter(inviteCode);
+
+  // A school admin's link puts the teacher in that school; anyone else gets their own account.
+  const tenantId =
+    inviter?.school?.id ??
+    (
+      await db.tenant.create({
+        data: {
+          name: `${name}'s Workspace`,
+          type: "INDEPENDENT_TEACHER",
+        },
+      })
+    ).id;
+
+  const passwordHash = await bcrypt.hash(password, 10);
 
   const user = await db.user.create({
     data: {
@@ -47,7 +51,7 @@ export async function register(prevState: any, formData: FormData) {
       email,
       passwordHash,
       role: "TEACHER",
-      tenantId: tenant.id,
+      tenantId,
       invitedById: inviter?.id ?? null,
     },
   });
