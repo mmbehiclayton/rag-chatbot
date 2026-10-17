@@ -374,7 +374,7 @@ export function UploadCurriculumModal({
                 className={cn(
  "w-full h-12 rounded-xl font-semibold text-sm shadow-sm transition-all duration-200 relative overflow-hidden group",
                   isReady && !isPending
-                    ? "bg-primary hover:bg-primary text-primary-foreground   hover:scale-[1.01] active:scale-[0.99]"
+                    ? "bg-primary text-primary-foreground hover:bg-primary/90"
                     : "bg-muted text-muted-foreground shadow-none cursor-not-allowed"
                 )}
               >

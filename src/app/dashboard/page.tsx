@@ -9,9 +9,9 @@ export default async function DashboardIndex() {
   if (!session?.userId) redirect("/login");
 
   return (
-    <div className="flex flex-col gap-12 sm:gap-16">
+    <div className={session.role === "TEACHER" ? undefined : "mx-auto max-w-4xl"}>
       {session.role === "SUPERADMIN" && <SuperAdminOverview />}
-      {(session.role === "SUPERADMIN" || session.role === "ADMIN") && <AdminOverview session={session} />}
+      {session.role === "ADMIN" && <AdminOverview session={session} />}
       {session.role === "TEACHER" && <TeacherOverview session={session} />}
     </div>
   );

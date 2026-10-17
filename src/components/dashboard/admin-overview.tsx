@@ -1,102 +1,93 @@
-import { Users, GraduationCap, Clock, Award, ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
-import { db, withDbRetry } from "@/lib/db";
 import { formatDistanceToNow } from "date-fns";
+import { BarChart3, BookOpen, ChevronRight, ClipboardCheck, FileText, Users } from "lucide-react";
+import { db, withDbRetry } from "@/lib/db";
+import { PageHeader } from "@/components/shared/page-header";
+import { EmptyState } from "@/components/shared/empty-state";
+import { Button } from "@/components/ui/button";
 
-export async function AdminOverview({ session }: { session: any }) {
-  // If tenant-based in the future, filter by session.tenantId
-  const [teachersCount, schemesCount, assessmentsCount, topTeachers] = await withDbRetry(() => Promise.all([
-    db.user.count({ where: { role: "TEACHER" } }),
-    db.schemeOfWork.count(),
-    db.assessment.count(),
-    db.user.findMany({
-      where: { role: "TEACHER" },
-      include: {
-        _count: {
-          select: { schemesOfWork: true, lessonPlans: true }
-        }
-      },
-      orderBy: { updatedAt: "desc" },
-      take: 3,
-    })
-  ]));
+/** A school admin's home: their teachers and what they have prepared. */
+export async function AdminOverview({ session }: { session: { tenantId?: string | null } }) {
+  const tenantId = session.tenantId ?? "no-school";
+  const workWhere = { teacher: { tenantId } };
 
-  const hoursSaved = schemesCount * 12 + assessmentsCount * 1.5;
+  const [school, teachersCount, schemesCount, lessonsCount, assessmentsCount, recentTeachers] = await withDbRetry(() =>
+    Promise.all([
+      db.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
+      db.user.count({ where: { role: "TEACHER", tenantId } }),
+      db.schemeOfWork.count({ where: workWhere }),
+      db.lessonPlan.count({ where: workWhere }),
+      db.assessment.count({ where: workWhere }),
+      db.user.findMany({
+        where: { role: "TEACHER", tenantId },
+        orderBy: { updatedAt: "desc" },
+        take: 5,
+        select: { id: true, name: true, email: true, updatedAt: true, _count: { select: { schemesOfWork: true, lessonPlans: true } } },
+      }),
+    ])
+  );
+  const num = (n: number) => n.toLocaleString("en-KE");
+
+  const cards = [
+    { title: "Teachers", value: teachersCount, icon: Users, href: "/dashboard/teachers" },
+    { title: "Schemes of work", value: schemesCount, icon: BookOpen, href: "/dashboard/admin/analytics" },
+    { title: "Lesson plans", value: lessonsCount, icon: FileText, href: "/dashboard/admin/analytics" },
+    { title: "Assessments", value: assessmentsCount, icon: ClipboardCheck, href: "/dashboard/admin/analytics" },
+  ];
+
   return (
-    <div className="space-y-10 animate-in fade-in duration-700 pb-10">
-      <div className="flex flex-col gap-6">
-        <div>
-          <h1 className="text-[34px] sm:text-4xl font-extrabold tracking-tight text-foreground leading-tight">
-            School Administration
-          </h1>
-          <p className="text-muted-foreground mt-1 text-base">Oversee teacher activity, adoption metrics, and curriculum progress.</p>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <PageHeader title={school?.name ?? "Your school"} description="Your teachers and what they have prepared." />
 
-      <div className="w-full pb-4 scrollbar-hide">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
-          {[{
-            title: "Active Teachers", value: teachersCount.toString(), desc: "Registered accounts", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10"
-          }, {
-            title: "Schemes", value: schemesCount.toString(), desc: "School-wide total", icon: Award, color: "text-amber-500", bg: "bg-amber-500/10"
-          }, {
-            title: "Assessments", value: assessmentsCount.toString(), desc: "Lifetime total", icon: GraduationCap, color: "text-purple-500", bg: "bg-purple-500/10"
-          }, {
-            title: "Hours Saved", value: `${hoursSaved}h`, desc: "Cost & time equivalent", icon: Clock, color: "text-green-500", bg: "bg-green-500/10"
-          }].map((stat, i) => (
-            <div key={i} className="w-full h-full p-5 text-left rounded-[28px] bg-card/80 backdrop-blur-md border border-border/40 shadow-xl shadow-primary/5 relative overflow-hidden group hover:border-primary/20 transition-colors">
-              <div className="flex flex-row sm:flex-col items-center sm:items-start gap-4 sm:gap-5 relative z-10 w-full min-w-0">
-                 <div className={`shrink-0 w-12 h-12 sm:w-12 sm:h-12 rounded-[18px] sm:rounded-[20px] ${stat.bg} flex items-center justify-center`}>
-                   <stat.icon className={`w-5 h-5 sm:w-5 sm:h-5 ${stat.color}`} />
-                 </div>
-                 <div className="flex flex-row items-center sm:flex-col sm:items-start flex-1 gap-3 sm:gap-0 w-full min-w-0">
-                   <div className="text-xl sm:text-2xl font-extrabold tracking-tight min-w-[2.5rem]">{stat.value}</div>
-                   <div className="flex flex-col flex-1 truncate">
-                     <h3 className="font-bold sm:font-semibold text-foreground sm:text-muted-foreground text-sm sm:text-xs sm:uppercase tracking-wide sm:tracking-wider sm:mt-1 truncate">{stat.title}</h3>
-                   </div>
-                 </div>
-              </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {cards.map((c) => (
+          <Link key={c.title} href={c.href} className="flex items-start gap-3 rounded-xl border bg-card p-4 hover:bg-muted">
+            <c.icon className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
+            <div className="min-w-0">
+              <p className="text-lg font-semibold">{num(c.value)}</p>
+              <p className="text-xs text-muted-foreground">{c.title}</p>
             </div>
-          ))}
-        </div>
+          </Link>
+        ))}
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-1 pt-2">
-        <div className="p-8 rounded-[32px] bg-card/60 backdrop-blur-sm border border-border/30 shadow-md">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-            <h3 className="text-xl font-extrabold tracking-tight">Teacher Activity Leaderboard</h3>
-            <Link href="/dashboard/teachers" className="text-sm font-bold text-primary hover:text-primary/80 transition-colors tracking-wide bg-primary/10 px-4 py-2 rounded-full">
-              Manage Teachers
-            </Link>
-          </div>
-          
-          <div className="space-y-3">
-            {topTeachers.map((teacher, i) => {
-              const generations = teacher._count.schemesOfWork + teacher._count.lessonPlans;
-              return (
-              <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 border border-border/40 rounded-[24px] hover:bg-muted/30 transition-all group hover:shadow-sm">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-[18px] bg-primary/10 text-primary flex items-center justify-center font-bold text-lg group-hover:scale-105 transition-transform">
-                    {(teacher.name || teacher.email).charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <div className="font-bold text-[15px]">{teacher.name || teacher.email.split('@')[0]}</div>
-                    <div className="text-xs font-semibold text-muted-foreground mt-0.5">Teacher</div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-6 sm:gap-10 sm:justify-end">
-                  <div className="text-left sm:text-right">
-                    <div className="font-extrabold text-lg">{generations}</div>
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Generations</div>
-                  </div>
-                  <div className="text-xs font-medium text-muted-foreground w-24 text-right">Active {formatDistanceToNow(teacher.updatedAt)} ago</div>
-                </div>
-              </div>
-            )})}
-          </div>
+      <Link href="/dashboard/admin/analytics" className="flex min-h-11 items-center gap-3 rounded-xl border bg-card p-4 hover:bg-muted">
+        <BarChart3 className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+        <span className="flex-1 text-sm">Usage: AI use this month and each teacher's work</span>
+        <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+      </Link>
+
+      <section className="space-y-2">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-base font-semibold">Recently active</h2>
+          <Button variant="ghost" size="sm" className="h-11" render={<Link href="/dashboard/teachers" />}>
+            All teachers
+          </Button>
         </div>
-      </div>
+        {recentTeachers.length === 0 ? (
+          <EmptyState icon={Users} title="No teachers yet" description="Teachers at your school show here once they create an account." />
+        ) : (
+          <ul className="divide-y rounded-xl border bg-card">
+            {recentTeachers.map((t) => (
+              <li key={t.id} className="flex items-center gap-3 p-4">
+                <span
+                  className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-sm font-semibold text-primary"
+                  aria-hidden
+                >
+                  {(t.name || t.email).charAt(0).toUpperCase()}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{t.name || t.email}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t._count.lessonPlans} lessons · {t._count.schemesOfWork} schemes · active{" "}
+                    {formatDistanceToNow(t.updatedAt, { addSuffix: true })}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

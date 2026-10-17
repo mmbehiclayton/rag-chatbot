@@ -1,120 +1,142 @@
-import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Users, Search, Mail, ShieldAlert, CheckCircle2 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { ChevronLeft, ChevronRight, Search, Users } from "lucide-react";
+import { auth } from "@/lib/auth";
+import { db, withDbRetry } from "@/lib/db";
+import { PageHeader } from "@/components/shared/page-header";
+import { EmptyState } from "@/components/shared/empty-state";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { formatDistanceToNow } from "date-fns";
 import { RoleSelector } from "@/components/dashboard/role-selector";
 import { CuratorToggle } from "@/components/dashboard/curator-toggle";
 
-export default async function TeachersPage() {
+const PAGE_SIZE = 20;
+
+type Props = { searchParams: Promise<{ [key: string]: string | string[] | undefined }> };
+
+export default async function TeachersPage(props: Props) {
   const session = await auth();
   if (!session || (session.role !== "SUPERADMIN" && session.role !== "ADMIN")) {
     redirect("/dashboard");
   }
 
+  const params = await props.searchParams;
+  const page = Math.max(1, Number(params?.page) || 1);
+  const query = typeof params?.query === "string" ? params.query.trim() : "";
+
   // Superadmins see every user. School admins see only their own school (an admin with no school sees nobody).
   const isSuperAdmin = session.role === "SUPERADMIN";
-  const users = await db.user.findMany({
-    where: isSuperAdmin ? undefined : { tenantId: session.tenantId ?? "no-school", role: { not: "SUPERADMIN" } },
-    orderBy: { createdAt: "desc" },
-    include: {
-      _count: {
-        select: { schemesOfWork: true, lessonPlans: true, assessments: true }
-      }
-    }
-  });
+  const where = {
+    ...(isSuperAdmin ? {} : { tenantId: session.tenantId ?? "no-school", role: { not: "SUPERADMIN" } }),
+    ...(query
+      ? {
+          OR: [
+            { name: { contains: query, mode: "insensitive" as const } },
+            { email: { contains: query, mode: "insensitive" as const } },
+          ],
+        }
+      : {}),
+  };
+
+  const [users, total] = await withDbRetry(() =>
+    Promise.all([
+      db.user.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * PAGE_SIZE,
+        take: PAGE_SIZE,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          isCurator: true,
+          createdAt: true,
+          _count: { select: { schemesOfWork: true, lessonPlans: true, assessments: true } },
+        },
+      }),
+      db.user.count({ where }),
+    ])
+  );
+
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const href = (p: number) => {
+    const s = new URLSearchParams();
+    if (query) s.set("query", query);
+    if (p > 1) s.set("page", String(p));
+    const qs = s.toString();
+    return `/dashboard/teachers${qs ? `?${qs}` : ""}`;
+  };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700 pb-10 mt-6 sm:mt-0">
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-foreground">{isSuperAdmin ? "Users and roles" : "Teachers"}</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            {isSuperAdmin ? "Everyone on Elimu and the role each person has." : "Teachers in your school and how much they have prepared."}
-          </p>
-        </div>
-        <Button className="h-12 rounded-[20px] px-6 gap-2 text-sm font-bold shadow-[0_0_30px_-10px_rgba(59,130,246,0.5)] transition-all hover:scale-105">
-          <Mail className="w-5 h-5" />
-          Invite User
-        </Button>
-      </div>
+    <div className="mx-auto max-w-4xl space-y-6">
+      <PageHeader
+        title={isSuperAdmin ? "Users and roles" : "Teachers"}
+        description={
+          isSuperAdmin
+            ? `${total.toLocaleString("en-KE")} people on Elimu and the role each person has.`
+            : "Teachers in your school and how much they have prepared."
+        }
+      />
 
-      <div className="w-full bg-card/60 backdrop-blur-2xl rounded-[32px] border border-border/40 shadow-sm overflow-hidden p-6 sm:p-8">
-        
-        <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
-          <div className="relative w-full max-w-sm">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-            <Input 
-              placeholder="Search by name or email..." 
-              className="pl-12 h-12 rounded-[20px] bg-background/50 border-border/50 shadow-sm"
-            />
-          </div>
-          <div className="flex items-center gap-3">
-             <div className="px-4 py-2 rounded-full border border-border/50 bg-background/50 text-sm font-bold text-muted-foreground">
-               People: <span className="text-foreground">{users.length}</span>
-             </div>
-          </div>
-        </div>
+      <form method="GET" action="/dashboard/teachers" className="relative w-full sm:max-w-xs">
+        <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+        <Input name="query" defaultValue={query} placeholder="Search by name or email" aria-label="Search by name or email" className="h-11 pl-9" />
+      </form>
 
-        <div className="space-y-3">
+      {users.length === 0 ? (
+        <EmptyState
+          icon={query ? Search : Users}
+          title={query ? "Nobody found" : "No teachers yet"}
+          description={query ? `No one matches "${query}".` : "Teachers show here once they create an account."}
+        />
+      ) : (
+        <ul className="divide-y rounded-xl border bg-card">
           {users.map((user) => (
-            <div key={user.id} className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 sm:p-6 border border-border/40 rounded-[28px] bg-background/40 hover:bg-muted/30 transition-all group shadow-sm hover:shadow-md hover:border-primary/30">
-              
-              <div className="flex items-center gap-5 flex-1 min-w-0">
-                <div className="w-14 h-14 rounded-[20px] bg-primary/10 text-primary flex items-center justify-center font-bold text-xl border border-primary/20 group-hover:scale-105 transition-transform shrink-0">
+            <li key={user.id} className="space-y-3 p-4">
+              <div className="flex items-start gap-3">
+                <span
+                  className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-sm font-semibold text-primary"
+                  aria-hidden
+                >
                   {(user.name || user.email).charAt(0).toUpperCase()}
-                </div>
+                </span>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                     <h3 className="text-base sm:text-lg font-bold tracking-tight text-foreground truncate">{user.name || "Unnamed User"}</h3>
-                     {user.id === session.userId && (
-                       <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500 text-[10px] font-black uppercase tracking-wider">You</span>
-                     )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate text-sm font-medium">{user.name || "No name yet"}</p>
+                    {user.id === session.userId && <Badge variant="info">You</Badge>}
                   </div>
-                  <div className="flex items-center gap-3 text-xs sm:text-sm text-muted-foreground font-semibold mt-1 flex-wrap">
-                    <span>{user.email}</span>
-                    <span className="w-1 h-1 rounded-full bg-border" />
-                    <span>Joined {formatDistanceToNow(user.createdAt)} ago</span>
-                  </div>
+                  <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {user._count.lessonPlans} lessons · {user._count.schemesOfWork} schemes · {user._count.assessments} assessments ·
+                    joined {formatDistanceToNow(user.createdAt, { addSuffix: true })}
+                  </p>
                 </div>
               </div>
-
-              <div className="flex flex-wrap items-center gap-6 justify-between md:justify-end shrink-0 pl-19 md:pl-0">
-                <div className="flex gap-6 text-center">
-                  <div>
-                    <span className="text-lg font-black">{user._count.schemesOfWork + user._count.lessonPlans}</span>
-                    <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Generations</div>
-                  </div>
-                </div>
-                
-                <div className="flex items-center justify-end gap-2">
-                  {isSuperAdmin && user.role !== "SUPERADMIN" && <CuratorToggle userId={user.id} isCurator={user.isCurator} />}
-                  <RoleSelector userId={user.id} initialRole={user.role} currentSessionRole={session.role} />
-                  
-                  <Button variant="ghost" size="icon" className="h-9 w-9 rounded-[14px] text-red-500 hover:text-red-600 hover:bg-red-500/10">
-                    <ShieldAlert className="w-4 h-4" />
-                  </Button>
-                </div>
+              <div className="flex flex-wrap items-center gap-3 pl-12">
+                <RoleSelector userId={user.id} initialRole={user.role} currentSessionRole={session.role} />
+                {isSuperAdmin && user.role !== "SUPERADMIN" && <CuratorToggle userId={user.id} isCurator={user.isCurator} />}
               </div>
-
-            </div>
+            </li>
           ))}
+        </ul>
+      )}
 
-          {users.length === 0 && (
-            <div className="flex flex-col items-center justify-center p-16 border-2 border-dashed border-border/40 rounded-[32px] bg-background/20">
-              <div className="w-20 h-20 bg-muted rounded-[28px] flex items-center justify-center text-muted-foreground mb-6">
-                <Users className="w-10 h-10 opacity-50" />
-              </div>
-              <h3 className="text-xl font-bold tracking-tight mb-2">No Identities Found</h3>
-              <p className="text-muted-foreground text-center max-w-sm mb-6 font-medium">Your universal tenant directory is empty.</p>
-              <Button className="h-12 rounded-[20px] px-8 font-bold">Invite User</Button>
-            </div>
-          )}
-        </div>
-
-      </div>
+      {total > PAGE_SIZE && (
+        <nav className="flex items-center justify-between gap-3" aria-label="Pages">
+          <Button variant="outline" size="icon-lg" aria-label="Previous page" disabled={page <= 1} render={page > 1 ? <Link href={href(page - 1)} /> : undefined}>
+            <ChevronLeft />
+          </Button>
+          <p className="text-sm text-muted-foreground">
+            Page {page} of {pages}
+          </p>
+          <Button variant="outline" size="icon-lg" aria-label="Next page" disabled={page >= pages} render={page < pages ? <Link href={href(page + 1)} /> : undefined}>
+            <ChevronRight />
+          </Button>
+        </nav>
+      )}
     </div>
   );
 }

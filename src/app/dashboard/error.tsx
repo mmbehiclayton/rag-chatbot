@@ -20,22 +20,22 @@ export default function DashboardError({
   );
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-5 text-center px-6 animate-in fade-in duration-300">
-      <div className="w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center border border-amber-500/20">
-        <Database className="w-8 h-8" />
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-5 px-6 text-center">
+      <div className="flex size-14 items-center justify-center rounded-xl bg-warning/10 text-warning">
+        <Database className="size-7" aria-hidden />
       </div>
       <div className="space-y-1.5 max-w-md">
-        <h2 className="text-xl font-bold tracking-tight">
+        <h2 className="text-xl font-semibold">
           {isConnectivity ? "Reconnecting to the server" : "Something went wrong"}
         </h2>
         <p className="text-sm text-muted-foreground">
           {isConnectivity
-            ? "The database was momentarily unavailable — it may have been waking from sleep. This usually clears within a second."
-            : "An unexpected error occurred while loading this page."}
+            ? "Elimu couldn't reach its data for a moment. This usually clears in a few seconds."
+            : "This page didn't load. Try again, and if it keeps happening, let us know."}
         </p>
       </div>
-      <Button onClick={reset} className="gap-2 rounded-xl">
-        <RefreshCw className="w-4 h-4" /> Try again
+      <Button onClick={reset} className="h-11">
+        <RefreshCw /> Try again
       </Button>
     </div>
   );
