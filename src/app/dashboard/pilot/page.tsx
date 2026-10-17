@@ -6,6 +6,7 @@ import { getTimetableView } from "@/lib/term-pack-data";
 import { SUGGESTED_TERMS, pickTerm, termLabel, todayInKenya } from "@/lib/term-pack";
 import { PRICE_LIMITS, plansOn, termPrice } from "@/lib/plans";
 import { PaymentReview } from "@/components/pilot/payment-review";
+import { PilotReadiness } from "@/components/pilot/pilot-readiness";
 import { PriceForm } from "@/components/pilot/price-form";
 import { TestModeToggle } from "@/components/pilot/test-mode-toggle";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -132,6 +133,8 @@ export default async function PilotPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-8">
       <PageHeader title="Pilot" description="How teachers are using Elimu, against the go-to-scale targets in the pilot plan." />
+
+      <PilotReadiness />
 
       <section className="space-y-3">
         <div>
