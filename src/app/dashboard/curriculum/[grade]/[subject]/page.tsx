@@ -63,6 +63,7 @@ export default async function CurriculumMapPage({ params }: { params: Promise<{ 
   const status = map?.status ?? MAP_STATUS.DRAFT;
   const design = status === MAP_STATUS.DRAFT ? await findDesign(grade, subject) : null;
   const canCheck = status === MAP_STATUS.IN_REVIEW && map?.editedById !== curator.id;
+  const canPublish = curator.role === "SUPERADMIN" && status !== MAP_STATUS.PUBLISHED;
   const person = (u: { name: string | null; email: string } | null | undefined) => u?.name || u?.email || "a curator";
 
   return (
@@ -98,7 +99,10 @@ export default async function CurriculumMapPage({ params }: { params: Promise<{ 
         {status === MAP_STATUS.IN_REVIEW && !canCheck && (
           <p className="flex gap-2 rounded-xl border bg-card p-3 text-sm">
             <Info className="mt-0.5 size-4 shrink-0 text-info" aria-hidden />
-            <span>You made the last changes, so another curator needs to check this map.</span>
+            <span>
+              You made the last changes, so another curator needs to check this map
+              {canPublish ? ", or you can publish it now without a check." : "."}
+            </span>
           </p>
         )}
       </div>
@@ -111,6 +115,7 @@ export default async function CurriculumMapPage({ params }: { params: Promise<{ 
         subject={subject}
         status={status}
         canCheck={canCheck}
+        canPublish={canPublish}
         initial={{ sourceNote: map?.sourceNote ?? "", strands: map?.strands ?? [] }}
       />
     </div>

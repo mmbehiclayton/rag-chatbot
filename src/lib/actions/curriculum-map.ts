@@ -129,6 +129,27 @@ export async function checkCurriculumMap(grade: string, subject: string, decisio
   return { success: true };
 }
 
+/** Elimu staff can put a map into use straight away, skipping the second-person check. */
+export async function publishCurriculumMap(grade: string, subject: string): Promise<Result> {
+  const session = await auth();
+  const curator = await getCurator(session.userId);
+  if (curator?.role !== "SUPERADMIN") return { success: false, error: "Only Elimu staff can publish a map without a check." };
+
+  const map = await db.curriculumMap.findUnique({
+    where: { grade_subject: { grade, subject } },
+    select: { id: true, status: true, _count: { select: { strands: true } } },
+  });
+  if (!map || map._count.strands === 0) return { success: false, error: "Add at least one strand before publishing." };
+  if (map.status === MAP_STATUS.PUBLISHED) return { success: false, error: "This map is already in use." };
+
+  await db.curriculumMap.update({
+    where: { id: map.id },
+    data: { status: MAP_STATUS.PUBLISHED, checkedById: curator.id, publishedAt: new Date(), reviewComment: null },
+  });
+  paths(grade, subject);
+  return { success: true };
+}
+
 /** Superadmins choose which teachers can curate maps. */
 export async function setCurator(userId: string, isCurator: boolean): Promise<Result> {
   const session = await auth();

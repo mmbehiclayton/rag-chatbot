@@ -11,11 +11,20 @@ import { TestModeToggle } from "@/components/pilot/test-mode-toggle";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 const DAY = 86_400_000;
 const WEEK = 7 * DAY;
 
 const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : null);
+const PASS_STATUS: Record<string, { label: string; variant: "success" | "warning" | "destructive" }> = {
+  ACTIVE: { label: "Paid", variant: "success" },
+  PENDING: { label: "Not finished", variant: "warning" },
+  REJECTED: { label: "Rejected", variant: "destructive" },
+};
+const METHOD: Record<string, string> = { PAYSTACK: "Paystack", MPESA_CODE: "M-Pesa code" };
+const kes = (n: number) => `KES ${n.toLocaleString("en-KE")}`;
+
 const shortDate = (d: Date) => d.toLocaleDateString("en-KE", { timeZone: "Africa/Nairobi", day: "numeric", month: "short" });
 
 /** One pilot measure, with the go-to-scale target beside it where the pilot plan sets one. */
@@ -45,7 +54,7 @@ export default async function PilotPage() {
   const current = pickTerm(SUGGESTED_TERMS, todayInKenya()) ?? SUGGESTED_TERMS.at(-1)!;
 
   const [price, paying] = await Promise.all([termPrice(), plansOn()]);
-  const [teachers, firstSchemes, gens, records, passes, pending, reviews] = await withDbRetry(() =>
+  const [teachers, firstSchemes, gens, records, passes, pending, reviews, payments, received, receivedThisTerm] = await withDbRetry(() =>
     Promise.all([
       db.user.findMany({
         where: { role: "TEACHER" },
@@ -66,6 +75,16 @@ export default async function PilotPage() {
         select: { id: true, reference: true, phone: true, amount: true, year: true, term: true, createdAt: true, teacher: { select: { name: true, email: true } } },
       }),
       db.headReview.groupBy({ by: ["answer"], _count: true }),
+      db.termPass.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 30,
+        select: {
+          id: true, method: true, reference: true, amount: true, status: true, year: true, term: true, createdAt: true,
+          teacher: { select: { name: true, email: true } },
+        },
+      }),
+      db.termPass.aggregate({ where: { status: "ACTIVE" }, _sum: { amount: true }, _count: true }),
+      db.termPass.aggregate({ where: { status: "ACTIVE", year: current.year, term: current.term }, _sum: { amount: true }, _count: true }),
     ])
   );
 
@@ -157,6 +176,45 @@ export default async function PilotPage() {
                   </p>
                 </div>
                 <PaymentReview id={p.id} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold">Payments</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Every term pass, newest first. Paystack payments are confirmed with Paystack before a pass opens. M-Pesa codes need checking above.
+          </p>
+        </div>
+        <dl className="grid grid-cols-2 divide-x rounded-xl border bg-card">
+          <div className="p-4">
+            <dt className="text-xs text-muted-foreground">{termLabel(current)}</dt>
+            <dd className="text-lg font-semibold">{kes(receivedThisTerm._sum.amount ?? 0)}</dd>
+            <dd className="text-xs text-muted-foreground">{receivedThisTerm._count} passes paid</dd>
+          </div>
+          <div className="p-4">
+            <dt className="text-xs text-muted-foreground">All time</dt>
+            <dd className="text-lg font-semibold">{kes(received._sum.amount ?? 0)}</dd>
+            <dd className="text-xs text-muted-foreground">{received._count} passes paid</dd>
+          </div>
+        </dl>
+        {payments.length === 0 ? (
+          <EmptyState icon={Wallet} title="No payments yet" description="Term passes teachers buy show here." />
+        ) : (
+          <ul className="divide-y rounded-xl border bg-card">
+            {payments.map((p) => (
+              <li key={p.id} className="flex items-start gap-3 p-4">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{p.teacher.name || p.teacher.email}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {kes(p.amount)} · {METHOD[p.method] ?? p.method} · {termLabel(p)} · {shortDate(p.createdAt)}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">Ref {p.reference}</p>
+                </div>
+                <Badge variant={PASS_STATUS[p.status]?.variant ?? "secondary"}>{PASS_STATUS[p.status]?.label ?? p.status}</Badge>
               </li>
             ))}
           </ul>

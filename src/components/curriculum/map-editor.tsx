@@ -3,8 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowDown, ArrowUp, Check, Plus, Send, Trash2, Undo2 } from "lucide-react";
-import { checkCurriculumMap, saveCurriculumMap, submitCurriculumMap, type MapInputData } from "@/lib/actions/curriculum-map";
+import { ArrowDown, ArrowUp, Check, Plus, Rocket, Send, Trash2, Undo2 } from "lucide-react";
+import { checkCurriculumMap, publishCurriculumMap, saveCurriculumMap, submitCurriculumMap, type MapInputData } from "@/lib/actions/curriculum-map";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -55,12 +55,15 @@ export function MapEditor({
   subject,
   status,
   canCheck,
+  canPublish = false,
   initial,
 }: {
   grade: string;
   subject: string;
   status: string;
   canCheck: boolean;
+  /** Elimu staff can skip the second check. */
+  canPublish?: boolean;
   initial: Initial;
 }) {
   const router = useRouter();
@@ -293,6 +296,18 @@ export function MapEditor({
           {status === "DRAFT" && !dirty && strands.length > 0 && (
             <Button variant="outline" disabled={pending} onClick={() => run(() => submitCurriculumMap(grade, subject), "Sent for checking")}>
               <Send /> Send for checking
+            </Button>
+          )}
+          {canPublish && status !== "PUBLISHED" && !dirty && strands.length > 0 && (
+            <Button
+              variant="outline"
+              disabled={pending}
+              onClick={() => {
+                if (!window.confirm("Publish this map now, without a second curator checking it? Teachers' generations will use it straight away.")) return;
+                run(() => publishCurriculumMap(grade, subject), "Map published and now in use");
+              }}
+            >
+              <Rocket /> Publish now
             </Button>
           )}
           <Button disabled={pending || !dirty} onClick={save}>
