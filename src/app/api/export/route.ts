@@ -417,7 +417,7 @@ function buildRecordHTML(
         <td>${arr(s.lesson?.outcomes)
           .map((o) => `<div>${esc(o)}</div>`)
           .join("")}</td>
-        <td>${esc(s.remarks)}</td>
+        <td>${esc(s.remarks ?? s.plan?.reflection)}</td>
         <td></td>
       </tr>`,
     )

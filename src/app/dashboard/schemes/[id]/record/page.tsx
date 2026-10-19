@@ -1,4 +1,4 @@
-import { ArrowLeft, CalendarDays } from "lucide-react";
+import { ArrowLeft, CalendarDays, FileText } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ExportButton, parseTitle } from "@/components/document/doc-parts";
@@ -210,6 +210,15 @@ export default async function RecordOfWorkPage({
                           <p className="mt-0.5 text-sm font-medium">
                             {s.lesson?.subStrand || `Lesson ${s.lessonNumber}`}
                           </p>
+                          {s.plan && (
+                            <Link
+                              href={`/dashboard/lessons/${s.plan.id}`}
+                              className="mt-1 inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-primary underline-offset-4 hover:underline"
+                            >
+                              <FileText className="size-4" aria-hidden />
+                              Lesson plan
+                            </Link>
+                          )}
                         </div>
                         <MarkLesson
                           schemeId={scheme.id}
@@ -225,7 +234,7 @@ export default async function RecordOfWorkPage({
                             stream={stream}
                             date={s.date}
                             slot={s.slot}
-                            initial={s.remarks}
+                            initial={s.remarks ?? s.plan?.reflection ?? null}
                           />
                         )}
                       </li>

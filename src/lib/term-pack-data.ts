@@ -134,6 +134,11 @@ type RecordRow = {
   remarks: string | null;
 };
 
+/** A lesson plan made from the scheme, with the reflection the teacher wrote on it. */
+export type SchemePlan = { id: string; reflection: string | null };
+
+type PlanRow = SchemePlan & { lessonNumber: number };
+
 export type SchemeSchedule = {
   term: TermDates | null;
   /** Streams of this grade on the timetable for the learning area ("" alone for a single-stream grade). */
@@ -144,6 +149,7 @@ export type SchemeSchedule = {
   slots: (ScheduledSlot & {
     lesson: SchemeLesson | null;
     remarks: string | null;
+    plan: SchemePlan | null;
   })[];
   lessons: SchemeLesson[];
   progress: Progress;
@@ -158,6 +164,7 @@ function buildSchedule(
   terms: TermDates[],
   timetable: TimetableEntry[],
   records: RecordRow[],
+  plans: PlanRow[],
   today: string,
 ): SchemeSchedule {
   const lessons = schemeLessons(scheme.content);
@@ -185,6 +192,12 @@ function buildSchedule(
 
   const mine = records.filter((r) => r.stream === stream);
   const byNumber = new Map(lessons.map((l) => [l.lessonNumber, l]));
+  const planByNumber = new Map(
+    plans.map((p) => [
+      p.lessonNumber,
+      { id: p.id, reflection: p.reflection?.trim() || null },
+    ]),
+  );
   const remarks = new Map(
     mine.map((r) => [slotKey(iso(r.date), r.slot), r.remarks]),
   );
@@ -203,6 +216,7 @@ function buildSchedule(
     ...s,
     lesson: s.lessonNumber ? (byNumber.get(s.lessonNumber) ?? null) : null,
     remarks: remarks.get(slotKey(s.date, s.slot)) ?? null,
+    plan: s.lessonNumber ? (planByNumber.get(s.lessonNumber) ?? null) : null,
   }));
   return {
     term,
@@ -226,12 +240,20 @@ export async function getSchemeSchedule(
   stream?: string,
 ): Promise<SchemeSchedule> {
   const today = todayInKenya();
-  const [terms, timetable, records] = await Promise.all([
+  const [terms, timetable, records, plans] = await Promise.all([
     getTeacherTerms(scheme.teacherId),
     getTimetable(scheme.teacherId),
     withDbRetry(() =>
       db.lessonRecord.findMany({ where: { schemeId: scheme.id } }),
     ),
+    // Only the reflection, not the whole plan, so a long scheme stays light.
+    withDbRetry(
+      () => db.$queryRaw<PlanRow[]>`
+        SELECT id, "lessonNumber", content->>'reflection' AS reflection
+        FROM "LessonPlan"
+        WHERE "schemeId" = ${scheme.id} AND "teacherId" = ${scheme.teacherId}
+        ORDER BY "updatedAt" ASC`,
+    ).catch(() => [] as PlanRow[]),
   ]);
   const streams = streamsFor(timetable, scheme.grade, scheme.subject);
   const chosen =
@@ -245,6 +267,7 @@ export async function getSchemeSchedule(
     terms,
     timetable,
     records,
+    plans,
     today,
   );
 }
@@ -386,6 +409,7 @@ export async function getTimetableView(teacherId: string, weekNumber?: number) {
       terms,
       timetable,
       records.filter((r) => r.schemeId === scheme.id),
+      [],
       today,
     );
     const plans = new Map(

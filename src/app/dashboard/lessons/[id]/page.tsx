@@ -15,6 +15,7 @@ import type {
   LessonActivity,
   LessonContent,
 } from "@/components/document/lesson-types";
+import { ReflectionForm } from "@/components/document/reflection-form";
 import { ShareElimu } from "@/components/shared/share-elimu";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
@@ -308,20 +309,11 @@ export default async function LessonDetailPage({
       </details>
 
       <DocSection title="Reflection">
-        {c.reflection ? (
-          <p className="whitespace-pre-line">{c.reflection}</p>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Write this after the lesson: what went well, which learners need
-            more help, and what you will change.{" "}
-            <Link
-              href={`/dashboard/lessons/${lesson.id}/edit#reflection`}
-              className="font-medium text-primary underline-offset-4 hover:underline"
-            >
-              Add your reflection
-            </Link>
-          </p>
-        )}
+        <ReflectionForm
+          lessonId={lesson.id}
+          initial={c.reflection ?? ""}
+          onRecord={!!lesson.scheme}
+        />
       </DocSection>
 
       <ShareElimu

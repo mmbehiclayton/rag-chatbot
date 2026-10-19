@@ -1088,6 +1088,41 @@ export async function updateLessonPlan(id: string, content: unknown) {
   return { id };
 }
 
+/** Saves only the teacher's reflection, which also fills the record of work. */
+export async function saveLessonReflection(
+  id: string,
+  reflection: string,
+): Promise<{ success: true } | { success: false; error: string }> {
+  const session = await auth();
+  if (!session?.userId)
+    return { success: false, error: "Please sign in again." };
+
+  const lesson = await db.lessonPlan.findFirst({
+    where: { id, teacherId: session.userId },
+    select: { content: true, schemeId: true },
+  });
+  if (!lesson)
+    return { success: false, error: "That lesson plan couldn't be found." };
+
+  const content = (
+    lesson.content && typeof lesson.content === "object" ? lesson.content : {}
+  ) as Partial<LessonPlanContent>;
+  await db.lessonPlan.update({
+    where: { id, teacherId: session.userId },
+    data: {
+      content: {
+        ...content,
+        reflection: reflection.trim().slice(0, 2000),
+      } as LessonPlanContent,
+    },
+  });
+
+  revalidatePath(`/dashboard/lessons/${id}`);
+  if (lesson.schemeId)
+    revalidatePath(`/dashboard/schemes/${lesson.schemeId}/record`);
+  return { success: true };
+}
+
 export async function getSchemeLessonsStatus(schemeId: string) {
   const session = await auth();
   if (!session?.userId) throw new Error("Unauthorized");
