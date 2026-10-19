@@ -1,9 +1,5 @@
 "use client";
 
-import type { LanguageModelUsage } from "ai";
-import type { ComponentProps } from "react";
-import { createContext, useContext, useMemo } from "react";
-import { getUsage } from "tokenlens";
 import { Button } from "@/components/ui/button";
 import {
   HoverCard,
@@ -12,6 +8,10 @@ import {
 } from "@/components/ui/hover-card";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import type { LanguageModelUsage } from "ai";
+import type { ComponentProps } from "react";
+import { createContext, useContext, useMemo } from "react";
+import { getUsage } from "tokenlens";
 
 const PERCENT_MAX = 100;
 const ICON_RADIUS = 10;
@@ -40,7 +40,7 @@ const useContextValue = () => {
   return context;
 };
 
-export type ContextProps = Record<string, unknown> & ContextSchema;
+export type ContextProps = Record<string, any> & ContextSchema;
 
 export const Context = ({
   usedTokens,
@@ -51,7 +51,7 @@ export const Context = ({
 }: ContextProps) => {
   const contextValue = useMemo(
     () => ({ maxTokens, modelId, usage, usedTokens }),
-    [maxTokens, modelId, usage, usedTokens],
+    [maxTokens, modelId, usage, usedTokens]
   );
 
   return (
@@ -215,7 +215,7 @@ export const ContextContentFooter = ({
     <div
       className={cn(
         "flex w-full items-center justify-between gap-3 bg-secondary p-3 text-xs",
-        className,
+        className
       )}
       {...props}
     >

@@ -37,4 +37,3 @@ export function CuratorToggle({
     </div>
   );
 }
-`${parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`;

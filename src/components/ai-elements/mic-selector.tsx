@@ -1,17 +1,6 @@
 "use client";
 
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
-import { ChevronsUpDownIcon } from "lucide-react";
-import type { ComponentProps, ReactNode } from "react";
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -26,6 +15,17 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { ChevronsUpDownIcon } from "lucide-react";
+import type { ComponentProps, ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 const deviceIdRegex = /\(([\da-fA-F]{4}:[\da-fA-F]{4})\)$/;
 
@@ -62,7 +62,7 @@ export const useAudioDevices = () => {
 
       const deviceList = await navigator.mediaDevices.enumerateDevices();
       const audioInputs = deviceList.filter(
-        (device) => device.kind === "audioinput",
+        (device) => device.kind === "audioinput"
       );
 
       setDevices(audioInputs);
@@ -98,7 +98,7 @@ export const useAudioDevices = () => {
 
       const deviceList = await navigator.mediaDevices.enumerateDevices();
       const audioInputs = deviceList.filter(
-        (device) => device.kind === "audioinput",
+        (device) => device.kind === "audioinput"
       );
 
       setDevices(audioInputs);
@@ -134,7 +134,7 @@ export const useAudioDevices = () => {
     return () => {
       navigator.mediaDevices.removeEventListener(
         "devicechange",
-        handleDeviceChange,
+        handleDeviceChange
       );
     };
   }, [hasPermission, loadDevicesWithPermission, loadDevicesWithoutPermission]);
@@ -194,7 +194,7 @@ export const MicSelector = ({
       value,
       width,
     }),
-    [devices, onOpenChange, onValueChange, open, value, width],
+    [devices, onOpenChange, onValueChange, open, setWidth, value, width]
   );
 
   return (
@@ -235,13 +235,10 @@ export const MicSelectorTrigger = ({
   }, [setWidth]);
 
   return (
-    <PopoverTrigger render={<Button variant="outline" {...props} ref={ref} />}>
-      {children}
-      <ChevronsUpDownIcon
-        className="shrink-0 text-muted-foreground"
-        size={16}
-      />
-    </PopoverTrigger>
+    <PopoverTrigger render={<Button variant="outline" {...props} ref={ref} />}>{children}<ChevronsUpDownIcon
+                className="shrink-0 text-muted-foreground"
+                size={16}
+              /></PopoverTrigger>
   );
 };
 
@@ -310,7 +307,7 @@ export const MicSelectorItem = (props: MicSelectorItemProps) => {
       onValueChange?.(currentValue);
       onOpenChange?.(false);
     },
-    [onValueChange, onOpenChange],
+    [onValueChange, onOpenChange]
   );
 
   return <CommandItem onSelect={handleSelect} {...props} />;

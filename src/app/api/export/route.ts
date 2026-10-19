@@ -265,11 +265,11 @@ type SchemeContent = {
 };
 
 type SchemeExport = {
-  title?: string;
-  grade?: string;
-  subject?: string;
-  term?: string;
-  content?: SchemeContent;
+  title?: string | null;
+  grade?: string | null;
+  subject?: string | null;
+  term?: string | null;
+  content?: unknown;
 };
 
 function schemeBody(scheme: SchemeExport, weekDates?: Map<number, string>) {
@@ -345,7 +345,7 @@ type RecordScheme = {
     tenant?: { name?: string | null } | null;
     name?: string | null;
   } | null;
-  grade?: string;
+  grade: string;
   subject?: string;
   term?: string;
 };
@@ -456,8 +456,8 @@ type LessonContent = {
 };
 
 type LessonExport = {
-  topic?: string;
-  content?: LessonContent;
+  topic?: string | null;
+  content?: unknown;
 };
 
 function lessonBody(lesson: LessonExport) {
@@ -565,11 +565,11 @@ type AssessmentContent = {
 };
 
 type AssessmentExport = {
-  title?: string;
-  grade?: string;
-  subject?: string;
-  type?: string;
-  content?: AssessmentContent;
+  title?: string | null;
+  grade?: string | null;
+  subject?: string | null;
+  type?: string | null;
+  content?: unknown;
 };
 
 function assessmentBody(assessment: AssessmentExport) {
@@ -641,13 +641,13 @@ function assessmentBody(assessment: AssessmentExport) {
 }
 
 type NotesExport = {
-  resources?: Record<string, unknown>;
-  notes?: string;
+  resources?: unknown;
+  notes?: string | null;
   lessonPlan?: {
-    topic?: string;
-    grade?: string;
-    subject?: string;
-    scheme?: { grade?: string; subject?: string };
+    topic?: string | null;
+    grade?: string | null;
+    subject?: string | null;
+    scheme?: { grade?: string | null; subject?: string | null } | null;
   };
 };
 

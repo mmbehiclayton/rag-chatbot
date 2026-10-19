@@ -218,8 +218,8 @@ export default async function SchemeDetailPage({
                 {weekDates.get(week.weekNumber) && (
                   <span className="ml-2 text-sm font-normal text-muted-foreground">
                     {formatRange(
-                      weekDates.get(week.weekNumber)?.from ?? new Date(),
-                      weekDates.get(week.weekNumber)?.to ?? new Date(),
+                      weekDates.get(week.weekNumber)?.from ?? "",
+                      weekDates.get(week.weekNumber)?.to ?? "",
                     )}
                   </span>
                 )}
@@ -237,7 +237,7 @@ export default async function SchemeDetailPage({
                     <p className="text-xs text-muted-foreground">
                       Lesson {lesson.lessonNumber}
                       {lessonDates.get(lesson.lessonNumber) &&
-                        ` · ${formatDay(lessonDates.get(lesson.lessonNumber)?.to ?? new Date())}`}{" "}
+                        ` · ${formatDay(lessonDates.get(lesson.lessonNumber) ?? "")}`}{" "}
                       · {row.strand}
                     </p>
                     <p className="mt-0.5 font-medium">{row.subStrand}</p>

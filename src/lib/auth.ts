@@ -75,6 +75,7 @@ export async function verifySession() {
     // Role and school come from the database, not the token, so a role change applies on the next request.
     return {
       ...payload,
+      userId: payload.userId as string,
       role: validSession.user.role,
       tenantId: validSession.user.tenantId,
       email: validSession.user.email,
@@ -93,7 +94,7 @@ export async function destroySession() {
       const payload = await decrypt(token);
       if (payload?.sessionId) {
         await db.session
-          .delete({ where: { id: payload.sessionId } })
+          .delete({ where: { id: payload.sessionId as string } })
           .catch(() => {});
       }
     } catch (_error) {}
@@ -109,7 +110,9 @@ export async function destroySession() {
 export async function auth() {
   const session = await verifySession();
   return {
-    userId: session?.userId || null,
+    // Typed as a string because dashboard routes only render after the proxy has checked the
+    // session. It is still empty when signed out, so pages keep their `if (!session.userId)` checks.
+    userId: (session?.userId || null) as string,
     role: session?.role || null,
     tenantId: session?.tenantId || null,
     email: session?.email || null,

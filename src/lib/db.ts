@@ -31,7 +31,7 @@ export async function withDbRetry<T>(
     } catch (err: unknown) {
       lastErr = err;
       const code = (err as { code?: string } | null)?.code;
-      const msg = String(err?.message ?? "");
+      const msg = String((err as { message?: unknown } | null)?.message ?? "");
       const transient =
         code === "P1001" ||
         code === "P1002" ||

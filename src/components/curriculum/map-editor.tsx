@@ -87,13 +87,14 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className="block space-y-1.5">
+    // biome-ignore lint/a11y/noLabelWithoutControl: the control is passed in as children
+    <label className="block space-y-1.5">
       <span className="text-sm font-medium">{label}</span>
       {hint && (
         <span className="block text-xs text-muted-foreground">{hint}</span>
       )}
       {children}
-    </div>
+    </label>
   );
 }
 

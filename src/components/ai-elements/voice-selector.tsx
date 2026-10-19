@@ -1,19 +1,6 @@
 "use client";
 
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
-import {
-  CircleSmallIcon,
-  MarsIcon,
-  MarsStrokeIcon,
-  NonBinaryIcon,
-  PauseIcon,
-  PlayIcon,
-  TransgenderIcon,
-  VenusAndMarsIcon,
-  VenusIcon,
-} from "lucide-react";
-import type { ComponentProps, ReactNode } from "react";
-import { createContext, useCallback, useContext, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -34,6 +21,19 @@ import {
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import {
+  CircleSmallIcon,
+  MarsIcon,
+  MarsStrokeIcon,
+  NonBinaryIcon,
+  PauseIcon,
+  PlayIcon,
+  TransgenderIcon,
+  VenusAndMarsIcon,
+  VenusIcon,
+} from "lucide-react";
+import type { ComponentProps, ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo } from "react";
 
 interface VoiceSelectorContextValue {
   value: string | undefined;
@@ -43,14 +43,14 @@ interface VoiceSelectorContextValue {
 }
 
 const VoiceSelectorContext = createContext<VoiceSelectorContextValue | null>(
-  null,
+  null
 );
 
 export const useVoiceSelector = () => {
   const context = useContext(VoiceSelectorContext);
   if (!context) {
     throw new Error(
-      "VoiceSelector components must be used within VoiceSelector",
+      "VoiceSelector components must be used within VoiceSelector"
     );
   }
   return context;
@@ -78,15 +78,15 @@ export const VoiceSelector = ({
     prop: valueProp,
   });
 
-  const [open, setOpen] = useControllableState<boolean>({
+  const [open, setOpen] = useControllableState({
     defaultProp: defaultOpen,
-    onChange: onOpenChange,
+    onChange: onOpenChange as any,
     prop: openProp,
   });
 
   const voiceSelectorContext = useMemo(
     () => ({ open, setOpen, setValue, value }),
-    [value, setValue, open, setOpen],
+    [value, setValue, open, setOpen]
   );
 
   return (
@@ -496,7 +496,7 @@ export const VoiceSelectorPreview = ({
       onClick?.(event);
       onPlay?.();
     },
-    [onClick, onPlay],
+    [onClick, onPlay]
   );
 
   let icon = <PlayIcon className="size-3" />;

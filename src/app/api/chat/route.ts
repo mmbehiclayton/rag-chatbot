@@ -4,6 +4,7 @@ import {
   createUIMessageStream,
   createUIMessageStreamResponse,
   streamText,
+  type UIMessage,
 } from "ai";
 import { explainAIError } from "@/lib/ai-errors";
 import { auth } from "@/lib/auth";
@@ -22,15 +23,8 @@ import { retrieveContext } from "@/lib/rag";
 // Below this, a chunk from an unfiltered search is usually about something else.
 const MIN_SIMILARITY = 0.4;
 
-type ChatTextPart = {
-  type?: string;
-  text?: unknown;
-};
-
-type ChatMessage = {
-  content?: string | null;
-  parts?: ChatTextPart[];
-};
+// Older clients may still send plain `content` alongside the v6 `parts`.
+type ChatMessage = UIMessage & { content?: string | null };
 
 // AI SDK v6 UI messages carry their text in `parts`, not `content`.
 function extractText(message: ChatMessage | null | undefined): string {
@@ -38,11 +32,7 @@ function extractText(message: ChatMessage | null | undefined): string {
   if (typeof message.content === "string") return message.content;
   if (Array.isArray(message.parts)) {
     return message.parts
-      .filter(
-        (part): part is ChatTextPart =>
-          part?.type === "text" && typeof part.text === "string",
-      )
-      .map((part) => part.text)
+      .flatMap((part) => (part.type === "text" ? [part.text] : []))
       .join(" ")
       .trim();
   }

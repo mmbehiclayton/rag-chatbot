@@ -71,6 +71,7 @@ export function StructureClient({
     mode: "CREATE" | "EDIT" | "DELETE";
     data?: {
       id?: string;
+      levelId?: string;
       name?: string;
       order?: number;
       learningAreas?: Array<{ learningArea: { id: string } }>;
@@ -526,7 +527,7 @@ export function StructureClient({
                 </p>
                 <div className="grid grid-cols-2 gap-2 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin">
                   {learningAreas.map((area) => {
-                    const isLinked = modalState.data?.learningAreas.some(
+                    const isLinked = modalState.data?.learningAreas?.some(
                       (la: { learningArea: { id: string } }) =>
                         la.learningArea.id === area.id,
                     );
@@ -539,7 +540,7 @@ export function StructureClient({
                             handleAction(
                               () =>
                                 actions.unlinkAreaFromGrade(
-                                  modalState.data?.id,
+                                  modalState.data?.id ?? "",
                                   area.id,
                                 ),
                               "Learning area removed from the grade",
@@ -548,7 +549,7 @@ export function StructureClient({
                             handleAction(
                               () =>
                                 actions.linkAreaToGrade(
-                                  modalState.data?.id,
+                                  modalState.data?.id ?? "",
                                   area.id,
                                 ),
                               "Learning area added to the grade",
@@ -638,40 +639,37 @@ export function StructureClient({
                   !formData.name)
               }
               onClick={() => {
+                const id = modalState?.data?.id ?? "";
                 if (modalState?.mode === "DELETE") {
                   if (modalState.type === "LEVEL")
                     handleAction(
-                      () => actions.deleteLevel(modalState.data.id),
+                      () => actions.deleteLevel(id),
                       "Level deleted",
                     );
                   if (modalState.type === "GRADE")
                     handleAction(
-                      () => actions.deleteGrade(modalState.data.id),
+                      () => actions.deleteGrade(id),
                       "Grade deleted",
                     );
                   if (modalState.type === "AREA")
                     handleAction(
-                      () => actions.deleteLearningArea(modalState.data.id),
+                      () => actions.deleteLearningArea(id),
                       "Learning area deleted",
                     );
                 } else if (modalState?.mode === "EDIT") {
                   if (modalState.type === "LEVEL")
                     handleAction(
-                      () => actions.updateLevel(modalState.data.id, formData),
+                      () => actions.updateLevel(id, formData),
                       "Level updated",
                     );
                   if (modalState.type === "GRADE")
                     handleAction(
-                      () => actions.updateGrade(modalState.data.id, formData),
+                      () => actions.updateGrade(id, formData),
                       "Grade updated",
                     );
                   if (modalState.type === "AREA")
                     handleAction(
-                      () =>
-                        actions.updateLearningArea(
-                          modalState.data.id,
-                          formData,
-                        ),
+                      () => actions.updateLearningArea(id, formData),
                       "Learning area updated",
                     );
                 } else if (modalState?.mode === "CREATE") {
@@ -685,7 +683,7 @@ export function StructureClient({
                       () =>
                         actions.createGrade({
                           ...formData,
-                          levelId: modalState.data.levelId,
+                          levelId: modalState.data?.levelId ?? "",
                         }),
                       "Grade created",
                     );

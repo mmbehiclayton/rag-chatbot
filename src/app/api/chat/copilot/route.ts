@@ -27,11 +27,14 @@ export async function POST(req: Request) {
     typeof lessonContext.strand === "string" ? lessonContext.strand : "";
   const lessonSubStrand =
     typeof lessonContext.subStrand === "string" ? lessonContext.subStrand : "";
-  const learningIntentions =
-    typeof lessonContext.lessonStructure === "object" &&
-    lessonContext.lessonStructure !== null
-      ? JSON.stringify(lessonContext.lessonStructure)
-      : "";
+  const lessonStructure = lessonContext.lessonStructure as
+    | { introduction?: { learningIntentions?: unknown } }
+    | null
+    | undefined;
+  const learningIntentions = String(
+    lessonStructure?.introduction?.learningIntentions ?? "",
+  );
+  const structureText = lessonStructure ? JSON.stringify(lessonStructure) : "";
 
   const systemPrompt = `You are Elimu, an assistant for a Kenyan teacher using the CBC (Competency-Based Curriculum).
 Your goal is to help the teacher refine, adjust, or brainstorm for the following lesson:
@@ -42,7 +45,7 @@ SUB-STRAND: ${lessonSubStrand}
 LEARNING INTENTIONS: ${learningIntentions}
 
 CURRENT LESSON STRUCTURE:
-${learningIntentions}
+${structureText}
 
 GUIDELINES:
 1. Always suggest variations that are practical for a classroom with potentially limited resources.

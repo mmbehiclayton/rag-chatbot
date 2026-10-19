@@ -1,8 +1,5 @@
 "use client";
 
-import { ChevronRightIcon } from "lucide-react";
-import type { ComponentProps, HTMLAttributes } from "react";
-import { createContext, Fragment, useContext, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
   Collapsible,
@@ -10,6 +7,9 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { ChevronRightIcon } from "lucide-react";
+import type { ComponentProps, HTMLAttributes } from "react";
+import { createContext, useContext, useMemo } from "react";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -100,36 +100,16 @@ export const SchemaDisplayPath = ({
   // Highlight path parameters
   const highlightedPath = path.replaceAll(
     /\{([^}]+)\}/g,
-    '<span class="text-blue-600 dark:text-blue-400">{$1}</span>',
+    '<span class="text-blue-600 dark:text-blue-400">{$1}</span>'
   );
 
-  const renderedPath =
-    typeof children === "string" ? children : highlightedPath;
-  const pathSegments: React.ReactNode[] = [];
-  let segmentKey = 0;
-
-  for (const segment of renderedPath.split(/(\{[^}]+\})/g)) {
-    if (!segment) continue;
-    if (segment.startsWith("{") && segment.endsWith("}")) {
-      pathSegments.push(
-        <span
-          key={`param-${segmentKey++}`}
-          className="text-blue-600 dark:text-blue-400"
-        >
-          {segment}
-        </span>,
-      );
-      continue;
-    }
-    pathSegments.push(
-      <Fragment key={`text-${segmentKey++}`}>{segment}</Fragment>,
-    );
-  }
-
   return (
-    <span className={cn("font-mono text-sm", className)} {...props}>
-      {pathSegments}
-    </span>
+    <span
+      className={cn("font-mono text-sm", className)}
+      // oxlint-disable-next-line eslint-plugin-react(no-danger)
+      dangerouslySetInnerHTML={{ __html: (children as any) ?? highlightedPath }}
+      {...props}
+    />
   );
 };
 
@@ -147,7 +127,7 @@ export const SchemaDisplayDescription = ({
     <p
       className={cn(
         "border-b px-4 py-3 text-muted-foreground text-sm",
-        className,
+        className
       )}
       {...props}
     >
@@ -261,7 +241,7 @@ export const SchemaDisplayProperty = ({
         <CollapsibleTrigger
           className={cn(
             "group flex w-full items-center gap-2 py-3 text-left transition-colors hover:bg-muted/50",
-            className,
+            className
           )}
           style={{ paddingLeft }}
         >
@@ -421,7 +401,7 @@ export const SchemaDisplay = ({
       requestBody,
       responseBody,
     }),
-    [description, method, parameters, path, requestBody, responseBody],
+    [description, method, parameters, path, requestBody, responseBody]
   );
 
   return (
@@ -429,7 +409,7 @@ export const SchemaDisplay = ({
       <div
         className={cn(
           "overflow-hidden rounded-lg border bg-background",
-          className,
+          className
         )}
         {...props}
       >
@@ -482,7 +462,7 @@ export const SchemaDisplayExample = ({
   <pre
     className={cn(
       "mx-4 mb-4 overflow-auto rounded-md bg-muted p-4 font-mono text-sm",
-      className,
+      className
     )}
     {...props}
   >
