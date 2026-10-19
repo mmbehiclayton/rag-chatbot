@@ -66,47 +66,6 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Combined export: every record for a learning area (grade + subject), no id.
-    if (!id && grade && subject) {
-      cls = { grade, subject };
-      if (type === "scheme") {
-        const items = await db.schemeOfWork.findMany({
-          where: { teacherId: session.userId, grade, subject },
-          include: TEACHER_INCLUDE,
-          orderBy: { term: "asc" },
-        });
-        if (!items.length)
-          return new NextResponse("Not found", { status: 404 });
-        html = buildCombinedHTML("scheme", items, grade, subject);
-      } else if (type === "lesson") {
-        const items = await db.lessonPlan.findMany({
-          where: {
-            teacherId: session.userId,
-            OR: [{ grade, subject }, { scheme: { grade, subject } }],
-          },
-          include: LESSON_EXPORT_INCLUDE,
-          orderBy: { lessonNumber: "asc" },
-        });
-        if (!items.length)
-          return new NextResponse("Not found", { status: 404 });
-        html = buildCombinedHTML("lesson", items, grade, subject);
-      } else if (type === "assessment") {
-        const items = await db.assessment.findMany({
-          where: { teacherId: session.userId, grade, subject },
-          include: TEACHER_INCLUDE,
-          orderBy: { updatedAt: "asc" },
-        });
-        if (!items.length)
-          return new NextResponse("Not found", { status: 404 });
-        html = buildCombinedHTML("assessment", items, grade, subject);
-      } else {
-        return new NextResponse("Invalid type", { status: 400 });
-      }
-      return new NextResponse(html, {
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-      });
-    }
-
     if (!id) return new NextResponse("Missing params", { status: 400 });
 
     if (type === "scheme") {
@@ -241,9 +200,6 @@ const baseCSS = `
   .doc-detail { font-size: 15px; margin: 8px 0 0; }
   table.head th { width: 18%; text-align: left; }
   table.head td { width: 32%; height: 26px; }
-  .cover { text-align: center; padding: 30mm 0; }
-  .cover h1 { border: none; font-size: 26px; }
-  .cover p { color: #555; font-size: 14px; margin-top: 6px; }
 
   /* Scheme of work — proportional, page-fitting landscape grid (monochrome, print-friendly) */
   table.scheme { table-layout: fixed; font-size: 9px; margin-top: 8px; }
@@ -1081,35 +1037,6 @@ function notesBody(note: NotesExport) {
     ${arr(c.references).length ? `<div class="section"><h2>References</h2>${list(c.references)}</div>` : ""}
   `;
   return body;
-}
-
-// Combines every record of a learning area (grade + subject) into one document,
-// each starting on its own page.
-function buildCombinedHTML(
-  kind: "scheme" | "lesson" | "assessment",
-  items: Array<SchemeExport | LessonExport | AssessmentExport>,
-  grade: string,
-  subject: string,
-) {
-  const landscape = kind === "scheme";
-  const label =
-    kind === "scheme"
-      ? "Schemes of work"
-      : kind === "lesson"
-        ? "Lesson plans"
-        : "Assessments";
-  const bodyFn =
-    kind === "scheme"
-      ? schemeBody
-      : kind === "lesson"
-        ? lessonBody
-        : assessmentBody;
-  const title = `${grade} ${subject} – ${label}`;
-  const cover = `<div class="cover"><h1>${esc(title)}</h1><p>${items.length} ${label.toLowerCase()}</p></div>`;
-  const inner =
-    cover +
-    items.map((it) => `<div class="page-break"></div>${bodyFn(it)}`).join("");
-  return wrap(title, inner, landscape);
 }
 
 type Sheet = { body: string; wide?: boolean };
