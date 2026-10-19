@@ -1,19 +1,28 @@
-import { ArrowLeft, BookMarked, CalendarRange, Info } from "lucide-react";
+import {
+  ArrowLeft,
+  BookMarked,
+  CalendarRange,
+  ChevronRight,
+  Info,
+} from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CoverageControl } from "@/components/coverage/coverage-control";
-import { SummaryCard } from "@/components/coverage/coverage-parts";
+import { CoverageBar, SummaryCard } from "@/components/coverage/coverage-parts";
+import { SubStrandPanel } from "@/components/coverage/sub-strand-panel";
 import { EmptyState } from "@/components/shared/empty-state";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
 import { classHref, createHref, designHref } from "@/lib/classes";
 import {
-  COVERAGE_LABELS,
+  type CoverageItem,
   coverageGradeHref,
   coverageHref,
+  shortDate,
+  summarise,
 } from "@/lib/coverage";
 import { getCoverage } from "@/lib/coverage-data";
-import { streamLabel } from "@/lib/term-pack";
+import { streamLabel, todayInKenya } from "@/lib/term-pack";
 import { cn } from "@/lib/utils";
 
 function decode(value: string) {
@@ -51,7 +60,22 @@ function Tab({
   );
 }
 
-/** One learning area's sub-strands by term, each with a tap to mark how far the class has got. */
+function ItemBadge({ item }: { item: CoverageItem }) {
+  if (item.status === "COVERED")
+    return (
+      <Badge variant="success">
+        {item.doneOn ? `Covered ${shortDate(item.doneOn)}` : "Covered"}
+      </Badge>
+    );
+  if (item.status === "IN_PROGRESS")
+    return <Badge variant="info">In progress</Badge>;
+  return <Badge variant="secondary">Not started</Badge>;
+}
+
+const summaryRow =
+  "flex min-h-11 cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden";
+
+/** One learning area: its strands, each opening to sub-strands whose lessons the teacher ticks off. */
 export default async function ClassCoveragePage({
   params,
   searchParams,
@@ -82,10 +106,19 @@ export default async function ClassCoveragePage({
   const items = term
     ? cls.items.filter((i) => i.term === Number(term))
     : cls.items;
-  const strands = [...new Set(items.map((i) => i.strand))].map((strand) => ({
-    strand,
-    items: items.filter((i) => i.strand === strand),
-  }));
+  const today = todayInKenya();
+  const strands = [...new Set(items.map((i) => i.strand))].map((strand) => {
+    const list = items.filter((i) => i.strand === strand);
+    return {
+      strand,
+      items: list,
+      covered: list.filter((i) => i.status === "COVERED").length,
+      percent: summarise(list, [], today).percent,
+    };
+  });
+  // Open where the class has got to: the first strand, and sub-strand, not yet covered.
+  const nextStrand = strands.find((st) => st.covered < st.items.length);
+  const nextItem = nextStrand?.items.find((i) => i.status !== "COVERED");
   const href = (t: string | null) => {
     const q = new URLSearchParams();
     if (cls.stream) q.set("stream", cls.stream);
@@ -189,60 +222,91 @@ export default async function ClassCoveragePage({
               No sub-strands fall in this term.
             </p>
           ) : (
-            <div className="space-y-4">
-              {strands.map(({ strand, items }) => (
-                <section key={strand} className="space-y-2">
-                  <h2 className="text-base font-semibold">{strand}</h2>
-                  <ul className="divide-y rounded-xl border bg-card">
-                    {items.map((i) => (
-                      <li
-                        key={`${cls.stream}|${i.strand}|${i.name}`}
-                        className="space-y-3 px-4 py-3 sm:flex sm:items-start sm:gap-4 sm:space-y-0"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium">
-                            {i.number && `${i.number} `}
-                            {i.name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {[
-                              `${i.lessons} lesson${i.lessons === 1 ? "" : "s"}`,
-                              term === null && `Term ${i.term}`,
-                              i.planned > 0 &&
-                                `${i.taught} of ${i.planned} taught in your record of work`,
-                              i.manual &&
-                                i.auto &&
-                                i.manual !== i.auto &&
-                                `record says ${COVERAGE_LABELS[i.auto].toLowerCase()}`,
-                            ]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </p>
-                        </div>
-                        <div className="sm:w-72 sm:shrink-0">
-                          <CoverageControl
-                            grade={grade}
-                            subject={subject}
-                            stream={cls.stream}
-                            strand={i.strand}
-                            subStrand={i.name}
-                            status={i.status}
-                            manual={i.manual !== null}
-                            auto={i.auto}
-                          />
-                        </div>
+            <div className="space-y-3">
+              {strands.map((st) => (
+                <details
+                  key={`${cls.stream}|${st.strand}`}
+                  open={st === nextStrand}
+                  className="group/strand rounded-xl border bg-card"
+                >
+                  <summary className={cn(summaryRow, "px-4 py-3")}>
+                    <span className="min-w-0 flex-1 space-y-1.5">
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="text-base font-semibold">
+                          {st.strand}
+                        </span>
+                        <span className="shrink-0 text-sm font-semibold">
+                          {st.percent}%
+                        </span>
+                      </span>
+                      <CoverageBar
+                        percent={st.percent}
+                        label={`Coverage of ${st.strand}`}
+                      />
+                      <span className="block text-xs text-muted-foreground">
+                        {st.covered} of {st.items.length} sub-strand
+                        {st.items.length === 1 ? "" : "s"} covered
+                      </span>
+                    </span>
+                    <ChevronRight
+                      className="size-4 shrink-0 text-muted-foreground transition-transform group-open/strand:rotate-90"
+                      aria-hidden
+                    />
+                  </summary>
+                  <ul className="divide-y border-t">
+                    {st.items.map((i) => (
+                      <li key={`${cls.stream}|${i.strand}|${i.name}`}>
+                        <details open={i === nextItem} className="group/sub">
+                          <summary className={cn(summaryRow, "px-4 py-2")}>
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-sm font-medium">
+                                {i.number && `${i.number} `}
+                                {i.name}
+                              </span>
+                              <span className="block text-xs text-muted-foreground">
+                                {[
+                                  `${i.ticks.length} of ${i.lessons} lesson${i.lessons === 1 ? "" : "s"} done`,
+                                  term === null && `Term ${i.term}`,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </span>
+                            </span>
+                            <ItemBadge item={i} />
+                            <ChevronRight
+                              className="size-4 shrink-0 text-muted-foreground transition-transform group-open/sub:rotate-90"
+                              aria-hidden
+                            />
+                          </summary>
+                          <div className="px-4 pt-1 pb-4">
+                            <SubStrandPanel
+                              // A fresh panel once the server has the saved ticks.
+                              key={`${i.status}|${i.coveredOn}|${i.ticks.map((t) => `${t.lesson}${t.source}${t.on}`).join(",")}`}
+                              grade={grade}
+                              subject={subject}
+                              stream={cls.stream}
+                              strand={i.strand}
+                              subStrand={i.name}
+                              lessons={i.lessons}
+                              ticks={i.ticks}
+                              confirmed={i.coveredOn !== null}
+                              today={today}
+                              planHref={`${createHref("lesson", grade, subject)}&${new URLSearchParams({ topic: i.name })}`}
+                            />
+                          </div>
+                        </details>
                       </li>
                     ))}
                   </ul>
-                </section>
+                </details>
               ))}
             </div>
           )}
 
           <p className="text-xs text-muted-foreground">
-            A sub-strand counts as covered when every lesson for it in your
-            scheme is marked taught, or when you mark it yourself. Progress is
-            weighted by the suggested lessons in the design.
+            Tick lessons as you teach them, or mark a whole sub-strand covered.
+            Lessons marked taught on your record of work count on their own.
+            Progress is weighted by the suggested lessons in the design.
           </p>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button

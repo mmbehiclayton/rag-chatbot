@@ -58,22 +58,23 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  sessions       Session[]
-  schemesOfWork  SchemeOfWork[]
-  lessonPlans    LessonPlan[]
-  lessonNotes    LessonNote[]
-  assessments    Assessment[]
-  generationLogs GenerationLog[]
-  chatSessions   ChatSession[]
-  mapsEdited     CurriculumMap[]    @relation("MapEditor")
-  mapsChecked    CurriculumMap[]    @relation("MapChecker")
-  terms          TeacherTerm[]
-  timetableSlots TimetableSlot[]
-  lessonRecords  LessonRecord[]
-  coverage       SyllabusCoverage[]
-  termPasses     TermPass[]         @relation("PassTeacher")
-  passesReviewed TermPass[]         @relation("PassReviewer")
-  headReviews    HeadReview[]
+  sessions        Session[]
+  schemesOfWork   SchemeOfWork[]
+  lessonPlans     LessonPlan[]
+  lessonNotes     LessonNote[]
+  assessments     Assessment[]
+  generationLogs  GenerationLog[]
+  chatSessions    ChatSession[]
+  mapsEdited      CurriculumMap[]    @relation("MapEditor")
+  mapsChecked     CurriculumMap[]    @relation("MapChecker")
+  terms           TeacherTerm[]
+  timetableSlots  TimetableSlot[]
+  lessonRecords   LessonRecord[]
+  coverage        SyllabusCoverage[]
+  coverageLessons CoverageLesson[]
+  termPasses      TermPass[]         @relation("PassTeacher")
+  passesReviewed  TermPass[]         @relation("PassReviewer")
+  headReviews     HeadReview[]
 
   @@index([tenantId])
   @@index([invitedById])
@@ -502,25 +503,49 @@ model LessonRecord {
 }
 
 /**
- * A sub-strand the teacher has marked themselves on their syllabus coverage, for one class and school year.
+ * A sub-strand the teacher has confirmed as covered for one class and school year, and the day they finished it.
  * Keyed by names, not CurriculumSubStrand ids, because a curator's edit recreates a map's strands.
- * Sub-strands without a row follow the record of work (lessons marked Taught).
+ * Without a row, a sub-strand is covered once all its lessons are ticked here or marked Taught on the record of work.
  */
 model SyllabusCoverage {
+  id        String    @id @default(uuid())
+  teacherId String
+  teacher   User      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  year      Int
+  grade     String
+  subject   String
+  stream    String    @default("") // "" for a grade taught as one class
+  strand    String
+  subStrand String
+  status    String // "COVERED" (older rows may say "IN_PROGRESS" or "NOT_STARTED")
+  coveredOn DateTime? @db.Date
+  updatedAt DateTime  @updatedAt
+
+  @@unique([teacherId, year, grade, subject, stream, strand, subStrand])
+  @@index([teacherId, year])
+}
+
+/**
+ * One lesson of a sub-strand the teacher ticked as taught on their syllabus coverage (lesson 1 … N).
+ * Lessons marked Taught on the record of work count too and are not copied here.
+ */
+model CoverageLesson {
   id        String   @id @default(uuid())
   teacherId String
   teacher   User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   year      Int
   grade     String
   subject   String
-  stream    String   @default("") // "" for a grade taught as one class
+  stream    String   @default("")
   strand    String
   subStrand String
-  status    String // "NOT_STARTED" | "IN_PROGRESS" | "COVERED"
-  updatedAt DateTime @updatedAt
+  lesson    Int
+  taughtOn  DateTime @db.Date
+  createdAt DateTime @default(now())
 
-  @@unique([teacherId, year, grade, subject, stream, strand, subStrand])
+  @@unique([teacherId, year, grade, subject, stream, strand, subStrand, lesson])
   @@index([teacherId, year])
+  @@index([teacherId, taughtOn])
 }
 
 /**

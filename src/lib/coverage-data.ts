@@ -1,6 +1,5 @@
 import { getTeacherClasses } from "@/lib/classes";
 import {
-  autoStatus,
   type CoverageItem,
   type CoverageStatus,
   type CoverageSummary,
@@ -8,6 +7,8 @@ import {
   coverageHref,
   coverageKey,
   isCoverageStatus,
+  itemStatus,
+  type LessonTick,
   normName,
   summarise,
   yearTerms,
@@ -106,7 +107,7 @@ export async function getCoverage(
 
   const yearStart = new Date(`${year}-01-01T00:00:00Z`);
   const nextYear = new Date(`${year + 1}-01-01T00:00:00Z`);
-  const [maps, schemes, marks, timetable, terms] = await Promise.all([
+  const [maps, schemes, marks, ticked, timetable, terms] = await Promise.all([
     getPublishedMaps(classes),
     withDbRetry(() =>
       db.schemeOfWork.findMany({
@@ -142,6 +143,22 @@ export async function getCoverage(
           strand: true,
           subStrand: true,
           status: true,
+          coveredOn: true,
+          updatedAt: true,
+        },
+      }),
+    ),
+    withDbRetry(() =>
+      db.coverageLesson.findMany({
+        where: { teacherId, year, ...(only ?? {}) },
+        select: {
+          grade: true,
+          subject: true,
+          stream: true,
+          strand: true,
+          subStrand: true,
+          lesson: true,
+          taughtOn: true,
         },
       }),
     ),
@@ -158,22 +175,56 @@ export async function getCoverage(
               status: "TAUGHT",
               schemeId: { in: schemes.map((s) => s.id) },
             },
-            select: { schemeId: true, stream: true, lessonNumber: true },
+            select: {
+              schemeId: true,
+              stream: true,
+              lessonNumber: true,
+              date: true,
+            },
           }),
         );
 
-  const taught = new Map<string, Set<number>>();
+  const day = (d: Date) => d.toISOString().slice(0, 10);
+  // scheme|stream → lesson number → the first day it was taught
+  const taught = new Map<string, Map<number, string>>();
   for (const r of taughtRows) {
     const k = `${r.schemeId}|${r.stream}`;
-    taught.set(k, (taught.get(k) ?? new Set()).add(r.lessonNumber));
+    const lessons = taught.get(k) ?? new Map<number, string>();
+    const on = day(r.date);
+    if (
+      !lessons.has(r.lessonNumber) ||
+      on < (lessons.get(r.lessonNumber) ?? "")
+    )
+      lessons.set(r.lessonNumber, on);
+    taught.set(k, lessons);
   }
-  const manual = new Map<string, CoverageStatus>();
+  const rowKey = (r: {
+    grade: string;
+    subject: string;
+    stream: string;
+    strand: string;
+    subStrand: string;
+  }) =>
+    `${r.grade}|${r.subject}|${r.stream}|${coverageKey(r.strand, r.subStrand)}`;
+  const legacy = new Map<
+    string,
+    { status: CoverageStatus | null; coveredOn: string | null }
+  >();
   for (const m of marks)
-    if (isCoverageStatus(m.status))
-      manual.set(
-        `${m.grade}|${m.subject}|${m.stream}|${coverageKey(m.strand, m.subStrand)}`,
-        m.status,
-      );
+    legacy.set(rowKey(m), {
+      status: isCoverageStatus(m.status) ? m.status : null,
+      coveredOn:
+        // Marks from before dates were kept count from when they were last saved.
+        m.status === "COVERED" ? day(m.coveredOn ?? m.updatedAt) : null,
+    });
+  const mineTicks = new Map<string, LessonTick[]>();
+  for (const t of ticked) {
+    const k = rowKey(t);
+    mineTicks.set(k, [
+      ...(mineTicks.get(k) ?? []),
+      { lesson: t.lesson, on: day(t.taughtOn), source: "mine" },
+    ]);
+  }
   const parsed = schemes.map((s) => ({
     ...s,
     subs: schemeSubStrands(s.content, s.term),
@@ -190,46 +241,73 @@ export async function getCoverage(
     const streams = streamsFor(timetable, grade, subject);
 
     for (const stream of streams.length ? streams : [""]) {
-      // Lessons planned and taught for each sub-strand, across every scheme this year.
-      const progress = new Map<string, { planned: number; taught: number }>();
-      for (const scheme of mine) {
-        const done = taught.get(`${scheme.id}|${stream}`);
-        for (const [key, sub] of scheme.subs) {
-          const p = progress.get(key) ?? { planned: 0, taught: 0 };
-          p.planned += sub.lessonNumbers.length;
-          p.taught += sub.lessonNumbers.filter((n) => done?.has(n)).length;
-          progress.set(key, p);
+      /**
+       * Lessons of a sub-strand taught on the record of work. When it sits in more than one scheme
+       * (a term redone), the scheme with the most taught counts, so lessons aren't added twice.
+       */
+      const fromRecord = (key: string) => {
+        let best: { planned: number; ticks: LessonTick[] } | null = null;
+        for (const scheme of mine) {
+          const sub = scheme.subs.get(key);
+          if (!sub) continue;
+          const done = taught.get(`${scheme.id}|${stream}`);
+          const ticks: LessonTick[] = [];
+          sub.lessonNumbers.forEach((n, i) => {
+            const on = done?.get(n);
+            if (on) ticks.push({ lesson: i + 1, on, source: "record" });
+          });
+          const planned = sub.lessonNumbers.length;
+          if (
+            !best ||
+            ticks.length > best.ticks.length ||
+            (ticks.length === best.ticks.length && planned > best.planned)
+          )
+            best = { planned, ticks };
         }
-      }
+        return best ?? { planned: 0, ticks: [] };
+      };
 
       const base = map
         ? subStrandsWithTerms(map).map((s) => ({
             number: s.number,
             strand: s.strand,
             name: s.name,
-            lessons: s.lessons,
+            weight: s.lessons,
             term: s.termNumber,
           }))
         : uniqueSchemeSubs(mine).map((s) => ({
             number: "",
             strand: s.strand,
             name: s.name,
-            lessons: s.lessonNumbers.length,
+            weight: s.lessonNumbers.length,
             term: s.term,
           }));
       const items: CoverageItem[] = base.map((s) => {
-        const p = progress.get(normName(s.name)) ?? { planned: 0, taught: 0 };
-        const auto = autoStatus(p.planned, p.taught);
-        const own =
-          manual.get(
-            `${grade}|${subject}|${stream}|${coverageKey(s.strand, s.name)}`,
-          ) ?? null;
+        const record = fromRecord(normName(s.name));
+        const lessons = Math.max(1, s.weight, record.planned);
+        const k = rowKey({
+          grade,
+          subject,
+          stream,
+          strand: s.strand,
+          subStrand: s.name,
+        });
+        const own = (mineTicks.get(k) ?? []).filter(
+          (t) =>
+            t.lesson <= lessons &&
+            !record.ticks.some((r) => r.lesson === t.lesson),
+        );
+        const ticks = [...record.ticks, ...own].sort(
+          (a, b) => a.lesson - b.lesson,
+        );
+        const mark = legacy.get(k);
+        const coveredOn = mark?.coveredOn ?? null;
         return {
           ...s,
-          ...p,
-          auto,
-          manual: own,
-          status: own ?? auto ?? "NOT_STARTED",
+          lessons,
+          ticks,
+          coveredOn,
+          ...itemStatus(lessons, ticks, coveredOn, mark?.status ?? null),
         };
       });
 

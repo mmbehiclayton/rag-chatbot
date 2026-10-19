@@ -45,32 +45,60 @@ export function normName(name: string) {
 export const coverageKey = (strand: string, subStrand: string) =>
   `${normName(strand)}|${normName(subStrand)}`;
 
+/** A lesson of a sub-strand that is done: ticked on this page, or marked Taught on the record of work. */
+export type LessonTick = {
+  lesson: number;
+  /** "YYYY-MM-DD" */
+  on: string;
+  source: "record" | "mine";
+};
+
 /** One sub-strand on a class's coverage list. */
 export type CoverageItem = {
   number: string;
   strand: string;
   name: string;
-  /** Suggested lessons, used to weight progress so a 12-lesson sub-strand counts more than a 2-lesson one. */
+  /** Lessons on the checklist: the design's suggested lessons, or more when the scheme has more. */
   lessons: number;
+  /** Suggested lessons in the design, so a 12-lesson sub-strand counts more than a 2-lesson one. */
+  weight: number;
   term: number;
-  /** Lessons in the teacher's schemes for this sub-strand, and how many are marked Taught. */
-  planned: number;
-  taught: number;
-  /** What the record of work says, when the teacher has a scheme for it. */
-  auto: CoverageStatus | null;
-  /** What the teacher marked themselves; it wins over the record of work. */
-  manual: CoverageStatus | null;
+  ticks: LessonTick[];
+  /** The day the teacher confirmed the whole sub-strand as covered. */
+  coveredOn: string | null;
   status: CoverageStatus;
+  /** When it was finished: the confirmed day, or the last lesson once every lesson is done. */
+  doneOn: string | null;
 };
 
-/** Status from the record of work: every scheme lesson taught is covered, some is in progress. */
-export function autoStatus(
-  planned: number,
-  taught: number,
-): CoverageStatus | null {
-  if (planned === 0) return null;
-  if (taught >= planned) return "COVERED";
-  return taught > 0 ? "IN_PROGRESS" : "NOT_STARTED";
+/**
+ * Covered when the teacher confirms it or every lesson is done; in progress once any lesson is done.
+ * `legacy` is a status marked before lessons could be ticked.
+ */
+export function itemStatus(
+  lessons: number,
+  ticks: LessonTick[],
+  coveredOn: string | null,
+  legacy: CoverageStatus | null = null,
+): { status: CoverageStatus; doneOn: string | null } {
+  const last =
+    ticks
+      .map((t) => t.on)
+      .sort()
+      .at(-1) ?? null;
+  if (coveredOn) return { status: "COVERED", doneOn: coveredOn };
+  if (legacy === "COVERED") return { status: "COVERED", doneOn: last };
+  if (lessons > 0 && ticks.length >= lessons)
+    return { status: "COVERED", doneOn: last };
+  if (ticks.length > 0 || legacy === "IN_PROGRESS")
+    return { status: "IN_PROGRESS", doneOn: null };
+  return { status: "NOT_STARTED", doneOn: null };
+}
+
+/** Share of a sub-strand done, 0–1: lessons done, or all of it once covered. */
+export function itemDone(i: CoverageItem) {
+  if (i.status === "COVERED") return 1;
+  return i.lessons > 0 ? Math.min(1, i.ticks.length / i.lessons) : 0;
 }
 
 export type Pace = "ahead" | "on-track" | "behind";
@@ -79,7 +107,7 @@ export type CoverageSummary = {
   subStrands: number;
   covered: number;
   inProgress: number;
-  /** Covered share of suggested lessons, 0–100. */
+  /** Share of the design's suggested lessons done, 0–100. Lessons ticked count before a sub-strand is finished. */
   percent: number;
   /** Where the class should be by today, from the term dates, 0–100; null without term dates. */
   expected: number | null;
@@ -92,7 +120,7 @@ export type CoverageSummary = {
   }[];
 };
 
-const weight = (i: CoverageItem) => Math.max(1, i.lessons);
+const weight = (i: CoverageItem) => Math.max(1, i.weight);
 const pct = (part: number, whole: number) =>
   whole > 0 ? Math.round((part / whole) * 100) : 0;
 
@@ -124,9 +152,7 @@ export function summarise(
   today: string,
 ): CoverageSummary {
   const total = items.reduce((n, i) => n + weight(i), 0);
-  const done = items
-    .filter((i) => i.status === "COVERED")
-    .reduce((n, i) => n + weight(i), 0);
+  const done = items.reduce((n, i) => n + weight(i) * itemDone(i), 0);
   const percent = pct(done, total);
 
   const known = terms.length === 3 && terms.every(Boolean);
@@ -160,13 +186,12 @@ export function summarise(
     pace,
     terms: [1, 2, 3].map((term) => {
       const inTerm = items.filter((i) => i.term === term);
-      const covered = inTerm.filter((i) => i.status === "COVERED");
       return {
         term,
         subStrands: inTerm.length,
-        covered: covered.length,
+        covered: inTerm.filter((i) => i.status === "COVERED").length,
         percent: pct(
-          covered.reduce((n, i) => n + weight(i), 0),
+          inTerm.reduce((n, i) => n + weight(i) * itemDone(i), 0),
           inTerm.reduce((n, i) => n + weight(i), 0),
         ),
       };
@@ -179,3 +204,11 @@ export const PACE_LABELS: Record<Pace, string> = {
   "on-track": "On track",
   behind: "Behind",
 };
+
+const MONTHS = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ");
+
+/** "2026-10-12" → "12 Oct", the same on the server and the phone. */
+export function shortDate(day: string) {
+  const [, m, d] = day.split("-").map(Number);
+  return `${d} ${MONTHS[m - 1] ?? ""}`.trim();
+}
