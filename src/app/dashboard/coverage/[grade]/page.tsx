@@ -1,4 +1,4 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, CalendarRange, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
@@ -7,6 +7,7 @@ import {
 } from "@/components/coverage/coverage-parts";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
+import { createHref } from "@/lib/classes";
 import { getCoverage } from "@/lib/coverage-data";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +35,8 @@ export default async function ClassCoveragePage({
   const { year, groups } = await getCoverage(session.userId, { grade });
   const group = groups.find((g) => g.stream === (stream ?? "")) ?? groups[0];
   if (!group) redirect("/dashboard/coverage");
+  const tracked = group.areas.filter((a) => a.source !== null);
+  const untracked = group.areas.filter((a) => a.source === null);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -77,24 +80,69 @@ export default async function ClassCoveragePage({
         </nav>
       )}
 
-      <SummaryCard title={group.label} summary={group.summary} />
+      {tracked.length > 0 && (
+        <SummaryCard title="Whole class" summary={group.summary}>
+          <p className="border-t pt-3 text-xs text-muted-foreground">
+            {tracked.length} of {group.areas.length} learning area
+            {group.areas.length === 1 ? "" : "s"} tracked
+          </p>
+        </SummaryCard>
+      )}
 
-      <section className="space-y-2">
-        <h2 className="text-base font-semibold">Learning areas</h2>
-        <CoverageList
-          untracked="No curriculum design or scheme of work yet"
-          rows={group.areas.map((a) => ({
-            href: a.href,
-            label: a.subject,
-            summary: a.summary,
-            tracked: a.source !== null,
-            note:
-              a.source === "schemes"
-                ? "From your schemes of work: the design isn't in Elimu yet"
-                : undefined,
-          }))}
-        />
-      </section>
+      {tracked.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-base font-semibold">Learning areas</h2>
+          <CoverageList
+            untracked=""
+            rows={tracked.map((a) => ({
+              href: a.href,
+              label: a.subject,
+              summary: a.summary,
+              tracked: true,
+              note:
+                a.source === "schemes"
+                  ? "From your schemes of work: the design isn't in Elimu yet"
+                  : undefined,
+            }))}
+          />
+        </section>
+      )}
+
+      {untracked.length > 0 && (
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-base font-semibold">Not tracked yet</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              The curriculum design for these isn't in Elimu yet. Make a scheme
+              of work and its sub-strands will be tracked here.
+            </p>
+          </div>
+          <ul className="space-y-2">
+            {untracked.map((a) => (
+              <li key={a.href}>
+                <Link
+                  href={createHref("scheme", a.grade, a.subject)}
+                  className="flex min-h-14 items-center gap-3 rounded-xl border bg-card px-4 py-3 transition-colors hover:bg-muted/60"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">
+                      {a.subject}
+                    </span>
+                    <span className="flex items-center gap-1 text-xs text-primary">
+                      <CalendarRange className="size-3.5" aria-hidden /> Make a
+                      scheme of work
+                    </span>
+                  </span>
+                  <ChevronRight
+                    className="size-4 shrink-0 text-muted-foreground"
+                    aria-hidden
+                  />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

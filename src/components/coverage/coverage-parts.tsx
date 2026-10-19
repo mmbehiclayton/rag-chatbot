@@ -113,7 +113,7 @@ export type CoverageRowItem = {
   note?: string;
 };
 
-/** Tappable rows with a bar each: classes on the overview, learning areas on a class. */
+/** Tappable cards with a bar each: classes on the overview, learning areas on a class. */
 export function CoverageList({
   rows,
   untracked,
@@ -122,17 +122,19 @@ export function CoverageList({
   untracked: string;
 }) {
   return (
-    <ul className="divide-y rounded-xl border bg-card">
+    <ul className="space-y-3">
       {rows.map((r) => (
         <li key={r.href}>
           <Link
             href={r.href}
-            className="flex min-h-16 items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/60"
+            className="flex min-h-16 items-center gap-3 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/60"
           >
-            <span className="min-w-0 flex-1 space-y-1.5">
-              <span className="flex items-center justify-between gap-2">
-                <span className="truncate text-sm font-medium">{r.label}</span>
-                <span className="shrink-0 text-sm font-semibold">
+            <span className="min-w-0 flex-1 space-y-2">
+              <span className="flex items-center justify-between gap-3">
+                <span className="truncate text-base font-semibold">
+                  {r.label}
+                </span>
+                <span className="shrink-0 text-base font-semibold">
                   {r.tracked ? `${r.summary.percent}%` : "–"}
                 </span>
               </span>
@@ -143,8 +145,8 @@ export function CoverageList({
                   label={`Coverage of ${r.label}`}
                 />
               )}
-              <span className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                {r.tracked ? coverageLine(r.summary) : untracked}
+              <span className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span>{r.tracked ? coverageLine(r.summary) : untracked}</span>
                 <PaceBadge pace={r.summary.pace} />
               </span>
               {r.note && (
