@@ -55,10 +55,10 @@ export const PRIMARY_NAV: NavItem[] = [
     href: "/dashboard/chat",
     icon: MessageSquare,
   },
-  { name: "Me", href: "/dashboard/profile", icon: UserCircle },
+  { name: "Profile", href: "/dashboard/profile", icon: UserCircle },
 ];
 
-/** Extra groups for school admins and superadmins (sidebar on desktop, Me page on mobile). */
+/** Extra groups for school admins and superadmins (sidebar on desktop, Profile page on mobile). */
 export function adminNavGroups(
   role: string | null,
   isCurator = false,
@@ -136,7 +136,7 @@ const TITLES: [string, string][] = [
   ["/dashboard/notes", "Lesson notes"],
   ["/dashboard/assessments", "Assessment"],
   ["/dashboard/chat", "Ask Elimu"],
-  ["/dashboard/profile", "Me"],
+  ["/dashboard/profile", "Profile"],
   ["/dashboard/teachers", "Teachers"],
   ["/dashboard/admin/analytics", "Usage"],
   ["/dashboard/verification", "Content review"],

@@ -87,11 +87,8 @@ export function ExportButton({
   return (
     <Button
       variant="outline"
-      render={
-        <a href={href} rel="noopener" target="_blank">
-          <span className="sr-only">Export PDF</span>
-        </a>
-      }
+      // The link's own children would replace the icon and label, so it gets none.
+      render={<a href={href} rel="noopener" target="_blank" />}
     >
       <Download /> {label}
     </Button>

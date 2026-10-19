@@ -51,7 +51,7 @@ export default async function TermSetupPage() {
           href="/dashboard/profile"
           className="inline-flex min-h-10 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
         >
-          <ArrowLeft className="size-4" /> Me
+          <ArrowLeft className="size-4" /> Profile
         </Link>
         <PageHeader
           title="Term dates and timetable"
