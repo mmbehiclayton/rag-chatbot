@@ -244,7 +244,7 @@ export function ChatInterface({
                       <Sources className="mt-3 mb-0">
                         <SourcesTrigger
                           count={sources.length}
-                          className="min-h-9"
+                          className="min-h-11"
                         >
                           <span className="font-medium">
                             From {sources.length} curriculum document

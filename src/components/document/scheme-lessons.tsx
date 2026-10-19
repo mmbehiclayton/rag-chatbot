@@ -169,7 +169,7 @@ export function LessonRowAction({ row }: { row: RowLesson }) {
     return (
       <output
         aria-live="polite"
-        className="inline-flex min-h-9 items-center gap-2 text-sm text-muted-foreground"
+        className="inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground"
       >
         <Spinner /> Writing lesson plan…
       </output>

@@ -256,7 +256,7 @@ export default async function SchemeDetailPage({
                   </div>
                   <BulletList items={row.specificLearningOutcomes} />
                   <details>
-                    <summary className="min-h-9 cursor-pointer text-sm font-medium text-primary">
+                    <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-primary">
                       More details
                     </summary>
                     <div className="mt-3 space-y-3 text-sm">

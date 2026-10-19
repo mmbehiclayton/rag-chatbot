@@ -127,7 +127,7 @@ export function QuickLessonForm({
                       key={s}
                       type="button"
                       onClick={() => setTopic(s)}
-                      className="min-h-9 rounded-md border bg-card px-2.5 text-left text-xs hover:bg-muted"
+                      className="min-h-11 rounded-md border bg-card px-2.5 text-left text-xs hover:bg-muted"
                     >
                       {s}
                     </button>

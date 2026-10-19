@@ -152,7 +152,7 @@ export default async function AssessmentDetailPage({
                     </div>
                     {(q.modelAnswer || q.rubric || q.learningOutcome) && (
                       <details className="group ml-6 rounded-md bg-muted/60 px-3 py-2 text-sm">
-                        <summary className="min-h-8 cursor-pointer font-medium text-primary">
+                        <summary className="flex min-h-11 cursor-pointer items-center font-medium text-primary">
                           Marking guide
                         </summary>
                         <div className="mt-2 space-y-2">
