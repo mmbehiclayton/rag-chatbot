@@ -288,6 +288,7 @@ export default async function ClassCoveragePage({
                               strand={i.strand}
                               subStrand={i.name}
                               lessons={i.lessons}
+                              titles={i.titles}
                               ticks={i.ticks}
                               confirmed={i.coveredOn !== null}
                               today={today}

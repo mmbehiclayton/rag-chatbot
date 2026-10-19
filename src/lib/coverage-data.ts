@@ -9,6 +9,7 @@ import {
   isCoverageStatus,
   itemStatus,
   type LessonTick,
+  lessonTitles,
   normName,
   summarise,
   yearTerms,
@@ -60,6 +61,8 @@ type SchemeSub = {
   name: string;
   term: number;
   lessonNumbers: number[];
+  /** Each lesson's specific learning outcomes, in the same order. */
+  outcomes: string[][];
 };
 
 /** A scheme's lessons grouped by sub-strand, in scheme order. */
@@ -73,8 +76,10 @@ function schemeSubStrands(content: unknown, term: string) {
       name: lesson.subStrand.replace(/^[\s\d.:)-]+/, "").trim(),
       term: termNumber(term) ?? 1,
       lessonNumbers: [],
+      outcomes: [],
     };
     sub.lessonNumbers.push(lesson.lessonNumber);
+    sub.outcomes.push(lesson.outcomes);
     subs.set(key, sub);
   }
   return subs;
@@ -246,7 +251,11 @@ export async function getCoverage(
        * (a term redone), the scheme with the most taught counts, so lessons aren't added twice.
        */
       const fromRecord = (key: string) => {
-        let best: { planned: number; ticks: LessonTick[] } | null = null;
+        let best: {
+          planned: number;
+          ticks: LessonTick[];
+          outcomes: string[][];
+        } | null = null;
         for (const scheme of mine) {
           const sub = scheme.subs.get(key);
           if (!sub) continue;
@@ -262,9 +271,9 @@ export async function getCoverage(
             ticks.length > best.ticks.length ||
             (ticks.length === best.ticks.length && planned > best.planned)
           )
-            best = { planned, ticks };
+            best = { planned, ticks, outcomes: sub.outcomes };
         }
-        return best ?? { planned: 0, ticks: [] };
+        return best ?? { planned: 0, ticks: [], outcomes: [] };
       };
 
       const base = map
@@ -274,6 +283,7 @@ export async function getCoverage(
             name: s.name,
             weight: s.lessons,
             term: s.termNumber,
+            outcomes: s.outcomes,
           }))
         : uniqueSchemeSubs(mine).map((s) => ({
             number: "",
@@ -281,8 +291,9 @@ export async function getCoverage(
             name: s.name,
             weight: s.lessonNumbers.length,
             term: s.term,
+            outcomes: [] as string[],
           }));
-      const items: CoverageItem[] = base.map((s) => {
+      const items: CoverageItem[] = base.map(({ outcomes, ...s }) => {
         const record = fromRecord(normName(s.name));
         const lessons = Math.max(1, s.weight, record.planned);
         const k = rowKey({
@@ -305,6 +316,7 @@ export async function getCoverage(
         return {
           ...s,
           lessons,
+          titles: lessonTitles(lessons, record.outcomes, outcomes),
           ticks,
           coveredOn,
           ...itemStatus(lessons, ticks, coveredOn, mark?.status ?? null),

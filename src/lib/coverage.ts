@@ -63,6 +63,8 @@ export type CoverageItem = {
   /** Suggested lessons in the design, so a 12-lesson sub-strand counts more than a 2-lesson one. */
   weight: number;
   term: number;
+  /** What each lesson is about, lesson 1 first; "" when neither the scheme nor the design says. */
+  titles: string[];
   ticks: LessonTick[];
   /** The day the teacher confirmed the whole sub-strand as covered. */
   coveredOn: string | null;
@@ -70,6 +72,46 @@ export type CoverageItem = {
   /** When it was finished: the confirmed day, or the last lesson once every lesson is done. */
   doneOn: string | null;
 };
+
+/** "By the end of the lesson, the learner should be able to: a) name members of the family." → "Name members of the family" */
+export function outcomeTitle(text: string) {
+  const line =
+    text
+      .replace(
+        /^\s*by the end of the [^,:]*,?\s*(the )?learners? (should|will) be able to\s*:?\s*/i,
+        "",
+      )
+      .split(/\n/)
+      .map((l) =>
+        l.replace(/^\s*(\(?[a-z]\)|[a-z]\.|\d+[.)]|[-•*])\s+/i, "").trim(),
+      )
+      .find(Boolean) ?? "";
+  const t = line.replace(/[.;,:\s]+$/, "").slice(0, 160);
+  return t ? t[0].toUpperCase() + t.slice(1) : "";
+}
+
+/**
+ * A name for each of a sub-strand's lessons: the outcome on that lesson's row of the teacher's scheme,
+ * else the design's outcomes spread over the lessons in order. A lesson that carries on the one before says so.
+ */
+export function lessonTitles(
+  lessons: number,
+  schemeOutcomes: string[][],
+  designOutcomes: string[],
+) {
+  const design = designOutcomes.map(outcomeTitle).filter(Boolean);
+  const titles: string[] = [];
+  let previous = "";
+  for (let k = 0; k < lessons; k++) {
+    const title =
+      (schemeOutcomes[k] ?? []).map(outcomeTitle).find(Boolean) ??
+      design[Math.floor((k * design.length) / lessons)] ??
+      "";
+    titles.push(title && title === previous ? `${title} (continued)` : title);
+    previous = title;
+  }
+  return titles;
+}
 
 /**
  * Covered when the teacher confirms it or every lesson is done; in progress once any lesson is done.

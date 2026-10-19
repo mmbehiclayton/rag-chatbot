@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { saveSubStrandCoverage } from "@/lib/actions/coverage";
 import { type LessonTick, shortDate } from "@/lib/coverage";
+import { cn } from "@/lib/utils";
 
 /**
  * A sub-strand's lessons to tick, the day they were taught and "the whole sub-strand is covered",
@@ -21,6 +22,7 @@ export function SubStrandPanel({
   strand,
   subStrand,
   lessons,
+  titles,
   ticks,
   confirmed,
   today,
@@ -32,6 +34,8 @@ export function SubStrandPanel({
   strand: string;
   subStrand: string;
   lessons: number;
+  /** What each lesson is about; "" where nothing says. */
+  titles: string[];
   ticks: LessonTick[];
   /** The teacher has marked the whole sub-strand covered. */
   confirmed: boolean;
@@ -95,35 +99,50 @@ export function SubStrandPanel({
   return (
     <div className="space-y-4">
       <fieldset disabled={isPending} className="space-y-1">
-        <legend className="mb-1 text-sm font-medium">Lessons done</legend>
-        <ul className="grid gap-x-4 sm:grid-cols-2">
+        <legend className="mb-2 text-sm font-medium">Lessons</legend>
+        <ol className="divide-y rounded-md border">
           {numbers.map((n) => {
             const record = fromRecord.get(n);
             const on = record ?? savedMine.get(n);
+            const title = titles[n - 1];
             return (
               <li key={n}>
                 <label
                   htmlFor={id(`l${n}`)}
-                  className="flex min-h-11 items-center gap-3 text-sm"
+                  className="flex min-h-11 cursor-pointer items-start gap-3 px-3 py-2.5 text-sm"
                 >
                   <Checkbox
                     id={id(`l${n}`)}
                     checked={done(n)}
                     disabled={record !== undefined || isPending}
                     onCheckedChange={(c) => toggle(n, c === true)}
+                    className="mt-0.5"
                   />
-                  <span className="flex-1">Lesson {n}</span>
-                  {on && done(n) && (
-                    <span className="text-xs text-muted-foreground">
-                      {record ? "Record of work · " : ""}
-                      {shortDate(on)}
+                  <span className="min-w-0 flex-1">
+                    <span
+                      className={cn(
+                        "block",
+                        done(n) && "text-muted-foreground line-through",
+                      )}
+                    >
+                      {title || `Lesson ${n}`}
                     </span>
-                  )}
+                    <span className="block text-xs text-muted-foreground">
+                      {[
+                        title && `Lesson ${n}`,
+                        on &&
+                          done(n) &&
+                          `${record ? "Record of work · " : "Taught "}${shortDate(on)}`,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  </span>
                 </label>
               </li>
             );
           })}
-        </ul>
+        </ol>
         {fromRecord.size > 0 && (
           <p className="text-xs text-muted-foreground">
             Lessons marked taught on your record of work are ticked for you.
