@@ -10,6 +10,7 @@ import {
   Field,
   parseTitle,
 } from "@/components/document/doc-parts";
+import { ImproveButton } from "@/components/document/improve-button";
 import {
   ApproveSchemeButton,
   LessonRowAction,
@@ -65,6 +66,17 @@ export default async function SchemeDetailPage({
     }),
   );
   if (!scheme) notFound();
+  // An earlier version to go back to after "Improve".
+  const canUndo =
+    (await db.documentVersion
+      .count({
+        where: {
+          kind: "SCHEME",
+          documentId: scheme.id,
+          teacherId: session.userId,
+        },
+      })
+      .catch(() => 0)) > 0;
 
   const [schedule, headReview] = await Promise.all([
     getSchemeSchedule(scheme),
@@ -134,6 +146,7 @@ export default async function SchemeDetailPage({
         actions={
           <>
             <ExportButton href={`/api/export?type=scheme&id=${scheme.id}`} />
+            <ImproveButton kind="SCHEME" id={scheme.id} canUndo={canUndo} />
             <Button
               variant="outline"
               render={<Link href={`/dashboard/schemes/${scheme.id}/record`} />}

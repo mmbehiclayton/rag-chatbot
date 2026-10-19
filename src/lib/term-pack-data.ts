@@ -6,7 +6,9 @@ import {
 import { db, withDbRetry } from "@/lib/db";
 import {
   type LessonStatus,
+  lessonMinutesFor,
   lessonSlots,
+  lessonTimes,
   type Period,
   type Progress,
   pickTerm,
@@ -24,6 +26,7 @@ import {
   termLabel,
   termNumber,
   todayInKenya,
+  weekdayOf,
 } from "@/lib/term-pack";
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -97,6 +100,8 @@ export type TimetableEntry = Period & {
   grade: string;
   stream: string;
   subject: string;
+  /** "08:20" (24-hour), when the teacher has set it. */
+  startsAt: string | null;
 };
 
 export async function getTimetable(
@@ -109,6 +114,7 @@ export async function getTimetable(
       select: {
         weekday: true,
         period: true,
+        startsAt: true,
         grade: true,
         stream: true,
         subject: true,
@@ -330,6 +336,8 @@ export type TimetableLesson = {
   topic: string;
   status: LessonStatus | null;
   lessonPlanId: string | null;
+  /** "8:20–9:00 am", when the teacher has set a start time for the period. */
+  times: string | null;
 };
 
 export type ClassProgress = Progress & { label: string; href: string };
@@ -405,6 +413,14 @@ export async function getTimetableView(teacherId: string, weekNumber?: number) {
     }),
   );
 
+  const startsAt = new Map(
+    timetable.map((e) => [`${e.weekday}-${e.period}`, e.startsAt]),
+  );
+  const timesOf = (date: string, period: number, grade: string) =>
+    lessonTimes(
+      startsAt.get(`${weekdayOf(date)}-${period}`),
+      lessonMinutesFor(grade),
+    );
   const classes = new Map<string, TimetableEntry>();
   for (const e of timetable)
     classes.set(`${e.grade}|${e.stream}|${e.subject}`, e);
@@ -431,6 +447,7 @@ export async function getTimetableView(teacherId: string, weekNumber?: number) {
           ...base,
           date: s.date,
           period: s.slot,
+          times: timesOf(s.date, s.slot, c.grade),
           week: s.week,
           schemeId: null,
           lessonNumber: null,
@@ -463,6 +480,7 @@ export async function getTimetableView(teacherId: string, weekNumber?: number) {
         ...base,
         date: s.date,
         period: s.slot,
+        times: timesOf(s.date, s.slot, c.grade),
         week: s.week,
         schemeId: scheme.id,
         lessonNumber: s.lessonNumber,

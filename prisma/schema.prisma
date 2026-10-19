@@ -75,6 +75,7 @@ model User {
   termPasses      TermPass[]         @relation("PassTeacher")
   passesReviewed  TermPass[]         @relation("PassReviewer")
   headReviews     HeadReview[]
+  docVersions     DocumentVersion[]
 
   @@index([tenantId])
   @@index([invitedById])
@@ -90,10 +91,29 @@ model GenerationLog {
   completionTokens Int
   totalTokens      Int
   model            String
+  // What the teacher asked Elimu to change ("Improve"), so staff can turn common asks into rules
+  instruction      String?  @db.Text
   createdAt        DateTime @default(now())
 
   @@index([userId])
   @@index([tenantId])
+}
+
+/**
+ * The content of a scheme, lesson plan or lesson notes just before Elimu changed it at the
+ * teacher's request, so the teacher can undo the change. Only the last few are kept.
+ */
+model DocumentVersion {
+  id         String   @id @default(uuid())
+  teacherId  String
+  teacher    User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  kind       String // "SCHEME" | "LESSON" | "NOTES"
+  documentId String
+  content    Json
+  createdAt  DateTime @default(now())
+
+  @@index([kind, documentId, createdAt])
+  @@index([teacherId])
 }
 
 model CurriculumDocument {
@@ -470,6 +490,8 @@ model TimetableSlot {
   teacher   User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   weekday   Int
   period    Int
+  // When the lesson starts, "08:20" (24-hour); it ends after the class's lesson length
+  startsAt  String?
   grade     String
   stream    String   @default("")
   subject   String

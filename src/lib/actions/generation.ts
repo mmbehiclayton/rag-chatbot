@@ -1,7 +1,7 @@
 "use server";
 
 import { openai } from "@ai-sdk/openai";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { generateObject } from "ai";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
@@ -33,8 +33,8 @@ import {
   countReuse,
   logReuse,
 } from "@/lib/reuse";
-import { writeScheme } from "@/lib/scheme-writer";
-import { schemeLessons } from "@/lib/term-pack";
+import { type WrittenScheme, writeScheme } from "@/lib/scheme-writer";
+import { lessonMinutesFor, schemeLessons } from "@/lib/term-pack";
 import { getTeacherTerms } from "@/lib/term-pack-data";
 
 // ─── Results and errors ───────────────────────────────────────────────────────
@@ -1293,6 +1293,260 @@ async function verifyPedagogicalAccuracy(
   return object.isAccurate && object.confidenceScore > 85;
 }
 
+// ─── Improve: the teacher asks Elimu to change their own document ─────────────
+
+export type ImproveKind = "SCHEME" | "LESSON" | "NOTES";
+
+const IMPROVE_CONTENT_TYPE = {
+  SCHEME: "SCHEME_OF_WORK",
+  LESSON: "LESSON_PLAN",
+  NOTES: "LESSON_NOTES",
+} as const;
+
+/** Versions kept per document for undo. */
+const KEEP_VERSIONS = 5;
+
+async function rulesFor(contentType: string) {
+  const rule = await db.generationRule.findUnique({ where: { contentType } });
+  return rule?.customPrompt
+    ? `\n\nCUSTOM PLATFORM GUIDELINES (STRICTLY ENFORCE):\n${rule.customPrompt}\n`
+    : "";
+}
+
+function improveIntro(what: string) {
+  return `You are improving a Kenyan teacher's CBC ${what}. Make the change the teacher asks for below and keep everything else as it is, unless the change needs it. Keep the strand, sub-strand and specific learning outcomes exactly as the curriculum gives them. If part of the request is unsafe, off-topic or goes against the curriculum, leave that part out.`;
+}
+
+async function saveVersion(
+  teacherId: string,
+  kind: ImproveKind,
+  documentId: string,
+  content: unknown,
+) {
+  await db.documentVersion.create({
+    data: {
+      teacherId,
+      kind,
+      documentId,
+      content: (content ?? {}) as Prisma.InputJsonValue,
+    },
+  });
+  const old = await db.documentVersion.findMany({
+    where: { kind, documentId },
+    orderBy: { createdAt: "desc" },
+    skip: KEEP_VERSIONS,
+    select: { id: true },
+  });
+  if (old.length)
+    await db.documentVersion.deleteMany({
+      where: { id: { in: old.map((o) => o.id) } },
+    });
+}
+
+async function improveImpl(input: {
+  kind: ImproveKind;
+  id: string;
+  instruction: string;
+}) {
+  const session = await requireSession();
+  const instruction = (input.instruction ?? "").trim().slice(0, 500);
+  if (instruction.length < 3)
+    throw new TeacherError(
+      'Tell Elimu what to change, for example "Add a group activity".',
+    );
+  const contentType = IMPROVE_CONTENT_TYPE[input.kind];
+  if (!contentType) throw new TeacherError("We couldn't find that document.");
+  const where = { id: input.id, teacherId: session.userId };
+  let usage: { inputTokens?: number; outputTokens?: number } = {};
+
+  if (input.kind === "LESSON") {
+    const plan = await db.lessonPlan.findFirst({
+      where,
+      include: { scheme: { select: { grade: true, subject: true } } },
+    });
+    if (!plan) throw new TeacherError("We couldn't find that lesson plan.");
+    const grade = plan.grade ?? plan.scheme?.grade ?? "";
+    const subject = plan.subject ?? plan.scheme?.subject ?? "";
+    await checkGenerationGuards(session, { grade, subject });
+
+    const map = grade && subject ? await getPublishedMap(grade, subject) : null;
+    const subStrand =
+      (plan.content as { subStrand?: string } | null)?.subStrand || plan.topic;
+    const result = await generateObject({
+      model: openai("gpt-4o"),
+      schema: LessonPlanSchema,
+      system: `${improveIntro("lesson plan")}${await rulesFor(contentType)}
+
+${lessonPlanRules(plan.durationMinutes)}
+
+THE TEACHER'S CURRENT LESSON PLAN:
+${JSON.stringify(plan.content)}
+${map ? `\n${MAP_RULES}\n\nCURRICULUM MAP FOR THIS LESSON:\n${lessonGrounding(map, subStrand)}\n` : ""}`,
+      prompt: `The teacher asked: ${instruction}\n\nWrite the whole lesson plan with this change.`,
+    });
+    usage = result.usage;
+    await saveVersion(session.userId, "LESSON", plan.id, plan.content);
+    await db.lessonPlan.update({
+      where: { id: plan.id },
+      data: {
+        content: result.object as LessonPlanContent,
+        objectives: result.object.specificLearningOutcomes,
+        checkedAt: null,
+      },
+    });
+    revalidatePath(`/dashboard/lessons/${plan.id}`);
+  } else if (input.kind === "NOTES") {
+    const note = await db.lessonNote.findFirst({
+      where,
+      include: {
+        lessonPlan: {
+          select: {
+            content: true,
+            grade: true,
+            subject: true,
+            scheme: { select: { grade: true, subject: true } },
+          },
+        },
+      },
+    });
+    if (!note) throw new TeacherError("We couldn't find those lesson notes.");
+    await checkGenerationGuards(session, {
+      grade: note.lessonPlan.grade ?? note.lessonPlan.scheme?.grade ?? "",
+      subject: note.lessonPlan.subject ?? note.lessonPlan.scheme?.subject ?? "",
+    });
+
+    const result = await generateObject({
+      model: openai("gpt-4o"),
+      schema: LessonNotesSchema,
+      system: `${improveIntro("lesson notes")}${await rulesFor(contentType)}
+
+THE LESSON PLAN THESE NOTES ARE FOR:
+${JSON.stringify(note.lessonPlan.content)}
+
+THE TEACHER'S CURRENT NOTES:
+${JSON.stringify(note.resources)}`,
+      prompt: `The teacher asked: ${instruction}\n\nWrite the whole lesson notes with this change.`,
+    });
+    usage = result.usage;
+    await saveVersion(session.userId, "NOTES", note.id, {
+      notes: note.notes,
+      resources: note.resources,
+    });
+    await db.lessonNote.update({
+      where: { id: note.id },
+      data: {
+        notes: result.object.conceptOverview.whatLearnersNeedToKnow,
+        resources: result.object,
+        checkedAt: null,
+      },
+    });
+    revalidatePath(`/dashboard/notes/${note.id}`);
+  } else {
+    const scheme = await db.schemeOfWork.findFirst({ where });
+    if (!scheme)
+      throw new TeacherError("We couldn't find that scheme of work.");
+    const grounding = await termGrounding(
+      scheme.grade,
+      scheme.subject,
+      scheme.term,
+      session.tenantId,
+    );
+    if (!grounding)
+      throw new TeacherError(missingCurriculum(scheme.grade, scheme.subject));
+    await checkGenerationGuards(session, scheme);
+
+    const current = scheme.content as WrittenScheme;
+    const written = await writeScheme(
+      {
+        grade: scheme.grade,
+        subject: scheme.subject,
+        term: scheme.term,
+        durationMinutes: lessonMinutesFor(scheme.grade),
+        teachingWeeks: Math.max(1, current.weeks?.length ?? 1),
+        totalLessons: Math.max(1, schemeLessons(current).length),
+        subStrands: grounding.subStrands,
+        designText: grounding.source === "design" ? grounding.text : null,
+        customRules: await rulesFor(contentType),
+        instruction,
+      },
+      current,
+    );
+    usage = written;
+    await saveVersion(session.userId, "SCHEME", scheme.id, scheme.content);
+    await db.schemeOfWork.update({
+      where: { id: scheme.id },
+      data: {
+        content: written.content as Prisma.InputJsonValue,
+        checkedAt: null,
+      },
+    });
+    revalidatePath(`/dashboard/schemes/${scheme.id}`);
+  }
+
+  await db.generationLog.create({
+    data: {
+      userId: session.userId,
+      tenantId: session.tenantId,
+      contentType,
+      promptTokens: usage.inputTokens ?? 0,
+      completionTokens: usage.outputTokens ?? 0,
+      totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
+      model: "gpt-4o",
+      instruction,
+    },
+  });
+  return { id: input.id };
+}
+
+/** Puts back the version from before Elimu's last change. */
+async function undoImproveImpl(input: { kind: ImproveKind; id: string }) {
+  const session = await requireSession();
+  const version = await db.documentVersion.findFirst({
+    where: {
+      kind: input.kind,
+      documentId: input.id,
+      teacherId: session.userId,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!version)
+    throw new TeacherError("There's no earlier version to go back to.");
+  const where = { id: input.id, teacherId: session.userId };
+  const content = version.content as Prisma.JsonObject;
+
+  if (input.kind === "LESSON") {
+    const outcomes = content?.specificLearningOutcomes;
+    await db.lessonPlan.updateMany({
+      where,
+      data: {
+        content: content as Prisma.InputJsonValue,
+        objectives: Array.isArray(outcomes) ? outcomes.map(String) : [],
+      },
+    });
+    revalidatePath(`/dashboard/lessons/${input.id}`);
+  } else if (input.kind === "NOTES") {
+    await db.lessonNote.updateMany({
+      where,
+      data: {
+        notes: typeof content?.notes === "string" ? content.notes : "",
+        resources:
+          content?.resources == null
+            ? Prisma.JsonNull
+            : (content.resources as Prisma.InputJsonValue),
+      },
+    });
+    revalidatePath(`/dashboard/notes/${input.id}`);
+  } else {
+    await db.schemeOfWork.updateMany({
+      where,
+      data: { content: content as Prisma.InputJsonValue },
+    });
+    revalidatePath(`/dashboard/schemes/${input.id}`);
+  }
+  await db.documentVersion.delete({ where: { id: version.id } });
+  return { id: input.id };
+}
+
 // ─── Generators (each returns a GenerationResult) ─────────────────────────────
 
 export async function generateSchemeOfWork(
@@ -1327,4 +1581,17 @@ export async function generateAssessment(
   parameters: Parameters<typeof generateAssessmentImpl>[0],
 ) {
   return asResult("assessment", () => generateAssessmentImpl(parameters));
+}
+
+/** Changes the teacher's own scheme, lesson plan or notes the way they ask. */
+export async function improveDocument(
+  input: Parameters<typeof improveImpl>[0],
+) {
+  return asResult("change", () => improveImpl(input));
+}
+
+export async function undoImprove(
+  input: Parameters<typeof undoImproveImpl>[0],
+) {
+  return asResult("undo", () => undoImproveImpl(input));
 }

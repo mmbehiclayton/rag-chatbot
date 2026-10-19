@@ -110,6 +110,10 @@ const TimetableInput = z
     z.object({
       weekday: z.number().int().min(1).max(5),
       period: z.number().int().min(1).max(12),
+      startsAt: z
+        .string()
+        .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Check the lesson start times.")
+        .nullish(),
       grade: z.string().trim().min(1).max(100),
       stream: z.string().trim().max(30),
       subject: z.string().trim().min(1).max(100),
@@ -139,7 +143,11 @@ export async function saveTimetable(
   await db.$transaction([
     db.timetableSlot.deleteMany({ where: { teacherId: userId } }),
     db.timetableSlot.createMany({
-      data: parsed.data.map((r) => ({ ...r, teacherId: userId })),
+      data: parsed.data.map((r) => ({
+        ...r,
+        startsAt: r.startsAt || null,
+        teacherId: userId,
+      })),
     }),
   ]);
   refresh();

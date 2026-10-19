@@ -11,6 +11,7 @@ import {
   ExportButton,
   Field,
 } from "@/components/document/doc-parts";
+import { ImproveButton } from "@/components/document/improve-button";
 import type {
   LessonActivity,
   LessonContent,
@@ -83,6 +84,17 @@ export default async function LessonDetailPage({
     }),
   );
   if (!lesson) notFound();
+  // An earlier version to go back to after "Improve".
+  const canUndo =
+    (await db.documentVersion
+      .count({
+        where: {
+          kind: "LESSON",
+          documentId: lesson.id,
+          teacherId: session.userId,
+        },
+      })
+      .catch(() => 0)) > 0;
 
   const c = (lesson.content ?? {}) as LessonContent;
   const s = c.lessonStructure ?? {};
@@ -147,6 +159,7 @@ export default async function LessonDetailPage({
             >
               <Pencil /> Edit
             </Button>
+            <ImproveButton kind="LESSON" id={lesson.id} canUndo={canUndo} />
             <ExportButton href={`/api/export?type=lesson&id=${lesson.id}`} />
             <Button
               variant="outline"

@@ -1,12 +1,12 @@
 "use client";
 
-import { Info, Loader2, Save, Undo2 } from "lucide-react";
+import { Info, Loader2, Save, Sparkles, Undo2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { updateGenerationRule } from "@/lib/actions/rules";
+import { suggestRule, updateGenerationRule } from "@/lib/actions/rules";
 
 const CONTENT_TYPES = [
   { id: "SCHEME_OF_WORK", label: "Schemes of work" },
@@ -17,8 +17,11 @@ const CONTENT_TYPES = [
 
 export function RulesClient({
   initialRules,
+  requests,
 }: {
   initialRules: { contentType: string; customPrompt: string }[];
+  /** What teachers asked Elimu to change, newest first. */
+  requests: { contentType: string; instruction: string; createdAt: string }[];
 }) {
   const initial = Object.fromEntries(
     initialRules.map((r) => [r.contentType, r.customPrompt]),
@@ -27,6 +30,20 @@ export function RulesClient({
   const [drafts, setDrafts] = useState<Record<string, string>>(initial);
   const [activeType, setActiveType] = useState(CONTENT_TYPES[0].id);
   const [isPending, startTransition] = useTransition();
+  const [isSuggesting, startSuggest] = useTransition();
+  const asked = requests.filter((r) => r.contentType === activeType);
+
+  const suggest = () =>
+    startSuggest(async () => {
+      try {
+        const result = await suggestRule(activeType, draft);
+        if (!result.ok) return void toast.error(result.error);
+        setDrafts((d) => ({ ...d, [activeType]: result.rule }));
+        toast.success("Draft rule ready. Read it, edit it, then save.");
+      } catch {
+        toast.error("Couldn't reach Elimu. Try again.");
+      }
+    });
 
   const draft = drafts[activeType] ?? "";
   const dirty = draft !== (saved[activeType] ?? "");
@@ -117,6 +134,52 @@ export function RulesClient({
           </Button>
         </div>
       </div>
+
+      <section className="space-y-3 rounded-xl border bg-card p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold">
+              What teachers asked Elimu to change
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Requests teachers made with Improve. If the same ask keeps coming
+              up, add it to the rule.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            className="h-11 shrink-0"
+            disabled={asked.length < 3 || isSuggesting || isPending}
+            onClick={suggest}
+          >
+            {isSuggesting ? <Loader2 className="animate-spin" /> : <Sparkles />}
+            Suggest a better rule
+          </Button>
+        </div>
+        {asked.length ? (
+          <ul className="divide-y text-sm">
+            {asked.slice(0, 30).map((r) => (
+              <li key={`${r.createdAt}-${r.instruction}`} className="py-2">
+                {r.instruction}
+                <span className="ml-2 text-xs text-muted-foreground">
+                  {new Date(r.createdAt).toLocaleDateString("en-KE", {
+                    day: "numeric",
+                    month: "short",
+                  })}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No requests yet for this type of work.
+          </p>
+        )}
+        <p className="text-xs text-muted-foreground">
+          A suggested rule goes into the box above. Nothing changes for teachers
+          until you save it.
+        </p>
+      </section>
 
       <p className="flex gap-2 text-sm text-muted-foreground">
         <Info className="mt-0.5 size-4 shrink-0" aria-hidden />

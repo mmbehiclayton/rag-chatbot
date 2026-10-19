@@ -20,7 +20,7 @@ export function TimetableLessonCard({
     <li className="space-y-3 rounded-xl border bg-card p-4">
       <div>
         <p className="text-xs text-muted-foreground">
-          Period {l.period} · {l.label}
+          {l.times ? `${l.times} · ` : ""}Period {l.period} · {l.label}
           {l.lessonNumber ? ` · Lesson ${l.lessonNumber}` : ""}
         </p>
         <p className="mt-0.5 text-sm font-medium">

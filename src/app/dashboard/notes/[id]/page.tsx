@@ -7,6 +7,7 @@ import {
   ExportButton,
   Field,
 } from "@/components/document/doc-parts";
+import { ImproveButton } from "@/components/document/improve-button";
 import { Badge } from "@/components/ui/badge";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
@@ -74,6 +75,17 @@ export default async function NoteDetailPage({
     }),
   );
   if (!note) notFound();
+  // An earlier version to go back to after "Improve".
+  const canUndo =
+    (await db.documentVersion
+      .count({
+        where: {
+          kind: "NOTES",
+          documentId: note.id,
+          teacherId: session.userId,
+        },
+      })
+      .catch(() => 0)) > 0;
 
   const c = (note.resources ?? {}) as Notes;
   const plan = note.lessonPlan;
@@ -111,7 +123,12 @@ export default async function NoteDetailPage({
         backLabel="Lesson plan"
         title={plan.topic}
         meta={meta}
-        actions={<ExportButton href={`/api/export?type=notes&id=${note.id}`} />}
+        actions={
+          <>
+            <ExportButton href={`/api/export?type=notes&id=${note.id}`} />
+            <ImproveButton kind="NOTES" id={note.id} canUndo={canUndo} />
+          </>
+        }
       />
 
       <DocSection title="What this lesson covers">

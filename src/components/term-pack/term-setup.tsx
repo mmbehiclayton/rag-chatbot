@@ -217,6 +217,7 @@ type ClassOption = { grade: string; subject: string };
 type Entry = {
   weekday: number;
   period: number;
+  startsAt?: string | null;
   grade: string;
   stream: string;
   subject: string;
@@ -274,6 +275,23 @@ export function TimetableForm({
       entries.map((e) => [cellKey(e.weekday, e.period), classKey(e)]),
     ),
   );
+  // Start time of each period, "08:20". Kept per day, since some days start later.
+  const [times, setTimes] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      entries
+        .filter((e) => e.startsAt)
+        .map((e) => [cellKey(e.weekday, e.period), e.startsAt ?? ""]),
+    ),
+  );
+  // Setting a period's time fills the same period on days that have no time yet.
+  const setTime = (weekday: number, period: number, value: string) =>
+    setTimes((t) => {
+      const next = { ...t, [cellKey(weekday, period)]: value };
+      if (value)
+        for (let d = 1; d <= 5; d++)
+          if (!t[cellKey(d, period)]) next[cellKey(d, period)] = value;
+      return next;
+    });
   const [day, setDay] = useState(1);
   const [periods, setPeriods] = useState(() =>
     Math.min(MAX_PERIODS, Math.max(8, ...entries.map((e) => e.period))),
@@ -320,6 +338,7 @@ export function TimetableForm({
           {
             weekday,
             period,
+            startsAt: times[c] || null,
             grade: o.grade,
             stream: o.stream,
             subject: o.subject,
@@ -362,8 +381,8 @@ export function TimetableForm({
         <div>
           <p className="text-sm font-medium">Your lessons each day</p>
           <p className="text-xs text-muted-foreground">
-            Pick the class you teach in each period. The same class in two
-            periods makes a double lesson.
+            Pick the class you teach in each period and the time it starts. The
+            same class in two periods makes a double lesson.
           </p>
         </div>
         <ChoiceChips
@@ -378,16 +397,23 @@ export function TimetableForm({
           <CardContent className="space-y-3">
             <p className="text-sm font-medium">{DAY_NAMES[day - 1]}</p>
             {Array.from({ length: periods }, (_, i) => i + 1).map((p) => (
-              <div key={p} className="flex items-center gap-3">
+              <div key={p} className="flex items-center gap-2">
                 <Label
                   htmlFor={`cell-${day}-${p}`}
                   className="w-16 shrink-0 text-muted-foreground"
                 >
                   Period {p}
                 </Label>
+                <Input
+                  type="time"
+                  aria-label={`Period ${p} starts at`}
+                  className="h-11 w-28 shrink-0"
+                  value={times[cellKey(day, p)] ?? ""}
+                  onChange={(e) => setTime(day, p, e.target.value)}
+                />
                 <NativeSelect
                   id={`cell-${day}-${p}`}
-                  className="w-full flex-1"
+                  className="w-full min-w-0 flex-1"
                   value={valid(cells[cellKey(day, p)])}
                   onChange={(e) =>
                     setCells((c) => ({

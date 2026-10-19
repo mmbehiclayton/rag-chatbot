@@ -111,6 +111,26 @@ export function lessonMinutesFor(grade: string) {
   return n <= 3 ? 30 : n <= 6 ? 35 : 40;
 }
 
+const clock = (minutes: number) => {
+  const h = Math.floor(minutes / 60) % 24;
+  return `${h % 12 || 12}:${String(minutes % 60).padStart(2, "0")}`;
+};
+
+/** "8:20–9:00 am" for a lesson starting at "08:20" (24-hour) that runs `minutes`. */
+export function lessonTimes(
+  startsAt: string | null | undefined,
+  minutes: number,
+) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(startsAt ?? "");
+  if (!m) return null;
+  const start = Number(m[1]) * 60 + Number(m[2]);
+  const end = start + minutes;
+  const half = (t: number) => (Math.floor(t / 60) % 24 < 12 ? "am" : "pm");
+  return half(start) === half(end)
+    ? `${clock(start)}–${clock(end)} ${half(end)}`
+    : `${clock(start)} ${half(start)}–${clock(end)} ${half(end)}`;
+}
+
 /** The assessment usually due at this point in a term: opener early on, mid-term, then end of term. */
 export function assessmentTypeFor(
   term: { opensOn: string; closesOn: string },
