@@ -16,6 +16,10 @@ export const metadata: Metadata = {
   title: "Elimu | Schemes of work and lesson plans for Kenyan teachers",
   description:
     "Schemes of work, lesson plans and lesson notes for your classes, based on the KICD curriculum designs. Ready in minutes, on your phone.",
+  // Google Search Console's HTML tag check, so the site can be verified without a custom domain.
+  verification: process.env.GOOGLE_SITE_VERIFICATION
+    ? { google: process.env.GOOGLE_SITE_VERIFICATION }
+    : undefined,
 };
 
 export const viewport: Viewport = {

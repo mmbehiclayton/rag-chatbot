@@ -70,6 +70,25 @@ export const getDesignIndex = unstable_cache(
   { revalidate: 3600, tags: [DESIGNS_TAG] },
 );
 
+/**
+ * The grade and learning area of a public design page path, e.g. "/designs/grade-8/kiswahili".
+ * Used to carry on from the design a new teacher was reading before they signed up.
+ */
+export async function designFromPath(path: string | null | undefined) {
+  const match = path?.match(/^\/designs\/([a-z0-9-]+)\/([a-z0-9-]+)\/?$/);
+  if (!match) return null;
+  const index = await getDesignIndex();
+  for (const { grades } of index)
+    for (const g of grades) {
+      if (slug(g.name) !== match[1]) continue;
+      const subject = g.subjects.find(
+        (s) => s.ready && slug(s.name) === match[2],
+      );
+      return subject ? { grade: g.name, subject: subject.name } : null;
+    }
+  return null;
+}
+
 export type PublicDesign = {
   grade: string;
   subject: string;

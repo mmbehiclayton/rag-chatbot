@@ -47,14 +47,14 @@ export default async function DesignPage({
   searchParams,
 }: {
   params: Promise<{ grade: string; subject: string }>;
-  searchParams: Promise<{ term?: string }>;
+  searchParams: Promise<{ term?: string; welcome?: string }>;
 }) {
   const session = await auth();
   if (!session?.userId) redirect("/login");
   const { grade: g, subject: s } = await params;
   const grade = decode(g);
   const subject = decode(s);
-  const { term: termParam } = await searchParams;
+  const { term: termParam, welcome } = await searchParams;
   const term = TERMS.find((t) => t === termParam) ?? null;
 
   const [map, meta] = await Promise.all([
@@ -114,6 +114,14 @@ export default async function DesignPage({
             : "Checked by two teachers. Always confirm details against the official KICD design."
         }
       />
+
+      {welcome && (
+        <p className="rounded-xl border border-success/30 bg-success/10 p-4 text-sm">
+          Welcome to Elimu. Here is the full design you were reading, with the
+          outcomes for every sub-strand. Next, make your scheme of work for the
+          term from it, or plan a lesson on any sub-strand.
+        </p>
+      )}
 
       <dl className="grid grid-cols-3 gap-3 rounded-xl border bg-card p-4 text-center">
         <div>

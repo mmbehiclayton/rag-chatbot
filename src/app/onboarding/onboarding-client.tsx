@@ -39,10 +39,13 @@ export function OnboardingClient({
   grades,
   initial,
   returnTo = "/dashboard",
+  picked,
 }: {
   grades: GradeOption[];
   initial: Profile;
   returnTo?: string;
+  /** The design the teacher was reading before signing up, already picked for them. */
+  picked?: string;
 }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
@@ -159,6 +162,13 @@ export function OnboardingClient({
                 </p>
               </div>
             </>
+          )}
+
+          {step === 1 && picked && (
+            <p className="rounded-md bg-muted p-3 text-sm">
+              We have picked {picked} from the design you were reading. Add any
+              other grades and learning areas you teach.
+            </p>
           )}
 
           {step === 1 &&
