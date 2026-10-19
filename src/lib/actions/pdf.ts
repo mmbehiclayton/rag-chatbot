@@ -4,6 +4,7 @@ import { openai } from "@ai-sdk/openai";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { embedMany } from "ai";
 import { extractText, getDocumentProxy } from "unpdf";
+import { explainAIErrorForStaff } from "@/lib/ai-errors";
 import { auth } from "@/lib/auth";
 import { MISSING_FILE, readCurriculumFile } from "@/lib/curriculum-files";
 import { db } from "@/lib/db";
@@ -112,8 +113,7 @@ export async function processPDF(documentId: string) {
       (await db.curriculumChunk.count({
         where: { curriculumId: documentId },
       })) > 0;
-    const message =
-      error instanceof Error ? error.message : "Unknown PDF parsing error.";
+    const message = explainAIErrorForStaff(error);
     await db.curriculumDocument.update({
       where: { id: documentId },
       data: {
