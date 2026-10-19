@@ -64,14 +64,18 @@ export default async function DashboardLayout({
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 overflow-y-auto px-4 pt-4 pb-24 sm:px-6 md:pt-6 md:pb-8">
-          {outage && (session.role === "SUPERADMIN" || !backup) && (
-            <AIOutageBanner
-              staff={session.role === "SUPERADMIN"}
-              backup={backup}
-              problem={outage.problem}
-              since={outage.sinceDate}
-            />
-          )}
+          {outage &&
+            (session.role === "SUPERADMIN" ||
+              !backup ||
+              outage.backupError) && (
+              <AIOutageBanner
+                staff={session.role === "SUPERADMIN"}
+                backup={backup}
+                backupError={outage.backupError}
+                problem={outage.problem}
+                since={outage.sinceDate}
+              />
+            )}
           {children}
         </main>
       </div>

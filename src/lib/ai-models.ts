@@ -4,7 +4,12 @@ import {
   wrapLanguageModel,
 } from "ai";
 import { providerDown } from "@/lib/ai-errors";
-import { noteAIFailure, noteAIWorking } from "@/lib/ai-health";
+import {
+  noteAIFailure,
+  noteAIWorking,
+  noteBackupFailure,
+  noteBackupWorking,
+} from "@/lib/ai-health";
 import { anthropic, getAIKey, openai } from "@/lib/ai-keys";
 
 /**
@@ -75,9 +80,11 @@ function health(job: ModelJob): LanguageModelMiddleware {
       try {
         const result = await onClaude(anthropic(backupModelName()));
         onBackup = true;
+        void noteBackupWorking();
         return result;
       } catch (backupError) {
         console.error("[ai] The Claude backup failed too:", backupError);
+        await noteBackupFailure(backupError);
         throw e;
       }
     }

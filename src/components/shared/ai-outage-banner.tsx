@@ -12,11 +12,14 @@ export function AIOutageBanner({
   problem,
   since,
   backup = false,
+  backupError,
 }: {
   staff: boolean;
   problem: "credit" | "key";
   since: Date;
   backup?: boolean;
+  /** Why Claude failed too, while it keeps failing. */
+  backupError?: string;
 }) {
   return (
     <div className="no-print mb-4 flex gap-2 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm">
@@ -27,13 +30,25 @@ export function AIOutageBanner({
       {staff ? (
         <p>
           <span className="font-semibold">
-            {backup
+            {backup && !backupError
               ? "OpenAI isn't working, so Claude is writing for teachers, since "
               : "Elimu can't write anything, since "}
             {formatDistanceToNow(since, { addSuffix: true })}.
           </span>{" "}
-          {outageText(problem)} This clears by itself once a lesson plan or
-          answer works again. Then{" "}
+          {outageText(problem)}{" "}
+          {backup && backupError && (
+            <>
+              The Claude backup is failing too: "{backupError}" Fix it on{" "}
+              <Link
+                href="/dashboard/ai-keys"
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                AI keys
+              </Link>
+              .{" "}
+            </>
+          )}
+          This clears by itself once a lesson plan or answer works again. Then{" "}
           <Link
             href="/dashboard/knowledge?status=error"
             className="font-medium text-primary underline-offset-4 hover:underline"

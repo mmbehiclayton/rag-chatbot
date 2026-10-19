@@ -6,7 +6,13 @@ const KEY = "ai_outage";
 const EMAIL_EVERY_MS = 6 * 60 * 60 * 1000;
 
 /** Problems only staff can fix. Rate limits and odd replies clear by themselves. */
-type Outage = { problem: "credit" | "key"; since: string; emailedAt?: string };
+type Outage = {
+  problem: "credit" | "key";
+  since: string;
+  emailedAt?: string;
+  /** Why the Claude backup failed too, while it keeps failing. */
+  backupError?: string;
+};
 
 const STAFF_TEXT: Record<Outage["problem"], string> = {
   credit:
@@ -57,6 +63,7 @@ export async function noteAIFailure(e: unknown) {
       problem,
       since: prev?.problem === problem ? prev.since : now.toISOString(),
       emailedAt: emailDue ? now.toISOString() : prev?.emailedAt,
+      backupError: prev?.backupError,
     };
     await db.platformSetting.upsert({
       where: { key: KEY },
@@ -76,6 +83,44 @@ export async function noteAIFailure(e: unknown) {
   } catch (err) {
     console.error("[ai-health] couldn't record the outage:", err);
   }
+}
+
+// Whether this server instance has recorded the backup working, so later calls cost no query.
+let backupOkHere = false;
+
+/** Records why the Claude backup failed, so staff see it on the banner. */
+export async function noteBackupFailure(e: unknown) {
+  backupOkHere = false;
+  const text = (e instanceof Error ? e.message : String(e))
+    .replace(/sk-[A-Za-z0-9_-]{8,}/g, "sk-…")
+    .slice(0, 300);
+  try {
+    const prev = await getAIOutage();
+    if (!prev || prev.backupError === text) return;
+    const { sinceDate: _, ...outage } = prev;
+    await db.platformSetting.update({
+      where: { key: KEY },
+      data: { value: JSON.stringify({ ...outage, backupError: text }) },
+    });
+  } catch (err) {
+    console.error("[ai-health] couldn't record the backup failure:", err);
+  }
+}
+
+/** Clears the backup failure once Claude works again. */
+export async function noteBackupWorking() {
+  if (backupOkHere) return;
+  try {
+    const prev = await getAIOutage();
+    if (prev?.backupError) {
+      const { sinceDate: _, backupError: __, ...outage } = prev;
+      await db.platformSetting.update({
+        where: { key: KEY },
+        data: { value: JSON.stringify(outage) },
+      });
+    }
+    backupOkHere = true;
+  } catch {}
 }
 
 /** Clears a recorded outage after a call works. */

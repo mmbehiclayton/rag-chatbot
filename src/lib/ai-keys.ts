@@ -22,8 +22,14 @@ export const ENV_NAME: Record<AIProvider, string> = {
   anthropic: "ANTHROPIC_API_KEY",
 };
 
+/**
+ * Anthropic keys made for the whole organisation (not inside a workspace) only work when each
+ * request names a workspace. Saved with the key, or ANTHROPIC_WORKSPACE_ID in the hosting settings.
+ */
+const WORKSPACE_ENV = "ANTHROPIC_WORKSPACE_ID";
+
 /** What is stored in PlatformSetting.value. */
-export type SavedKey = { cipher: string; last4: string };
+export type SavedKey = { cipher: string; last4: string; workspace?: string };
 
 export type KeySource = "saved" | "hosting" | "none";
 
@@ -33,6 +39,7 @@ type Resolved = {
   /** A key is saved but can't be read, e.g. JWT_SECRET_KEY changed. */
   unreadable: boolean;
   updatedAt: Date | null;
+  workspace: string | null;
 };
 
 const last4 = (key: string) => key.slice(-4);
@@ -50,11 +57,16 @@ async function resolve(provider: AIProvider): Promise<Resolved> {
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.value;
 
   const env = process.env[ENV_NAME[provider]]?.trim() || null;
+  const envWorkspace =
+    provider === "anthropic"
+      ? process.env[WORKSPACE_ENV]?.trim() || null
+      : null;
   const fromEnv = (unreadable: boolean): Resolved => ({
     key: env,
     source: env ? "hosting" : "none",
     unreadable,
     updatedAt: null,
+    workspace: envWorkspace,
   });
 
   let value: Resolved;
@@ -66,7 +78,13 @@ async function resolve(provider: AIProvider): Promise<Resolved> {
     const key = saved ? decryptSecret(saved.cipher) : null;
     value =
       row && key
-        ? { key, source: "saved", unreadable: false, updatedAt: row.updatedAt }
+        ? {
+            key,
+            source: "saved",
+            unreadable: false,
+            updatedAt: row.updatedAt,
+            workspace: saved?.workspace || envWorkspace,
+          }
         : fromEnv(!!saved);
   } catch (e) {
     // The database is busy: use the hosting key for now and look again soon.
@@ -84,6 +102,12 @@ export async function getAIKey(provider: AIProvider): Promise<string | null> {
   return (await resolve(provider)).key;
 }
 
+/** The key and, for Anthropic, the workspace ID to use now. */
+export async function getAIAuth(provider: AIProvider) {
+  const { key, workspace } = await resolve(provider);
+  return { key, workspace };
+}
+
 /** What staff see on the AI keys page. Never the key itself, only its last 4 characters. */
 export async function keyStatus(provider: AIProvider) {
   const r = await resolve(provider);
@@ -95,18 +119,20 @@ export async function keyStatus(provider: AIProvider) {
     updatedAt: r.updatedAt,
     unreadable: r.unreadable,
     hostingLast4: env ? last4(env) : null,
+    workspace: r.workspace,
   };
 }
 
 /** Puts the current key on each request, so a newly saved key needs no new release. */
 function keyedFetch(provider: AIProvider): typeof fetch {
   return async (input, init) => {
-    const key = await getAIKey(provider);
+    const { key, workspace } = await resolve(provider);
     const headers = new Headers(init?.headers);
     if (key) {
       if (provider === "openai") headers.set("authorization", `Bearer ${key}`);
       else headers.set("x-api-key", key);
     }
+    if (workspace) headers.set("anthropic-workspace-id", workspace);
     return fetch(input, { ...init, headers });
   };
 }
@@ -131,23 +157,32 @@ const BASE_URL: Record<AIProvider, string> = {
 };
 
 /**
- * Checks a key by listing models, which costs nothing.
- * "ok", "rejected" (wrong or cancelled key) or "unreachable" (couldn't ask).
+ * Checks a key by listing models, which costs nothing. "ok", "rejected" (wrong or cancelled
+ * key), "needs-workspace" (an Anthropic organisation key with no workspace ID) or
+ * "unreachable" (couldn't ask).
  */
 export async function checkKey(
   provider: AIProvider,
   key: string,
-): Promise<"ok" | "rejected" | "unreachable"> {
+  workspace?: string | null,
+): Promise<"ok" | "rejected" | "needs-workspace" | "unreachable"> {
   const headers: Record<string, string> =
     provider === "openai"
       ? { authorization: `Bearer ${key}` }
-      : { "x-api-key": key, "anthropic-version": "2023-06-01" };
+      : {
+          "x-api-key": key,
+          "anthropic-version": "2023-06-01",
+          ...(workspace ? { "anthropic-workspace-id": workspace } : {}),
+        };
   try {
     const res = await fetch(`${BASE_URL[provider].replace(/\/$/, "")}/models`, {
       headers,
       signal: AbortSignal.timeout(15_000),
     });
     if (res.ok) return "ok";
+    const body = await res.text().catch(() => "");
+    if (provider === "anthropic" && /workspace/i.test(body))
+      return "needs-workspace";
     if (res.status === 401 || res.status === 403) return "rejected";
     return "unreachable";
   } catch {

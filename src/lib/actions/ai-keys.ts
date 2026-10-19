@@ -6,7 +6,7 @@ import {
   type AIProvider,
   checkKey,
   forgetAIKeys,
-  getAIKey,
+  getAIAuth,
   type SavedKey,
   SETTING_KEY,
 } from "@/lib/ai-keys";
@@ -40,6 +40,7 @@ function refresh() {
 export async function saveAIKey(input: {
   provider: AIProvider;
   key: string;
+  workspace?: string;
 }): Promise<Result> {
   const session = await staffOnly();
   if (!session)
@@ -63,11 +64,26 @@ export async function saveAIKey(input: {
           : 'An Anthropic key starts with "sk-ant-". Copy it again from console.anthropic.com, API keys.',
     };
 
-  const check = await checkKey(p, key);
+  const workspace = p === "anthropic" ? input.workspace?.trim() || "" : "";
+  if (workspace && !/^[A-Za-z0-9_-]{4,100}$/.test(workspace))
+    return {
+      success: false,
+      error:
+        "That workspace ID doesn't look right. Copy it again from console.anthropic.com, Settings, Workspaces.",
+    };
+
+  const check = await checkKey(p, key, workspace);
   if (check === "rejected")
     return {
       success: false,
       error: `${NAME[p]} says this key is wrong or cancelled. Nothing was changed.`,
+    };
+  if (check === "needs-workspace")
+    return {
+      success: false,
+      error: workspace
+        ? "Anthropic doesn't accept this key with that workspace ID. Check the ID, or make a key inside the workspace. Nothing was changed."
+        : "This key belongs to the whole Anthropic organisation, so Anthropic needs a workspace ID too. Enter it below, or make a key inside a workspace. Nothing was changed.",
     };
   if (check === "unreachable")
     return {
@@ -75,7 +91,11 @@ export async function saveAIKey(input: {
       error: `We couldn't reach ${NAME[p]} to check the key. Nothing was changed. Try again in a minute.`,
     };
 
-  const value: SavedKey = { cipher: encryptSecret(key), last4: key.slice(-4) };
+  const value: SavedKey = {
+    cipher: encryptSecret(key),
+    last4: key.slice(-4),
+    ...(workspace ? { workspace } : {}),
+  };
   await db.platformSetting.upsert({
     where: { key: SETTING_KEY[p] },
     create: {
@@ -124,9 +144,9 @@ export async function testAIKey(input: {
     return { success: false, error: "Pick OpenAI or Anthropic." };
   const p = provider.data;
   forgetAIKeys();
-  const key = await getAIKey(p);
+  const { key, workspace } = await getAIAuth(p);
   if (!key) return { success: false, error: `No ${NAME[p]} key is set.` };
-  const check = await checkKey(p, key);
+  const check = await checkKey(p, key, workspace);
   if (check === "ok")
     return {
       success: true,
@@ -137,6 +157,8 @@ export async function testAIKey(input: {
     error:
       check === "rejected"
         ? `${NAME[p]} says this key is wrong or cancelled. Save a new one.`
-        : `We couldn't reach ${NAME[p]}. Try again in a minute.`,
+        : check === "needs-workspace"
+          ? "This key belongs to the whole Anthropic organisation, so it needs a workspace ID. Save the key again with the workspace ID, or make a key inside a workspace."
+          : `We couldn't reach ${NAME[p]}. Try again in a minute.`,
   };
 }

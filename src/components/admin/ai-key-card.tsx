@@ -52,6 +52,7 @@ export function AIKeyCard({
   hostingLast4,
   updatedAt,
   unreadable,
+  workspace,
 }: {
   provider: AIProvider;
   source: KeySource;
@@ -59,9 +60,11 @@ export function AIKeyCard({
   hostingLast4: string | null;
   updatedAt: string | null;
   unreadable: boolean;
+  workspace: string | null;
 }) {
   const router = useRouter();
   const [key, setKey] = useState("");
+  const [workspaceId, setWorkspaceId] = useState(workspace ?? "");
   const [busy, setBusy] = useState<"save" | "test" | "remove" | null>(null);
   const [, startTransition] = useTransition();
   const info = INFO[provider];
@@ -113,6 +116,12 @@ export function AIKeyCard({
               </dd>
             </div>
           )}
+          {workspace && (
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">Workspace</dt>
+              <dd className="break-all">{workspace}</dd>
+            </div>
+          )}
           {source === "saved" && hostingLast4 && (
             <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">Vercel fallback</dt>
@@ -133,7 +142,13 @@ export function AIKeyCard({
           onSubmit={(e) => {
             e.preventDefault();
             if (key.trim())
-              run("save", () => saveAIKey({ provider, key: key.trim() }));
+              run("save", () =>
+                saveAIKey({
+                  provider,
+                  key: key.trim(),
+                  workspace: workspaceId,
+                }),
+              );
           }}
         >
           <Label htmlFor={`key-${provider}`}>
@@ -153,6 +168,27 @@ export function AIKeyCard({
             Get it from {info.where}. We check it with {info.name} before
             saving, so a wrong key never replaces a working one.
           </p>
+          {provider === "anthropic" && (
+            <div className="space-y-2 pt-2">
+              <Label htmlFor="workspace-anthropic">
+                Workspace ID (only for organisation keys)
+              </Label>
+              <Input
+                id="workspace-anthropic"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="wrkspc_..."
+                value={workspaceId}
+                onChange={(e) => setWorkspaceId(e.target.value)}
+                className="h-11"
+              />
+              <p className="text-xs text-muted-foreground">
+                Leave this empty for a key made inside a workspace. A key made
+                for the whole organisation needs the workspace ID, from
+                console.anthropic.com, Settings, Workspaces.
+              </p>
+            </div>
+          )}
           <div className="flex flex-wrap gap-2 pt-1">
             <Button
               type="submit"

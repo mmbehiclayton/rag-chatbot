@@ -26,6 +26,7 @@ export default async function AIKeysPage() {
           hostingLast4={s.hostingLast4}
           updatedAt={s.updatedAt?.toISOString() ?? null}
           unreadable={s.unreadable}
+          workspace={s.workspace}
         />
       ))}
       <p className="text-xs text-muted-foreground">
