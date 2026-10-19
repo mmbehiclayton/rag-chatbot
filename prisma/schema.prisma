@@ -46,6 +46,9 @@ model User {
   onboardedAt    DateTime?
   // Teachers trusted to enter and check curriculum maps (set by a superadmin)
   isCurator      Boolean   @default(false)
+  // Where the account came from: first-visit source (google, whatsapp, direct…) and landing page
+  signupSource   String?
+  signupPath     String?
   // Invite a colleague: each teacher's code, and who invited them
   inviteCode     String?   @unique
   invitedById    String?

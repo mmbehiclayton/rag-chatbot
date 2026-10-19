@@ -83,6 +83,48 @@ function Measure({
   );
 }
 
+/** Counts each value, most common first. */
+function tally(values: string[]) {
+  const counts = new Map<string, number>();
+  for (const v of values) counts.set(v, (counts.get(v) ?? 0) + 1);
+  return [...counts].sort((a, b) => b[1] - a[1]);
+}
+
+/** Groups landing pages so every design page doesn't get its own row. */
+function landingGroup(path: string | null) {
+  if (!path) return "not recorded";
+  if (path === "/") return "Home page";
+  if (path.startsWith("/designs/")) return "A design page";
+  if (path.startsWith("/invite/")) return "An invite link";
+  return path;
+}
+
+function SourceList({
+  title,
+  rows,
+  total,
+}: {
+  title: string;
+  rows: [string, number][];
+  total: number;
+}) {
+  return (
+    <div className="rounded-xl border bg-card p-4">
+      <h3 className="text-sm font-semibold">{title}</h3>
+      <ul className="mt-2 divide-y text-sm">
+        {rows.map(([name, count]) => (
+          <li key={name} className="flex justify-between gap-3 py-2">
+            <span className="min-w-0 truncate">{name}</span>
+            <span className="shrink-0 text-muted-foreground">
+              {count} · {pct(count, total)}%
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export default async function PilotPage() {
   const session = await auth();
   if (!session?.userId) redirect("/login");
@@ -113,6 +155,8 @@ export default async function PilotPage() {
           id: true,
           createdAt: true,
           invitedById: true,
+          signupSource: true,
+          signupPath: true,
           _count: { select: { terms: true, timetableSlots: true } },
         },
       }),
@@ -245,6 +289,15 @@ export default async function PilotPage() {
   const invited = teachers.filter((t) => t.invitedById).length;
   const inviters = new Set(teachers.map((t) => t.invitedById).filter(Boolean))
     .size;
+
+  // Where teachers who joined in the last 30 days first came from, and the page they landed on.
+  const newcomers = teachers.filter(
+    (t) => t.createdAt.getTime() >= now - 30 * DAY,
+  );
+  const sources = tally(newcomers.map((t) => t.signupSource ?? "not recorded"));
+  const landings = tally(
+    newcomers.map((t) => landingGroup(t.signupPath)),
+  ).slice(0, 6);
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
@@ -428,6 +481,30 @@ export default async function PilotPage() {
             detail={`${invited} invited by ${inviters} ${inviters === 1 ? "teacher" : "teachers"}, ${total ? (invited / total).toFixed(2) : "0"} per teacher`}
           />
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-base font-semibold">
+          Where new teachers come from · last 30 days
+        </h2>
+        {newcomers.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No teachers joined in the last 30 days.
+          </p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <SourceList
+              title="First came from"
+              rows={sources}
+              total={newcomers.length}
+            />
+            <SourceList
+              title="First page they opened"
+              rows={landings}
+              total={newcomers.length}
+            />
+          </div>
+        )}
       </section>
 
       <section className="space-y-3">

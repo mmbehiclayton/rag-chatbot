@@ -9,7 +9,11 @@ import {
   WhatsAppShare,
 } from "@/components/shared/public-header";
 import { Badge } from "@/components/ui/badge";
-import { getPublicDesign, publicDesignHref } from "@/lib/public-designs";
+import {
+  getPublicDesign,
+  type PublicDesign,
+  publicDesignHref,
+} from "@/lib/public-designs";
 import { siteUrl } from "@/lib/site-url";
 
 type Props = { params: Promise<{ grade: string; subject: string }> };
@@ -26,7 +30,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-/** Public outline of one design: strand and sub-strand names and lesson counts only. */
+/** Public outline of one design: names and lesson counts, with the first sub-strand in full as a sample. */
 export default async function PublicDesignPage({ params }: Props) {
   await connection();
   const { grade, subject } = await params;
@@ -54,7 +58,7 @@ export default async function PublicDesignPage({ params }: Props) {
           <p className="text-muted-foreground">
             The strands and sub-strands in the KICD design, in teaching order,
             with the suggested number of lessons for each. Checked by two
-            teachers.
+            teachers. The first sub-strand is shown in full.
           </p>
         </div>
 
@@ -82,17 +86,19 @@ export default async function PublicDesignPage({ params }: Props) {
             </h2>
             <ol className="divide-y rounded-xl border bg-card">
               {strand.subStrands.map((sub, ui) => (
-                <li
-                  key={sub.name}
-                  className="flex min-h-12 items-center gap-3 px-4 py-2"
-                >
-                  <span className="min-w-0 flex-1 text-sm">
-                    {si + 1}.{ui + 1} {sub.name}
-                  </span>
-                  {sub.term && <Badge variant="info">Term {sub.term}</Badge>}
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {sub.lessons} lesson{sub.lessons === 1 ? "" : "s"}
-                  </span>
+                <li key={sub.name} className="px-4 py-2">
+                  <div className="flex min-h-8 items-center gap-3">
+                    <span className="min-w-0 flex-1 text-sm">
+                      {si + 1}.{ui + 1} {sub.name}
+                    </span>
+                    {sub.term && <Badge variant="info">Term {sub.term}</Badge>}
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {sub.lessons} lesson{sub.lessons === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  {si === 0 && ui === 0 && design.sample && (
+                    <Sample sample={design.sample} />
+                  )}
                 </li>
               ))}
             </ol>
@@ -102,12 +108,12 @@ export default async function PublicDesignPage({ params }: Props) {
         <p className="flex gap-2 text-sm text-muted-foreground">
           <Lock className="mt-0.5 size-4 shrink-0" aria-hidden />
           {lessons} suggested lessons in all. Sign in to read the learning
-          outcomes, key inquiry questions and learning experiences for each
-          sub-strand.
+          outcomes, key inquiry questions and learning experiences for the other{" "}
+          {subStrands.length - 1} sub-strands.
         </p>
 
         <WhatsAppShare
-          url={`${siteUrl()}${publicDesignHref(design.grade, design.subject)}`}
+          url={`${siteUrl()}${publicDesignHref(design.grade, design.subject)}?ref=whatsapp`}
           text={`${name} curriculum design: strands and sub-strands`}
         />
 
@@ -116,6 +122,33 @@ export default async function PublicDesignPage({ params }: Props) {
           body={`Elimu drafts your ${name} scheme of work from this design, fitted to your term dates and timetable, then a lesson plan for any sub-strand in one tap. Free to start.`}
         />
       </div>
+    </div>
+  );
+}
+
+/** The first sub-strand in full, shown to everyone as a sample of what's inside. */
+function Sample({ sample }: { sample: NonNullable<PublicDesign["sample"]> }) {
+  const parts = [
+    ["Learning outcomes", sample.outcomes],
+    ["Key inquiry questions", sample.inquiryQuestions],
+    ["Learning experiences", sample.learningExperiences],
+  ] as const;
+  if (parts.every(([, items]) => items.length === 0)) return null;
+  return (
+    <div className="mt-2 space-y-3 rounded-md bg-muted/60 p-3">
+      <Badge variant="success">Free sample</Badge>
+      {parts.map(([title, items]) =>
+        items.length ? (
+          <div key={title} className="space-y-1">
+            <h3 className="text-sm font-semibold">{title}</h3>
+            <ul className="list-disc space-y-1 pl-5 text-sm">
+              {items.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null,
+      )}
     </div>
   );
 }

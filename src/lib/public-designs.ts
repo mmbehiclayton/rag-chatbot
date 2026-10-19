@@ -4,8 +4,9 @@ import { getGradeOptions } from "@/lib/curriculum-options";
 import { db, withDbRetry } from "@/lib/db";
 
 /**
- * Data for the public curriculum design pages. They show strand and sub-strand names only:
- * the outcomes, questions and experiences stay inside Elimu for signed-in teachers.
+ * Data for the public curriculum design pages. They show strand and sub-strand names, plus the
+ * first sub-strand in full as a sample: the other outcomes, questions and experiences stay inside
+ * Elimu for signed-in teachers.
  * Cached for an hour, and refreshed as soon as a curator publishes or changes a map.
  */
 export const DESIGNS_TAG = "public-designs";
@@ -79,6 +80,13 @@ export type PublicDesign = {
     name: string;
     subStrands: { name: string; lessons: number; term: number | null }[];
   }[];
+  /** The first sub-strand in full, so a visitor can see what signing in gives them. */
+  sample: {
+    name: string;
+    outcomes: string[];
+    inquiryQuestions: string[];
+    learningExperiences: string[];
+  } | null;
 };
 
 /** A published design found by its URL slugs, or null. */
@@ -111,7 +119,14 @@ export const getPublicDesign = unstable_cache(
                   name: true,
                   subStrands: {
                     orderBy: { order: "asc" },
-                    select: { name: true, lessons: true, term: true },
+                    select: {
+                      name: true,
+                      lessons: true,
+                      term: true,
+                      outcomes: true,
+                      inquiryQuestions: true,
+                      learningExperiences: true,
+                    },
                   },
                 },
               },
@@ -119,13 +134,31 @@ export const getPublicDesign = unstable_cache(
           }),
         );
         if (!map) return null;
+        const strands = map.strands.filter((s) => s.subStrands.length > 0);
+        const first = strands[0]?.subStrands[0];
         return {
           grade: g.name,
           subject: subject.name,
           level,
           lessonsPerWeek: map.lessonsPerWeek,
           publishedAt: map.publishedAt?.toISOString() ?? null,
-          strands: map.strands.filter((s) => s.subStrands.length > 0),
+          // Only names, lessons and terms leave the server for every sub-strand.
+          strands: strands.map((s) => ({
+            name: s.name,
+            subStrands: s.subStrands.map(({ name, lessons, term }) => ({
+              name,
+              lessons,
+              term,
+            })),
+          })),
+          sample: first
+            ? {
+                name: first.name,
+                outcomes: first.outcomes,
+                inquiryQuestions: first.inquiryQuestions,
+                learningExperiences: first.learningExperiences,
+              }
+            : null,
         };
       }
     return null;

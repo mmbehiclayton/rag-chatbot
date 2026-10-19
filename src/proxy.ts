@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { ROUTE_ACCESS } from "@/lib/access";
 import { db } from "@/lib/db";
+import { firstTouch, SOURCE_COOKIE, SOURCE_MAX_AGE } from "@/lib/signup-source";
 
 const secretKey =
   process.env.JWT_SECRET_KEY || "development_secret_do_not_use_in_prod";
@@ -36,9 +37,22 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 1. Check if route is public
+  // 1. Check if route is public. On a first visit, note where the teacher came from.
   if (isPublicRoute(path)) {
-    return NextResponse.next();
+    const response = NextResponse.next();
+    if (
+      !path.startsWith("/api/") &&
+      !path.startsWith("/_next") &&
+      !request.cookies.has(SOURCE_COOKIE)
+    )
+      response.cookies.set(SOURCE_COOKIE, firstTouch(request), {
+        maxAge: SOURCE_MAX_AGE,
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+      });
+    return response;
   }
 
   // 2. Read session cookie
