@@ -1,12 +1,12 @@
 "use server";
 
-import { openai } from "@ai-sdk/openai";
 import { Prisma } from "@prisma/client";
 import { generateObject } from "ai";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { explainAIError } from "@/lib/ai-errors";
+import { aiModel, modelName } from "@/lib/ai-models";
 import { auth } from "@/lib/auth";
 import {
   allSubStrands,
@@ -70,14 +70,69 @@ async function requireSession() {
   return session as typeof session & { userId: string };
 }
 
-/** The verification pass is a safety net: if it fails, the document stays and is flagged for review. */
-async function passesVerification(content: unknown, context: string) {
-  try {
-    return await verifyPedagogicalAccuracy(JSON.stringify(content), context);
-  } catch (e) {
-    console.error("[generation] verification failed:", e);
-    return false;
-  }
+/** Lower-case words only, without numbering like "1.2", so names compare loosely. */
+const plainName = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/^[\d.\s]+/, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+/**
+ * Checks the sub-strands a document names are in its curriculum, without another AI call.
+ * With a checked map every name must match; with design extracts most must appear in them,
+ * because the extracts are only part of the design.
+ */
+function passesVerification(names: string[], grounding: Grounding) {
+  const wanted = [...new Set(names.map(plainName).filter(Boolean))];
+  if (wanted.length === 0) return true;
+  const known = grounding.subStrands?.map((s) => plainName(s.name));
+  const text = plainName(grounding.text);
+  const unknown = wanted.filter((n) =>
+    known
+      ? !known.some((k) => k === n || k.includes(n) || n.includes(k))
+      : !text.includes(n),
+  );
+  if (unknown.length)
+    console.warn("[generation] sub-strands not in the curriculum:", unknown);
+  return known ? unknown.length === 0 : unknown.length <= wanted.length / 4;
+}
+
+/**
+ * The scheme rows a lesson plan is written from: this lesson's row, with the rows before and
+ * after for continuity. Sending the whole scheme for every lesson cost far more for no better plan.
+ */
+function schemeRowsFor(content: unknown, lessonNumber: number) {
+  const weeks = (
+    content as { weeks?: { weekNumber?: number; rows?: unknown[] }[] }
+  )?.weeks;
+  const rows = (Array.isArray(weeks) ? weeks : []).flatMap((w, i) =>
+    (Array.isArray(w?.rows) ? w.rows : []).map((r) => ({
+      week: w.weekNumber ?? i + 1,
+      ...(r as object),
+    })),
+  );
+  const row = rows[lessonNumber - 1];
+  if (!row)
+    return `SCHEME CONTENT TO EXTRACT FROM:
+${JSON.stringify(content)}`;
+  const before = rows[lessonNumber - 2];
+  const after = rows[lessonNumber];
+  return `THIS LESSON'S ROW IN THE SCHEME OF WORK (write the plan from this):
+${JSON.stringify(row)}
+${
+  before
+    ? `
+THE LESSON BEFORE (for continuity only):
+${JSON.stringify(before)}`
+    : ""
+}${
+  after
+    ? `
+THE LESSON AFTER (for continuity only):
+${JSON.stringify(after)}`
+    : ""
+}`;
 }
 
 // ─── Shared Guards ────────────────────────────────────────────────────────────
@@ -553,7 +608,6 @@ async function generateSchemeOfWorkImpl(
     throw new TeacherError(
       missingCurriculum(parameters.grade, parameters.subject),
     );
-  const contextText = grounding.text;
 
   await checkGenerationGuards(session, parameters);
 
@@ -616,12 +670,15 @@ async function generateSchemeOfWorkImpl(
       promptTokens: usage.inputTokens ?? 0,
       completionTokens: usage.outputTokens ?? 0,
       totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-      model: "gpt-4o",
+      model: modelName("write"),
     },
   });
 
-  // [NEW] Hallucination Guardrail: Deep Verification Pass
-  const isAccurate = await passesVerification(object, contextText);
+  // Free check that every sub-strand is in the curriculum; flagged for review if not.
+  const isAccurate = passesVerification(
+    object.weeks.flatMap((w) => w.rows.map((r) => r.subStrand)),
+    grounding,
+  );
   if (!isAccurate) {
     console.warn(
       "HALLUCINATION DETECTED: Scheme of Work failed verification pass. Tagging for review.",
@@ -750,12 +807,11 @@ async function generateLessonPlanImpl(
 ${lessonPlanRules(40)}
 12. Expand the scheme's learning experiences for this lesson into the steps.
 
-SCHEME CONTENT TO EXTRACT FROM:
-${JSON.stringify(scheme.content)}
+${schemeRowsFor(scheme.content, lessonNumber)}
 ${schemeMap ? `\n${MAP_RULES}\n\nCURRICULUM MAP FOR THIS LESSON:\n${lessonGrounding(schemeMap, topic)}\n` : ""}`;
 
   const { object, usage } = await generateObject({
-    model: openai("gpt-4o"),
+    model: aiModel("write"),
     schema: LessonPlanSchema,
     system: systemPrompt,
     prompt: `Generate the full expanded Lesson Plan for Lesson ${lessonNumber}: "${topic}".`,
@@ -785,7 +841,7 @@ ${schemeMap ? `\n${MAP_RULES}\n\nCURRICULUM MAP FOR THIS LESSON:\n${lessonGround
       promptTokens: usage.inputTokens ?? 0,
       completionTokens: usage.outputTokens ?? 0,
       totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-      model: "gpt-4o",
+      model: modelName("write"),
     },
   });
 
@@ -860,7 +916,7 @@ ${groundingText}
 `;
 
   const { object, usage } = await generateObject({
-    model: openai("gpt-4o"),
+    model: aiModel("write"),
     schema: LessonPlanSchema,
     system: systemPrompt,
     prompt: `Generate the full Lesson Plan for "${topic}".`,
@@ -887,7 +943,7 @@ ${groundingText}
       promptTokens: usage.inputTokens ?? 0,
       completionTokens: usage.outputTokens ?? 0,
       totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-      model: "gpt-4o",
+      model: modelName("write"),
     },
   });
 
@@ -969,7 +1025,7 @@ ${JSON.stringify(lessonPlan.content)}
 `;
 
   const { object, usage } = await generateObject({
-    model: openai("gpt-4o"),
+    model: aiModel("write"),
     schema: LessonNotesSchema,
     system: systemPrompt,
     prompt: `Produce the Teacher Lesson Notes mapped exactly to the required format.`,
@@ -993,7 +1049,7 @@ ${JSON.stringify(lessonPlan.content)}
       promptTokens: usage.inputTokens ?? 0,
       completionTokens: usage.outputTokens ?? 0,
       totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-      model: "gpt-4o",
+      model: modelName("write"),
     },
   });
 
@@ -1021,7 +1077,6 @@ async function generateAssessmentImpl(parameters: {
     throw new TeacherError(
       missingCurriculum(parameters.grade, parameters.subject),
     );
-  const contextText = grounding.text;
 
   await checkGenerationGuards(session, parameters);
 
@@ -1054,7 +1109,7 @@ ${groundingBlock(grounding)}
 `;
 
   const { object, usage } = await generateObject({
-    model: openai("gpt-4o"),
+    model: aiModel("write"),
     schema: AssessmentSchema,
     system: systemPrompt,
     prompt: `Generate the complete assessment paper with marking scheme now.`,
@@ -1096,12 +1151,12 @@ ${groundingBlock(grounding)}
       promptTokens: usage.inputTokens ?? 0,
       completionTokens: usage.outputTokens ?? 0,
       totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-      model: "gpt-4o",
+      model: modelName("write"),
     },
   });
 
-  // [NEW] Hallucination Guardrail
-  const isAccurate = await passesVerification(object, contextText);
+  // Free check that every sub-strand is in the curriculum; flagged for review if not.
+  const isAccurate = passesVerification(object.subStrandsCovered, grounding);
   if (!isAccurate) {
     console.warn(
       "HALLUCINATION DETECTED: Assessment failed verification pass.",
@@ -1262,37 +1317,6 @@ export async function getSchemeLessonPlans(schemeId: string) {
   }));
 }
 
-/**
- * [PHASE 4] Hallucination Guardrail
- * Cross-references generated content against RAG context to ensure 100% pedagogical accuracy.
- */
-async function verifyPedagogicalAccuracy(
-  generatedContent: string,
-  contextChunks: string,
-) {
-  const { object } = await generateObject({
-    model: openai("gpt-4o"), // Use the most capable model for verification
-    schema: z.object({
-      isAccurate: z.boolean(),
-      conflicts: z.array(z.string()),
-      confidenceScore: z.number().min(0).max(100),
-    }),
-    system:
-      "You are a KICD Auditor. Compare the GENERATED CONTENT against the OFFICIAL CURRICULUM CONTEXT. Identify if any strands, sub-strands, or learning outcomes in the generated content do NOT exist in the official context (Hallucinations).",
-    prompt: `
-      OFFICIAL CONTEXT:
-      ${contextChunks}
-
-      GENERATED CONTENT:
-      ${generatedContent}
-
-      Return accuracy status and list any specific hallucinations.
-    `,
-  });
-
-  return object.isAccurate && object.confidenceScore > 85;
-}
-
 // ─── Improve: the teacher asks Elimu to change their own document ─────────────
 
 export type ImproveKind = "SCHEME" | "LESSON" | "NOTES";
@@ -1373,7 +1397,7 @@ async function improveImpl(input: {
     const subStrand =
       (plan.content as { subStrand?: string } | null)?.subStrand || plan.topic;
     const result = await generateObject({
-      model: openai("gpt-4o"),
+      model: aiModel("write"),
       schema: LessonPlanSchema,
       system: `${improveIntro("lesson plan")}${await rulesFor(contentType)}
 
@@ -1416,7 +1440,7 @@ ${map ? `\n${MAP_RULES}\n\nCURRICULUM MAP FOR THIS LESSON:\n${lessonGrounding(ma
     });
 
     const result = await generateObject({
-      model: openai("gpt-4o"),
+      model: aiModel("write"),
       schema: LessonNotesSchema,
       system: `${improveIntro("lesson notes")}${await rulesFor(contentType)}
 
@@ -1491,7 +1515,7 @@ ${JSON.stringify(note.resources)}`,
       promptTokens: usage.inputTokens ?? 0,
       completionTokens: usage.outputTokens ?? 0,
       totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-      model: "gpt-4o",
+      model: modelName("write"),
       instruction,
     },
   });

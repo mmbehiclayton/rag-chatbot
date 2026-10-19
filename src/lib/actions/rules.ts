@@ -1,9 +1,9 @@
 "use server";
 
-import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { aiModel } from "@/lib/ai-models";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 
@@ -64,7 +64,7 @@ export async function suggestRule(
 
   try {
     const { object } = await generateObject({
-      model: openai("gpt-4o"),
+      model: aiModel("write"),
       schema: z.object({ rule: z.string() }),
       system: `You help Elimu staff keep the instructions for an AI that writes CBC teaching documents for Kenyan junior school teachers. Teachers keep asking the AI to change its work. Find the requests that come up again and again and are good teaching practice, and turn them into short, clear instructions added to the current rule. Keep every instruction in the current rule unless a request shows it is wrong. Leave out one-off requests, requests about a single topic, and anything that goes against the KICD curriculum. Write plain numbered instructions in Kenyan English, no more than about 15 in all.`,
       prompt: `CURRENT RULE:\n${currentRule.trim() || "(none yet)"}\n\nWHAT TEACHERS ASKED THE AI TO CHANGE (newest first):\n${requests.map((r) => `- ${r}`).join("\n")}`,

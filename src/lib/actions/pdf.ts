@@ -5,6 +5,7 @@ import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { embedMany } from "ai";
 import { extractText, getDocumentProxy } from "unpdf";
 import { explainAIErrorForStaff } from "@/lib/ai-errors";
+import { noteAIFailure } from "@/lib/ai-health";
 import { auth } from "@/lib/auth";
 import { MISSING_FILE, readCurriculumFile } from "@/lib/curriculum-files";
 import { db } from "@/lib/db";
@@ -114,6 +115,7 @@ export async function processPDF(documentId: string) {
         where: { curriculumId: documentId },
       })) > 0;
     const message = explainAIErrorForStaff(error);
+    await noteAIFailure(error);
     await db.curriculumDocument.update({
       where: { id: documentId },
       data: {

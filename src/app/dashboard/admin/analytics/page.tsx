@@ -14,6 +14,7 @@ const CONTENT_LABEL: Record<string, string> = {
   LESSON_PLAN: "Lesson plans",
   LESSON_NOTES: "Lesson notes",
   ASSESSMENT: "Assessments",
+  CHAT: "Ask Elimu answers",
 };
 
 const num = (n: number) => n.toLocaleString("en-KE");

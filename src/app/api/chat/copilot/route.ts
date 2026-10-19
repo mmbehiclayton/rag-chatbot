@@ -1,5 +1,5 @@
-import { openai } from "@ai-sdk/openai";
 import { convertToModelMessages, streamText } from "ai";
+import { aiModel } from "@/lib/ai-models";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 
@@ -57,7 +57,7 @@ GUIDELINES:
 `;
 
   const result = streamText({
-    model: openai("gpt-4o"),
+    model: aiModel("chat"),
     system: systemPrompt,
     messages: await convertToModelMessages(messages.slice(-20)),
   });

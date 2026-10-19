@@ -19,6 +19,7 @@ import {
   AutoRefresh,
   DeleteCurriculumButton,
   KnowledgeRefreshButton,
+  RetryAllButton,
   RetryButton,
 } from "@/components/dashboard/knowledge-actions";
 import { UploadCurriculumModal } from "@/components/dashboard/upload-curriculum";
@@ -284,23 +285,30 @@ export default async function KnowledgePage(props: Props) {
             read. This page updates every few seconds.
           </output>
         )}
-        {errorDocs > 0 && statusFilter !== "error" && (
-          <p className="flex items-center gap-2 rounded-xl border bg-card p-3 text-sm">
-            <AlertTriangle
-              className="size-4 shrink-0 text-destructive"
-              aria-hidden
-            />
-            <span>
-              {errorDocs} design{errorDocs > 1 ? "s" : ""} couldn't be read.{" "}
-              <Link
-                href={filterUrl({ status: "error" })}
-                className="font-medium text-primary underline-offset-4 hover:underline"
-              >
-                Show them
-              </Link>{" "}
-              and try again.
-            </span>
-          </p>
+        {errorDocs > 0 && (
+          <div className="flex flex-col gap-3 rounded-xl border bg-card p-3 text-sm sm:flex-row sm:items-center">
+            <p className="flex flex-1 items-center gap-2">
+              <AlertTriangle
+                className="size-4 shrink-0 text-destructive"
+                aria-hidden
+              />
+              <span>
+                {errorDocs} design{errorDocs > 1 ? "s" : ""} couldn't be read.
+                {statusFilter !== "error" && (
+                  <>
+                    {" "}
+                    <Link
+                      href={filterUrl({ status: "error" })}
+                      className="font-medium text-primary underline-offset-4 hover:underline"
+                    >
+                      Show them
+                    </Link>
+                  </>
+                )}
+              </span>
+            </p>
+            <RetryAllButton count={errorDocs} />
+          </div>
         )}
 
         {documents.length === 0 ? (

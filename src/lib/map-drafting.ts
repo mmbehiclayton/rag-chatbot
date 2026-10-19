@@ -1,6 +1,6 @@
-import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import { z } from "zod";
+import { aiModel } from "@/lib/ai-models";
 import {
   MAP_STATUS,
   type MapStrand,
@@ -175,7 +175,7 @@ export async function extractStrands(
   const parts = await Promise.all(
     windows(text).map(async (part, i, all) => {
       const { object } = await generateObject({
-        model: openai("gpt-4o"),
+        model: aiModel("write"),
         schema: DraftSchema,
         system: SYSTEM,
         prompt: `${grade} ${subject} curriculum design, part ${i + 1} of ${all.length}:\n\n${part}`,

@@ -1,6 +1,6 @@
-import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import { z } from "zod";
+import { aiModel } from "@/lib/ai-models";
 import { type Located, mapToPrompt } from "@/lib/curriculum-map";
 
 /**
@@ -77,7 +77,6 @@ export type SchemeRequest = {
   instruction?: string;
 };
 
-const MODEL = "gpt-4o";
 /** Rows per model call: small enough that the model writes them all. */
 const ROWS_PER_CALL = 12;
 
@@ -190,7 +189,7 @@ const addUsage = (
 /** Without a map, read the term's sub-strands out of the design extracts first (a short answer). */
 async function unitsFromDesign(req: SchemeRequest, usage: Usage) {
   const { object, usage: u } = await generateObject({
-    model: openai(MODEL),
+    model: aiModel("write"),
     schema: OutlineSchema,
     system: `You read KICD curriculum designs. List the strands and sub-strands for ${req.grade} ${req.subject}, ${req.term}, in the order they are taught, using the names and specific learning outcomes exactly as written in the extracts. Only use what is in the extracts.\n\nCURRICULUM EXTRACTS:\n${req.designText ?? ""}`,
     prompt: "List the sub-strands now.",
@@ -265,7 +264,7 @@ async function writeRows(
     : "";
 
   const { object, usage: u } = await generateObject({
-    model: openai(MODEL),
+    model: aiModel("write"),
     schema: RowsSchema,
     system: `${rowRules(req)}\n\nCURRICULUM (use these names and outcomes exactly):\n${curriculum}${existing}${ask}`,
     prompt: `Write these ${slots.length} rows:\n${slots.map(describeSlot).join("\n")}`,
@@ -363,7 +362,7 @@ const OverviewSchema = z.object({
 
 async function writeOverview(req: SchemeRequest, units: Unit[], usage: Usage) {
   const { object, usage: u } = await generateObject({
-    model: openai(MODEL),
+    model: aiModel("write"),
     schema: OverviewSchema,
     system: `You are an experienced Kenyan CBC teacher planning ${req.grade} ${req.subject}, ${req.term}.${req.customRules}`,
     prompt: `The term covers these sub-strands: ${units.map((x) => `${x.strand} > ${x.subStrand}`).join("; ")}.\nGive 2-3 community service learning activities, 2-3 ways to involve parents and 2-3 links to other learning areas. Short, practical phrases a Kenyan public school can do.${req.instruction ? `\nThe teacher asked: ${req.instruction}` : ""}`,

@@ -97,3 +97,31 @@ export async function sendSchoolWelcomeEmail(
     `,
   });
 }
+
+/** Tells Elimu staff that OpenAI has stopped working, so teachers aren't the first to notice. */
+export async function sendAIOutageEmail(to: string[], problem: string) {
+  const link = `${siteUrl()}/dashboard/knowledge`;
+  const resend = getResend();
+  if (!resend || to.length === 0) {
+    console.log(`[DEV] AI outage alert for ${to.join(", ")}: ${problem}`);
+    return;
+  }
+
+  await resend.emails.send({
+    from: FROM,
+    to,
+    subject: "Elimu can't write right now: OpenAI needs attention",
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px">
+        <h2 style="color:#2c3e50">OpenAI has stopped working for Elimu</h2>
+        <p>${problem}</p>
+        <p>Until this is fixed, teachers can't create lesson plans, schemes, notes or assessments, Ask Elimu doesn't answer, and new curriculum designs can't be read.</p>
+        <p>Once it's fixed, the warning in Elimu clears by itself the next time a teacher creates something. Failed designs need <b>Try again</b> on the Curriculum Designs page.</p>
+        <a href="${link}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#1e8449;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">
+          Open Curriculum Designs
+        </a>
+        <p style="margin-top:24px;color:#6b7280;font-size:13px">You get this at most once every 6 hours while the problem lasts.</p>
+      </div>
+    `,
+  });
+}

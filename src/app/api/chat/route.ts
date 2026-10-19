@@ -1,4 +1,3 @@
-import { openai } from "@ai-sdk/openai";
 import {
   convertToModelMessages,
   createUIMessageStream,
@@ -7,6 +6,7 @@ import {
   type UIMessage,
 } from "ai";
 import { explainAIError } from "@/lib/ai-errors";
+import { aiModel, modelName } from "@/lib/ai-models";
 import { auth } from "@/lib/auth";
 import { detectClass, pageLabel } from "@/lib/chat-grounding";
 import {
@@ -184,10 +184,26 @@ ${contextText}
           });
         }
         const result = streamText({
-          model: openai("gpt-4o"),
+          model: aiModel("chat"),
           system: systemPrompt,
           messages: await convertToModelMessages(messages.slice(-20)),
-          onFinish: async ({ text }) => {
+          onFinish: async ({ text, totalUsage }) => {
+            // Logged like documents, so chat counts towards the school's allowance and staff see its cost.
+            await db.generationLog
+              .create({
+                data: {
+                  userId: session.userId,
+                  tenantId,
+                  contentType: "CHAT",
+                  promptTokens: totalUsage.inputTokens ?? 0,
+                  completionTokens: totalUsage.outputTokens ?? 0,
+                  totalTokens:
+                    (totalUsage.inputTokens ?? 0) +
+                    (totalUsage.outputTokens ?? 0),
+                  model: modelName("chat"),
+                },
+              })
+              .catch((e) => console.error("Failed to log chat usage:", e));
             if (chatSession && text) {
               await db.chatMessage
                 .create({

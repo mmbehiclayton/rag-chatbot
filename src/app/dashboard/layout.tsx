@@ -5,8 +5,10 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { PageTitle } from "@/components/layout/page-title";
 import { UserNav } from "@/components/layout/user-nav";
+import { AIOutageBanner } from "@/components/shared/ai-outage-banner";
 import { Logo } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
+import { getAIOutage } from "@/lib/ai-health";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
 
@@ -18,12 +20,15 @@ export default async function DashboardLayout({
   const session = await auth();
   if (!session?.userId) redirect("/login");
 
-  const user = await withDbRetry(() =>
-    db.user.findUnique({
-      where: { id: session.userId },
-      select: { name: true, email: true, onboardedAt: true, isCurator: true },
-    }),
-  );
+  const [user, outage] = await Promise.all([
+    withDbRetry(() =>
+      db.user.findUnique({
+        where: { id: session.userId },
+        select: { name: true, email: true, onboardedAt: true, isCurator: true },
+      }),
+    ),
+    getAIOutage(),
+  ]);
 
   // New teachers set up their grades and learning areas once before using the app.
   if (session.role === "TEACHER" && user && !user.onboardedAt)
@@ -57,6 +62,13 @@ export default async function DashboardLayout({
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 overflow-y-auto px-4 pt-4 pb-24 sm:px-6 md:pt-6 md:pb-8">
+          {outage && (
+            <AIOutageBanner
+              staff={session.role === "SUPERADMIN"}
+              problem={outage.problem}
+              since={outage.sinceDate}
+            />
+          )}
           {children}
         </main>
       </div>

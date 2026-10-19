@@ -184,3 +184,65 @@ export async function retryCurriculum(documentId: string) {
     };
   }
 }
+
+/** How many failed designs one press of "Try all again" reads, so the work fits in one request. */
+const RETRY_BATCH = 6;
+
+/** Reads every failed design again, a few at a time. Used after an outage such as OpenAI running out of credit. */
+export async function retryFailedCurricula(): Promise<
+  | { success: true; started: number; left: number }
+  | { success: false; error: string }
+> {
+  try {
+    const { userId, role } = await auth();
+    if (!userId || role !== "SUPERADMIN") throw new Error("Unauthorized");
+
+    const failed = await db.curriculumDocument.findMany({
+      where: { status: "error" },
+      orderBy: { uploadDate: "desc" },
+      select: { id: true, fileUrl: true },
+    });
+    const batch: string[] = [];
+    for (const doc of failed) {
+      if (batch.length === RETRY_BATCH) break;
+      // A design whose PDF is gone can't be read again; it keeps its message.
+      if (await curriculumFileExists(doc.fileUrl)) batch.push(doc.id);
+    }
+    if (batch.length === 0)
+      return {
+        success: false,
+        error:
+          "None of the failed designs can be read again. Upload them again.",
+      };
+
+    await db.curriculumDocument.updateMany({
+      where: { id: { in: batch } },
+      data: { status: "pending", errorMessage: null },
+    });
+
+    // Two at a time, so OpenAI's rate limit isn't hit while reading them.
+    after(async () => {
+      const queue = [...batch];
+      const worker = async () => {
+        for (let id = queue.shift(); id; id = queue.shift())
+          await processPDF(id).catch((err) =>
+            console.error("Background PDF re-processing failed:", err),
+          );
+      };
+      await Promise.all([worker(), worker()]);
+    });
+
+    revalidatePath("/dashboard/knowledge");
+    return {
+      success: true,
+      started: batch.length,
+      left: failed.length - batch.length,
+    };
+  } catch (err: unknown) {
+    console.error("[Retry All Error]", err);
+    return {
+      success: false,
+      error: "Couldn't start reading the designs again.",
+    };
+  }
+}
