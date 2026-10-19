@@ -11,6 +11,7 @@ import { auth } from "@/lib/auth";
 import {
   allSubStrands,
   getPublishedMap,
+  type Located,
   lessonGrounding,
   mapToPrompt,
   subStrandsForTerm,
@@ -32,6 +33,7 @@ import {
   countReuse,
   logReuse,
 } from "@/lib/reuse";
+import { writeScheme } from "@/lib/scheme-writer";
 import { schemeLessons } from "@/lib/term-pack";
 import { getTeacherTerms } from "@/lib/term-pack-data";
 
@@ -148,6 +150,8 @@ type Grounding = {
   source: "map" | "design";
   text: string;
   curriculumId: string | null;
+  /** The map's sub-strands for the term, when grounded on a map. */
+  subStrands: Located[] | null;
 };
 
 const MAP_RULES = `The CURRICULUM MAP below was entered and checked by practising teachers. Use only its strands, sub-strands and specific learning outcomes, with names and outcomes exactly as written, in the order given.`;
@@ -165,10 +169,12 @@ async function termGrounding(
   const map = await getPublishedMap(grade, subject);
   if (map) {
     const forTerm = subStrandsForTerm(map, term);
+    const subStrands = forTerm.length ? forTerm : allSubStrands(map);
     return {
       source: "map",
-      text: mapToPrompt(forTerm.length ? forTerm : allSubStrands(map)),
+      text: mapToPrompt(subStrands),
       curriculumId: null,
+      subStrands,
     };
   }
 
@@ -191,6 +197,7 @@ async function termGrounding(
     source: "design",
     text: chunks.map((c) => c.chunkText).join("\n\n"),
     curriculumId: doc.id,
+    subStrands: null,
   };
 }
 
@@ -486,6 +493,14 @@ async function generateSchemeOfWorkImpl(
       ? parameters.year
       : null;
 
+  // Every lesson the term needs. Older schemes were sometimes cut short, so reuse only complete ones.
+  const expectedLessons = Math.min(
+    200,
+    totalLessons ??
+      Math.max(1, parameters.weeks - parameters.holidays) *
+        parameters.lessonsPerWeek,
+  );
+
   if (!parameters.forceFresh) {
     const candidates = await db.schemeOfWork.findMany({
       where: {
@@ -497,9 +512,9 @@ async function generateSchemeOfWorkImpl(
       orderBy: BEST_SCHEME_FIRST,
       take: 10,
     });
-    // With a real timetable, only reuse a scheme that has the same number of lessons.
+    // Only reuse a scheme with the same number of lessons.
     const cachedScheme = candidates.find(
-      (c) => !totalLessons || schemeLessons(c.content).length === totalLessons,
+      (c) => schemeLessons(c.content).length === expectedLessons,
     );
 
     if (cachedScheme && cachedScheme.teacherId === session.userId)
@@ -549,39 +564,35 @@ async function generateSchemeOfWorkImpl(
     ? `\n\nCUSTOM PLATFORM GUIDELINES (STRICTLY ENFORCE):\n${customRule.customPrompt}\n`
     : "";
 
-  const systemPrompt = `You are an expert KICD curriculum specialist. Generate a Scheme of Work strictly following the Competency-Based Curriculum (CBC) architecture rules.${customRuleText}
-
-INPUT DATA:
-- Grade Level: ${parameters.grade}
-- Subject: ${parameters.subject}
-- Term: ${parameters.term}
-- Duration: ${parameters.durationMinutes} minutes
-
-MANDATORY REQUIREMENTS:
-1. Cover the strands and sub-strands from the curriculum provided below${grounding.source === "map" ? ", sharing the lessons out in proportion to each sub-strand's suggested lessons" : ""}.
-2. Use the EXACT specific learning outcomes (DO NOT paraphrase).
-${
-  totalLessons
-    ? `3. Write exactly ${totalLessons} lessons (one row each) across ${parameters.weeks} teaching weeks, numbered 1 to ${parameters.weeks}. This comes from the teacher's real timetable, about ${parameters.lessonsPerWeek} lessons a week.`
-    : `3. Calculate total lessons: (${parameters.weeks} - ${parameters.holidays}) × ${parameters.lessonsPerWeek} = TOTAL LESSONS.`
-}
-4. Structure into Weeks and Rows, one row per lesson. Keep each row brief: 1-3 outcomes, 1-2 inquiry questions, 2-3 learning experiences, 2-3 resources and 1-2 assessment methods, each a short phrase.
-5. Tag all 7 core competencies in activities.
-6. Include min 2 Community Service Learning and 2 Parental Engagement strategies.
-7. Learning experiences are learner-centred ("Learners are guided to…"). Resources are things a Kenyan school has or can make; do not invent textbook page numbers.
-8. Leave every row's reflection empty; the teacher writes it after teaching.
-
-${groundingBlock(grounding)}
-`;
-
-  const { object, usage } = await generateObject({
-    model: openai("gpt-4o"),
-    schema: SchemeOfWorkSchema,
-    system: systemPrompt,
-    // A full term can be 60+ lessons, one row each.
-    maxOutputTokens: 16000,
-    prompt: `Generate the complete Scheme of Work now mapped exactly to the detailed Zod schema format.`,
-  });
+  // Weeks with lessons in them: the timetable already leaves out breaks.
+  const teachingWeeks = totalLessons
+    ? parameters.weeks
+    : Math.max(1, parameters.weeks - parameters.holidays);
+  let written: Awaited<ReturnType<typeof writeScheme>>;
+  try {
+    written = await writeScheme({
+      grade: parameters.grade,
+      subject: parameters.subject,
+      term: parameters.term,
+      durationMinutes: parameters.durationMinutes,
+      teachingWeeks,
+      totalLessons: expectedLessons,
+      subStrands: grounding.subStrands,
+      designText: grounding.source === "design" ? grounding.text : null,
+      customRules: customRuleText,
+    });
+  } catch (e) {
+    if (e instanceof Error && e.message === "No sub-strands to plan from")
+      throw new TeacherError(
+        missingCurriculum(parameters.grade, parameters.subject),
+      );
+    throw e;
+  }
+  const object = written.content;
+  const usage = {
+    inputTokens: written.inputTokens,
+    outputTokens: written.outputTokens,
+  };
 
   const scheme = await db.schemeOfWork.create({
     data: {

@@ -166,7 +166,7 @@ export async function getDesignLessonsPerWeek(): Promise<
   );
 }
 
-type Located = MapSubStrand & {
+export type Located = MapSubStrand & {
   strand: string;
   strandNumber: number;
   number: string;
