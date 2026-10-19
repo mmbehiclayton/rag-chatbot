@@ -1,10 +1,11 @@
 import { formatDistanceToNow } from "date-fns";
-import { ArrowLeft, Info } from "lucide-react";
+import { ArrowLeft, ExternalLink, Info } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { DraftFromDesign } from "@/components/curriculum/draft-from-design";
 import { MapEditor } from "@/components/curriculum/map-editor";
 import { MapStatusBadge } from "@/components/curriculum/map-status-badge";
+import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
 import { getCurator, MAP_STATUS } from "@/lib/curriculum-map";
 import { getGradeOptions } from "@/lib/curriculum-options";
@@ -73,8 +74,8 @@ export default async function CurriculumMapPage({
   );
 
   const status = map?.status ?? MAP_STATUS.DRAFT;
-  const design =
-    status === MAP_STATUS.DRAFT ? await findDesign(grade, subject) : null;
+  // The uploaded design, so whoever edits or checks the map can open it alongside.
+  const design = await findDesign(grade, subject);
   const canCheck =
     status === MAP_STATUS.IN_REVIEW && map?.editedById !== curator.id;
   const canPublish =
@@ -130,7 +131,24 @@ export default async function CurriculumMapPage({
         )}
       </div>
 
-      {design && (
+      {design?.fileUrl && (
+        <Button
+          variant="outline"
+          className="h-11 w-full sm:w-auto"
+          render={
+            // biome-ignore lint/a11y/useAnchorContent: the Button supplies the content
+            <a
+              href={design.fileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            />
+          }
+        >
+          <ExternalLink /> Open the KICD design
+        </Button>
+      )}
+
+      {design && status === MAP_STATUS.DRAFT && (
         <DraftFromDesign
           grade={grade}
           subject={subject}

@@ -199,7 +199,7 @@ export async function findDesign(grade: string, subject: string) {
         tenantId: null,
       },
       orderBy: { uploadDate: "desc" },
-      select: { id: true, title: true },
+      select: { id: true, title: true, fileUrl: true },
     }),
   );
 }

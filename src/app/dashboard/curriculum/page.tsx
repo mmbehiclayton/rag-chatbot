@@ -20,7 +20,8 @@ export default async function CurriculumMapsPage({
   searchParams: Promise<{ level?: string }>;
 }) {
   const session = await auth();
-  if (!(await getCurator(session.userId))) redirect("/dashboard");
+  const curator = await getCurator(session.userId);
+  if (!curator) redirect("/dashboard");
 
   const { level: levelParam } = await searchParams;
   const [grades, maps, designs] = await Promise.all([
@@ -31,6 +32,8 @@ export default async function CurriculumMapsPage({
           grade: true,
           subject: true,
           status: true,
+          editedById: true,
+          reviewComment: true,
           _count: { select: { strands: true } },
         },
       }),
@@ -56,7 +59,35 @@ export default async function CurriculumMapsPage({
   const pairs = shown.flatMap((g) =>
     g.learningAreas.map((s) => byKey.get(`${g.name}|${s}`)),
   );
-  const inUse = pairs.filter((m) => m?.status === MAP_STATUS.PUBLISHED).length;
+  const shownDesigns = shown.flatMap((g) =>
+    g.learningAreas.map((s) => hasDesign.has(`${g.name}|${s}`)),
+  );
+  const counts = [
+    {
+      label: "In use",
+      value: pairs.filter((m) => m?.status === MAP_STATUS.PUBLISHED).length,
+    },
+    {
+      label: "Waiting for a check",
+      value: pairs.filter((m) => m?.status === MAP_STATUS.IN_REVIEW).length,
+    },
+    {
+      label: "Draft",
+      value: pairs.filter((m) => m?.status === MAP_STATUS.DRAFT).length,
+    },
+    {
+      label: "Ready to draft",
+      value: pairs.filter((m, i) => !m && shownDesigns[i]).length,
+    },
+    {
+      label: "No design uploaded",
+      value: pairs.filter((m, i) => !m && !shownDesigns[i]).length,
+    },
+  ];
+  // Maps someone else finished, which this curator can check now (every level).
+  const toCheck = maps.filter(
+    (m) => m.status === MAP_STATUS.IN_REVIEW && m.editedById !== curator.id,
+  );
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -83,9 +114,48 @@ export default async function CurriculumMapsPage({
         ))}
       </nav>
 
-      <p className="text-sm text-muted-foreground">
-        {inUse} of {pairs.length} maps in use for {level}.
-      </p>
+      {toCheck.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-base font-semibold">
+            Waiting for you to check · {toCheck.length}
+          </h2>
+          <ul className="divide-y rounded-xl border border-warning/40 bg-card">
+            {toCheck.map((m) => (
+              <li key={`${m.grade}|${m.subject}`}>
+                <Link
+                  href={mapHref(m.grade, m.subject)}
+                  className="flex min-h-12 items-center gap-3 px-4 py-2 hover:bg-muted/60"
+                >
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                    {m.grade} · {m.subject}
+                  </span>
+                  <ChevronRight
+                    className="size-4 shrink-0 text-muted-foreground"
+                    aria-hidden
+                  />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <dl className="grid grid-cols-2 gap-3 rounded-xl border bg-card p-4 sm:grid-cols-5">
+        {counts.map((c) => (
+          <div key={c.label}>
+            <dt className="text-xs text-muted-foreground">{c.label}</dt>
+            <dd className="text-lg font-semibold">
+              {c.value}
+              {c.label === "In use" && (
+                <span className="text-sm font-normal text-muted-foreground">
+                  {" "}
+                  of {pairs.length}
+                </span>
+              )}
+            </dd>
+          </div>
+        ))}
+      </dl>
 
       {shown.map((g) => (
         <section key={g.name} className="space-y-2">
@@ -110,7 +180,10 @@ export default async function CurriculumMapsPage({
                         </span>
                         <span className="mt-0.5 block text-xs text-muted-foreground">
                           {map
-                            ? `${map._count.strands} strand${map._count.strands === 1 ? "" : "s"}`
+                            ? map.status === MAP_STATUS.DRAFT &&
+                              map.reviewComment
+                              ? "Sent back · needs fixing"
+                              : `${map._count.strands} strand${map._count.strands === 1 ? "" : "s"}`
                             : hasDesign.has(`${g.name}|${subject}`)
                               ? "Design uploaded · ready to draft"
                               : "Not started · no design uploaded"}
