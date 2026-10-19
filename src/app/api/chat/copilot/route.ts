@@ -1,5 +1,5 @@
 import { convertToModelMessages, streamText } from "ai";
-import { aiModel, modelName } from "@/lib/ai-models";
+import { aiModel, modelUsed } from "@/lib/ai-models";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { CHAT_PER_DAY, overLimit } from "@/lib/rate-limit";
@@ -89,7 +89,7 @@ GUIDELINES:
             completionTokens: totalUsage.outputTokens ?? 0,
             totalTokens:
               (totalUsage.inputTokens ?? 0) + (totalUsage.outputTokens ?? 0),
-            model: modelName("chat"),
+            model: modelUsed("chat"),
           },
         })
         .catch((e) => console.error("Failed to log copilot usage:", e));

@@ -9,6 +9,7 @@ import { AIOutageBanner } from "@/components/shared/ai-outage-banner";
 import { Logo } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
 import { getAIOutage } from "@/lib/ai-health";
+import { hasBackup } from "@/lib/ai-models";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
 
@@ -62,9 +63,10 @@ export default async function DashboardLayout({
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 overflow-y-auto px-4 pt-4 pb-24 sm:px-6 md:pt-6 md:pb-8">
-          {outage && (
+          {outage && (session.role === "SUPERADMIN" || !hasBackup()) && (
             <AIOutageBanner
               staff={session.role === "SUPERADMIN"}
+              backup={hasBackup()}
               problem={outage.problem}
               since={outage.sinceDate}
             />

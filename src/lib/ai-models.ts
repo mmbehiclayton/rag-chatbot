@@ -1,9 +1,11 @@
+import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import {
   defaultSettingsMiddleware,
   type LanguageModelMiddleware,
   wrapLanguageModel,
 } from "ai";
+import { providerDown } from "@/lib/ai-errors";
 import { noteAIFailure, noteAIWorking } from "@/lib/ai-health";
 
 /**
@@ -25,30 +27,85 @@ export function modelName(job: ModelJob): string {
   return set?.trim() || DEFAULTS[job];
 }
 
-/** Records OpenAI outages for staff, and clears them once a call works again. */
-const health: LanguageModelMiddleware = {
-  specificationVersion: "v3",
-  wrapGenerate: async ({ doGenerate }) => {
-    try {
-      const result = await doGenerate();
-      noteAIWorking();
-      return result;
-    } catch (e) {
-      await noteAIFailure(e);
-      throw e;
-    }
-  },
-  wrapStream: async ({ doStream }) => {
-    try {
-      const result = await doStream();
-      noteAIWorking();
-      return result;
-    } catch (e) {
-      await noteAIFailure(e);
-      throw e;
-    }
-  },
+/** The Claude model that takes over when OpenAI isn't working. Set ELIMU_MODEL_BACKUP to change it. */
+const BACKUP_DEFAULT = "claude-opus-5-5";
+
+export function backupModelName(): string {
+  return process.env.ELIMU_MODEL_BACKUP?.trim() || BACKUP_DEFAULT;
+}
+
+/** The backup only runs when an Anthropic key is set in this environment. */
+export function hasBackup(): boolean {
+  return !!process.env.ANTHROPIC_API_KEY?.trim();
+}
+
+// Whether this server instance's last AI call went to the backup, for the usage log.
+let onBackup = false;
+
+/** The model to record in the usage log for a call that just finished. */
+export function modelUsed(job: ModelJob): string {
+  return onBackup ? backupModelName() : modelName(job);
+}
+
+/** How hard Claude thinks: enough for documents, light for chat answers. */
+const BACKUP_EFFORT: Record<ModelJob, "low" | "medium"> = {
+  write: "medium",
+  chat: "low",
 };
+
+/**
+ * Records OpenAI outages for staff and clears them once a call works again. While OpenAI is out
+ * of credit, rejects the key, limits Elimu or is down, the same request goes to Claude instead, so
+ * teachers still get their document. The outage stays recorded until OpenAI works again.
+ */
+function health(job: ModelJob): LanguageModelMiddleware {
+  /** Runs a call on OpenAI, or on Claude when OpenAI isn't working and a backup is set. */
+  async function orBackup<T>(
+    primary: () => PromiseLike<T>,
+    onClaude: (model: ReturnType<typeof anthropic>) => PromiseLike<T>,
+  ): Promise<T> {
+    try {
+      const result = await primary();
+      onBackup = false;
+      noteAIWorking();
+      return result;
+    } catch (e) {
+      await noteAIFailure(e);
+      if (!hasBackup() || !providerDown(e)) throw e;
+      console.error("[ai] OpenAI failed, using the Claude backup:", e);
+      try {
+        const result = await onClaude(anthropic(backupModelName()));
+        onBackup = true;
+        return result;
+      } catch (backupError) {
+        console.error("[ai] The Claude backup failed too:", backupError);
+        throw e;
+      }
+    }
+  }
+
+  // Claude's default length is its maximum; documents need far less, and a cap keeps calls quick.
+  const withEffort = <
+    P extends { providerOptions?: object; maxOutputTokens?: number },
+  >(
+    params: P,
+  ): P => ({
+    ...params,
+    maxOutputTokens: params.maxOutputTokens ?? 32000,
+    providerOptions: {
+      ...params.providerOptions,
+      anthropic: { effort: BACKUP_EFFORT[job] },
+    },
+  });
+
+  return {
+    specificationVersion: "v3",
+    wrapGenerate: ({ doGenerate, params }) =>
+      orBackup(doGenerate, (claude) => claude.doGenerate(withEffort(params))),
+    wrapStream: ({ doStream, params }) =>
+      orBackup(doStream, (claude) => claude.doStream(withEffort(params))),
+  };
+}
 
 /**
  * The model for a job. GPT-5 models think before answering, which costs output tokens;
@@ -56,7 +113,7 @@ const health: LanguageModelMiddleware = {
  */
 export function aiModel(job: ModelJob) {
   const name = modelName(job);
-  const middleware: LanguageModelMiddleware[] = [health];
+  const middleware: LanguageModelMiddleware[] = [health(job)];
   if (/^gpt-5/.test(name))
     middleware.push(
       defaultSettingsMiddleware({

@@ -6,7 +6,7 @@ import {
   type UIMessage,
 } from "ai";
 import { explainAIError } from "@/lib/ai-errors";
-import { aiModel, modelName } from "@/lib/ai-models";
+import { aiModel, modelUsed } from "@/lib/ai-models";
 import { auth } from "@/lib/auth";
 import { detectClass, pageLabel } from "@/lib/chat-grounding";
 import {
@@ -218,7 +218,7 @@ ${contextText}
                   totalTokens:
                     (totalUsage.inputTokens ?? 0) +
                     (totalUsage.outputTokens ?? 0),
-                  model: modelName("chat"),
+                  model: modelUsed("chat"),
                 },
               })
               .catch((e) => console.error("Failed to log chat usage:", e));

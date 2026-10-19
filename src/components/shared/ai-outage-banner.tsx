@@ -5,16 +5,18 @@ import { outageText } from "@/lib/ai-health";
 
 /**
  * Shown on every dashboard page while OpenAI isn't working. Teachers learn their saved work is
- * safe; Elimu staff see what to fix.
+ * safe; Elimu staff see what to fix. With the Claude backup on, only staff see it.
  */
 export function AIOutageBanner({
   staff,
   problem,
   since,
+  backup = false,
 }: {
   staff: boolean;
   problem: "credit" | "key";
   since: Date;
+  backup?: boolean;
 }) {
   return (
     <div className="no-print mb-4 flex gap-2 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm">
@@ -25,7 +27,9 @@ export function AIOutageBanner({
       {staff ? (
         <p>
           <span className="font-semibold">
-            Elimu can't write anything, since{" "}
+            {backup
+              ? "OpenAI isn't working, so Claude is writing for teachers, since "
+              : "Elimu can't write anything, since "}
             {formatDistanceToNow(since, { addSuffix: true })}.
           </span>{" "}
           {outageText(problem)} This clears by itself once a lesson plan or

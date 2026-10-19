@@ -44,6 +44,21 @@ export function aiProblem(e: unknown): AIProblem {
 }
 
 /**
+ * Whether a failure means the provider itself isn't working (credit, key, limits, its servers
+ * or the connection), so the same request is worth sending to the backup.
+ */
+export function providerDown(e: unknown): boolean {
+  const problem = aiProblem(e);
+  if (problem === "credit" || problem === "key" || problem === "busy")
+    return true;
+  return errorsIn(e).some(
+    (err) =>
+      APICallError.isInstance(err) &&
+      (err.statusCode === undefined || err.statusCode >= 500),
+  );
+}
+
+/**
  * Turns an AI call failure into a message a teacher can act on, and logs the real cause.
  * The OpenAI key, billing and rate limit problems are named in the log so they are easy to find.
  */

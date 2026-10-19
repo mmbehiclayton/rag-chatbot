@@ -5,7 +5,7 @@ import { generateObject } from "ai";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { explainAIError } from "@/lib/ai-errors";
-import { aiModel, modelName } from "@/lib/ai-models";
+import { aiModel, modelUsed } from "@/lib/ai-models";
 import { auth } from "@/lib/auth";
 import {
   allSubStrands,
@@ -651,7 +651,7 @@ async function generateSchemeOfWorkImpl(
       promptTokens: usage.inputTokens ?? 0,
       completionTokens: usage.outputTokens ?? 0,
       totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-      model: modelName("write"),
+      model: modelUsed("write"),
     },
   });
 
@@ -822,7 +822,7 @@ ${schemeMap ? `\n${MAP_RULES}\n\nCURRICULUM MAP FOR THIS LESSON:\n${lessonGround
       promptTokens: usage.inputTokens ?? 0,
       completionTokens: usage.outputTokens ?? 0,
       totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-      model: modelName("write"),
+      model: modelUsed("write"),
     },
   });
 
@@ -951,7 +951,7 @@ ${groundingText}
       promptTokens: usage.inputTokens ?? 0,
       completionTokens: usage.outputTokens ?? 0,
       totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-      model: modelName("write"),
+      model: modelUsed("write"),
     },
   });
 
@@ -1057,7 +1057,7 @@ ${JSON.stringify(lessonPlan.content)}
       promptTokens: usage.inputTokens ?? 0,
       completionTokens: usage.outputTokens ?? 0,
       totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-      model: modelName("write"),
+      model: modelUsed("write"),
     },
   });
 
@@ -1159,7 +1159,7 @@ ${groundingBlock(grounding)}
       promptTokens: usage.inputTokens ?? 0,
       completionTokens: usage.outputTokens ?? 0,
       totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-      model: modelName("write"),
+      model: modelUsed("write"),
     },
   });
 
@@ -1523,7 +1523,7 @@ ${JSON.stringify(note.resources)}`,
       promptTokens: usage.inputTokens ?? 0,
       completionTokens: usage.outputTokens ?? 0,
       totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-      model: modelName("write"),
+      model: modelUsed("write"),
       instruction,
     },
   });
