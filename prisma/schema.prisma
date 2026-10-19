@@ -65,13 +65,14 @@ model User {
   assessments    Assessment[]
   generationLogs GenerationLog[]
   chatSessions   ChatSession[]
-  mapsEdited     CurriculumMap[] @relation("MapEditor")
-  mapsChecked    CurriculumMap[] @relation("MapChecker")
+  mapsEdited     CurriculumMap[]    @relation("MapEditor")
+  mapsChecked    CurriculumMap[]    @relation("MapChecker")
   terms          TeacherTerm[]
   timetableSlots TimetableSlot[]
   lessonRecords  LessonRecord[]
-  termPasses     TermPass[]      @relation("PassTeacher")
-  passesReviewed TermPass[]      @relation("PassReviewer")
+  coverage       SyllabusCoverage[]
+  termPasses     TermPass[]         @relation("PassTeacher")
+  passesReviewed TermPass[]         @relation("PassReviewer")
   headReviews    HeadReview[]
 
   @@index([tenantId])
@@ -498,6 +499,28 @@ model LessonRecord {
 
   @@unique([schemeId, stream, date, slot])
   @@index([teacherId, date])
+}
+
+/**
+ * A sub-strand the teacher has marked themselves on their syllabus coverage, for one class and school year.
+ * Keyed by names, not CurriculumSubStrand ids, because a curator's edit recreates a map's strands.
+ * Sub-strands without a row follow the record of work (lessons marked Taught).
+ */
+model SyllabusCoverage {
+  id        String   @id @default(uuid())
+  teacherId String
+  teacher   User     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  year      Int
+  grade     String
+  subject   String
+  stream    String   @default("") // "" for a grade taught as one class
+  strand    String
+  subStrand String
+  status    String // "NOT_STARTED" | "IN_PROGRESS" | "COVERED"
+  updatedAt DateTime @updatedAt
+
+  @@unique([teacherId, year, grade, subject, stream, strand, subStrand])
+  @@index([teacherId, year])
 }
 
 /**

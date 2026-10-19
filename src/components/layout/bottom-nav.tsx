@@ -18,17 +18,20 @@ export function BottomNav() {
           const active = isActivePath(pathname, item.href);
           const Icon = item.icon;
           return (
-            <li key={item.href} className="flex-1">
+            <li key={item.href} className="min-w-0 flex-1">
               <Link
                 href={item.href}
                 aria-current={active ? "page" : undefined}
+                aria-label={item.short ? item.name : undefined}
                 className={cn(
-                  "flex h-16 flex-col items-center justify-center gap-1 px-1 text-center text-xs font-medium leading-tight",
+                  "flex h-16 min-w-0 flex-col items-center justify-center gap-1 px-0.5 text-center text-xs font-medium leading-tight",
                   active ? "text-primary" : "text-muted-foreground",
                 )}
               >
-                <Icon className="h-5 w-5" aria-hidden />
-                {item.name}
+                <Icon className="h-5 w-5 shrink-0" aria-hidden />
+                <span className="max-w-full truncate">
+                  {item.short ?? item.name}
+                </span>
               </Link>
             </li>
           );

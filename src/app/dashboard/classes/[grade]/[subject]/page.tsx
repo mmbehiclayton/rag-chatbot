@@ -8,6 +8,7 @@ import {
   ClipboardList,
   FileText,
   Info,
+  ListChecks,
   NotebookPen,
   Plus,
 } from "lucide-react";
@@ -24,6 +25,7 @@ import {
   gradeHref,
   nextLessonInScheme,
 } from "@/lib/classes";
+import { coverageHref } from "@/lib/coverage";
 import { getPublishedMapKeys } from "@/lib/curriculum-map";
 import { getIndexedCurricula } from "@/lib/curriculum-options";
 import { db, withDbRetry } from "@/lib/db";
@@ -241,6 +243,13 @@ export default async function ClassPage({
             </p>
           </div>
         )}
+        <Button
+          variant="outline"
+          className="h-11"
+          render={<Link href={coverageHref(grade, subject)} />}
+        >
+          <ListChecks /> Syllabus coverage
+        </Button>
         {designs.includes(`${grade}|${subject}`) && (
           <Button
             variant="outline"

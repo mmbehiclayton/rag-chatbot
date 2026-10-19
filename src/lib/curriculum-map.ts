@@ -120,6 +120,23 @@ export async function getPublishedMap(
   return map?.strands.some((s) => s.subStrands.length > 0) ? map : null;
 }
 
+/** Checked maps for several classes in one query (empty classes are left out). */
+export async function getPublishedMaps(
+  classes: { grade: string; subject: string }[],
+): Promise<PublishedMap[]> {
+  if (classes.length === 0) return [];
+  const maps = await withDbRetry(() =>
+    db.curriculumMap.findMany({
+      where: {
+        status: MAP_STATUS.PUBLISHED,
+        OR: classes.map(({ grade, subject }) => ({ grade, subject })),
+      },
+      select: { id: true, grade: true, subject: true, strands: strandSelect },
+    }),
+  );
+  return maps.filter((m) => m.strands.some((s) => s.subStrands.length > 0));
+}
+
 /** "Grade|Learning area" keys for every published map. */
 export async function getPublishedMapKeys() {
   const maps = await withDbRetry(() =>
@@ -167,13 +184,13 @@ function flatten(map: PublishedMap): Located[] {
 }
 
 /**
- * Sub-strands taught in a term. Curators can tag a term on each sub-strand; untagged ones
- * are split evenly across the three terms by suggested lessons, in curriculum order.
+ * Every sub-strand in design order with the term it is taught in. Curators can tag a term on each
+ * sub-strand; untagged ones are split evenly across the three terms by suggested lessons.
  */
-export function subStrandsForTerm(map: PublishedMap, term: string) {
-  const n = Number(term.match(/[123]/)?.[0] ?? 0);
+export function subStrandsWithTerms(
+  map: PublishedMap,
+): (Located & { termNumber: number })[] {
   const all = flatten(map);
-  if (!n) return all;
   const untagged = all.filter((s) => !s.term);
   const total = untagged.reduce((sum, s) => sum + Math.max(1, s.lessons), 0);
   let before = 0;
@@ -186,7 +203,14 @@ export function subStrandsForTerm(map: PublishedMap, term: string) {
     );
     before += Math.max(1, s.lessons);
   }
-  return all.filter((s) => (s.term ?? evenTerm.get(s)) === n);
+  return all.map((s) => ({ ...s, termNumber: s.term ?? evenTerm.get(s) ?? 1 }));
+}
+
+/** Sub-strands taught in a term ("Term 2"), or all of them when no term is named. */
+export function subStrandsForTerm(map: PublishedMap, term: string) {
+  const n = Number(term.match(/[123]/)?.[0] ?? 0);
+  const all = subStrandsWithTerms(map);
+  return n ? all.filter((s) => s.termNumber === n) : all;
 }
 
 function describe(s: Located) {

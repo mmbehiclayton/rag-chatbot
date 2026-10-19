@@ -8,6 +8,7 @@ import {
   GraduationCap,
   Home,
   LayoutGrid,
+  ListChecks,
   type LucideIcon,
   MessageSquare,
   Settings,
@@ -18,15 +19,42 @@ import {
   Users,
 } from "lucide-react";
 
-export type NavItem = { name: string; href: string; icon: LucideIcon };
+/** `short` is the label on the phone's bottom bar, where six items share about 360px. */
+export type NavItem = {
+  name: string;
+  short?: string;
+  href: string;
+  icon: LucideIcon;
+};
 export type NavGroup = { label?: string; items: NavItem[] };
 
-/** The five destinations every user sees, on the bottom bar and the sidebar. Work is organised by class. */
+/** The destinations every user sees, on the bottom bar and the sidebar. Work is organised by class. */
 export const PRIMARY_NAV: NavItem[] = [
   { name: "Today", href: "/dashboard", icon: Home },
-  { name: "My classes", href: "/dashboard/classes", icon: GraduationCap },
-  { name: "Curriculum Designs", href: "/dashboard/designs", icon: BookOpen },
-  { name: "Ask Elimu", href: "/dashboard/chat", icon: MessageSquare },
+  {
+    name: "My classes",
+    short: "Classes",
+    href: "/dashboard/classes",
+    icon: GraduationCap,
+  },
+  {
+    name: "Curriculum Designs",
+    short: "Designs",
+    href: "/dashboard/designs",
+    icon: BookOpen,
+  },
+  {
+    name: "Syllabus coverage",
+    short: "Coverage",
+    href: "/dashboard/coverage",
+    icon: ListChecks,
+  },
+  {
+    name: "Ask Elimu",
+    short: "Ask",
+    href: "/dashboard/chat",
+    icon: MessageSquare,
+  },
   { name: "Me", href: "/dashboard/profile", icon: UserCircle },
 ];
 
@@ -101,6 +129,7 @@ const TITLES: [string, string][] = [
   ["/dashboard/classes", "My classes"],
   ["/dashboard/curriculum", "Curriculum maps"],
   ["/dashboard/designs", "Curriculum Designs"],
+  ["/dashboard/coverage", "Syllabus coverage"],
   ["/dashboard/library", "Library"],
   ["/dashboard/schemes", "Scheme of work"],
   ["/dashboard/lessons", "Lesson plan"],
