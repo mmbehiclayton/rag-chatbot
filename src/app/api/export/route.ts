@@ -53,6 +53,7 @@ export async function GET(req: NextRequest) {
             teacherId: session.userId,
             OR: [{ grade, subject }, { scheme: { grade, subject } }],
           },
+          include: LESSON_EXPORT_INCLUDE,
           orderBy: { lessonNumber: "asc" },
         });
         if (!items.length)
@@ -112,7 +113,7 @@ export async function GET(req: NextRequest) {
     } else if (type === "lesson") {
       const lesson = await db.lessonPlan.findFirst({
         where: { id, teacherId: session.userId },
-        include: { scheme: { select: { grade: true, subject: true } } },
+        include: LESSON_EXPORT_INCLUDE,
       });
       if (!lesson) return new NextResponse("Not found", { status: 404 });
       cls = {
@@ -427,16 +428,28 @@ type LessonActivity = {
   grouping?: string;
   teacherActions?: unknown[];
   learnerActions?: unknown[];
+  integration?: string;
+  formativeAssessment?: string;
 };
+
+type Pair = Record<string, string | undefined>;
 
 type LessonContent = {
   strand?: string;
   subStrand?: string;
   specificLearningOutcomes?: unknown[];
+  keyInquiryQuestions?: unknown[];
+  learningResources?: unknown[];
+  organisationOfLearning?: string;
+  coreCompetencies?: Pair[];
+  values?: Pair[];
+  pertinentIssues?: Pair[];
+  linksToOtherLearningAreas?: Pair[];
   lessonStructure?: {
     introduction?: {
       duration?: number | string;
       recap?: string;
+      connectionToLearnersLives?: string;
       learningIntentions?: string;
       successCriteria?: string;
     };
@@ -444,6 +457,7 @@ type LessonContent = {
     conclusion?: {
       duration?: number | string;
       summary?: string;
+      assessmentOfLearning?: string;
       exitTicket?: string;
       homework?: string;
     };
@@ -453,89 +467,210 @@ type LessonContent = {
       advancedLearners?: string;
     };
   };
+  extendedActivity?: string;
+  reflection?: string;
+  assessmentRubric?: {
+    criteria?: string;
+    exceeding?: string;
+    meeting?: string;
+    approaching?: string;
+    below?: string;
+  };
 };
 
 type LessonExport = {
   topic?: string | null;
   content?: unknown;
+  lessonNumber?: number | null;
+  durationMinutes?: number | null;
+  schemeId?: string | null;
+  grade?: string | null;
+  subject?: string | null;
+  scheme?: { grade?: string | null; subject?: string | null } | null;
+  teacher?: {
+    name?: string | null;
+    schoolName?: string | null;
+    tenant?: { name?: string | null } | null;
+  } | null;
 };
 
+/** What every exported lesson plan needs for its header. */
+const LESSON_EXPORT_INCLUDE = {
+  scheme: { select: { grade: true, subject: true } },
+  teacher: {
+    select: {
+      name: true,
+      schoolName: true,
+      tenant: { select: { name: true } },
+    },
+  },
+} as const;
+
+/** A lesson plan in the KICD order, with blanks for what the teacher fills in by hand. */
 function lessonBody(lesson: LessonExport) {
   const c = (lesson.content ?? {}) as LessonContent;
   const intro = c.lessonStructure?.introduction;
-  const main = Array.isArray(c.lessonStructure?.mainActivities)
+  const steps = Array.isArray(c.lessonStructure?.mainActivities)
     ? c.lessonStructure.mainActivities
     : [];
   const conc = c.lessonStructure?.conclusion;
   const diff = c.lessonStructure?.differentiation;
+  const rubric = c.assessmentRubric;
+  const extended = c.extendedActivity || conc?.homework;
+  const school =
+    lesson.teacher?.schoolName || lesson.teacher?.tenant?.name || "";
+  const grade = lesson.grade ?? lesson.scheme?.grade ?? "";
+  const subject = lesson.subject ?? lesson.scheme?.subject ?? "";
 
-  const mainRows = main
+  const list = (items: unknown, tag = "ul") => {
+    const li = arr(items)
+      .filter((x) => x.trim())
+      .map((x) => `<li>${esc(x)}</li>`)
+      .join("");
+    return li ? `<${tag}>${li}</${tag}>` : "";
+  };
+  const para = (label: string, value?: string) =>
+    value ? `<p><strong>${label}:</strong> ${esc(value)}</p>` : "";
+  const pairs = (title: string, items: unknown, name: string, how: string) => {
+    const rows = (Array.isArray(items) ? (items as Pair[]) : [])
+      .filter((x) => x?.[name] || x?.[how])
+      .map((x) => `<li><strong>${esc(x[name])}:</strong> ${esc(x[how])}</li>`)
+      .join("");
+    return rows ? `<h3>${title}</h3><ul>${rows}</ul>` : "";
+  };
+  const section = (title: string, inner: string) =>
+    inner.trim() ? `<div class="section"><h2>${title}</h2>${inner}</div>` : "";
+  const mins = (v: unknown) => (v ? ` (${esc(v)} min)` : "");
+  const outcomes = list(c.specificLearningOutcomes, "ol");
+  const blank = `<div class="blank"></div>`;
+
+  const stepRows = steps
     .map(
-      (a) => `
+      (a, i) => `
     <tr>
-      <td><strong>${esc(a.activityName)}</strong></td>
-      <td>${esc(a.duration)} min</td>
-      <td>${esc(a.grouping)}</td>
-      <td><ul>${arr(a.teacherActions)
-        .map((t) => `<li>${esc(t)}</li>`)
-        .join("")}</ul></td>
-      <td><ul>${arr(a.learnerActions)
-        .map((l) => `<li>${esc(l)}</li>`)
-        .join("")}</ul></td>
-    </tr>
-  `,
+      <td><strong>Step ${i + 1}</strong>${a.activityName ? `<br>${esc(a.activityName)}` : ""}${a.grouping ? `<br><em>${esc(a.grouping)}</em>` : ""}</td>
+      <td class="center">${esc(a.duration)}</td>
+      <td>${list(a.learnerActions, "ol")}</td>
+      <td>${list(a.teacherActions, "ol")}${a.formativeAssessment ? `<p><strong>Check:</strong> ${esc(a.formativeAssessment)}</p>` : ""}</td>
+      <td>${esc(a.integration)}</td>
+    </tr>`,
     )
     .join("");
 
-  const body = `
-    <h1>${esc(lesson.topic)}</h1>
-    <div class="meta">
-      <div>Strand: <span>${esc(c?.strand)}</span></div>
-      <div>Sub-Strand: <span>${esc(c?.subStrand)}</span></div>
-    </div>
+  return `
+    <style>
+      table.head th { width: 18%; text-align: left; }
+      table.head td { width: 32%; }
+      .blank { border-bottom: 1px solid #999; height: 26px; }
+      .signline { margin-top: 28px; font-size: 12px; }
+    </style>
+    <div class="center"><h1>Lesson plan</h1></div>
+    <table class="head">
+      <tr><th>School</th><td>${esc(school)}</td><th>Teacher</th><td>${esc(lesson.teacher?.name)}</td></tr>
+      <tr><th>Grade</th><td>${esc(grade)}</td><th>Learning area</th><td>${esc(subject)}</td></tr>
+      <tr><th>Date</th><td></td><th>Time</th><td>${lesson.durationMinutes ? `${esc(lesson.durationMinutes)} minutes` : ""}</td></tr>
+      <tr><th>Roll</th><td>Boys ___ Girls ___ Total ___</td><th>Lesson</th><td>${lesson.schemeId && lesson.lessonNumber ? esc(lesson.lessonNumber) : ""}</td></tr>
+    </table>
 
     <div class="section">
-      <h2>Learning Outcomes</h2>
-      <ul>${arr(c?.specificLearningOutcomes)
-        .map((o) => `<li>${esc(o)}</li>`)
-        .join("")}</ul>
+      ${para("Strand", c.strand)}
+      ${para("Sub-strand", c.subStrand)}
+      ${para("Lesson title", lesson.topic ?? undefined)}
     </div>
 
-    <div class="section">
-      <h2>Introduction (${esc(intro?.duration)}min)</h2>
-      <p><strong>Recap:</strong> ${esc(intro?.recap)}</p>
-      <p><strong>Learning Intention:</strong> ${esc(intro?.learningIntentions)}</p>
-      <p><strong>Success Criteria:</strong> ${esc(intro?.successCriteria)}</p>
-    </div>
+    ${section(
+      "Specific learning outcomes",
+      outcomes
+        ? `<p>By the end of the lesson, the learner should be able to:</p>${outcomes}`
+        : "",
+    )}
+    ${section("Key inquiry question(s)", list(c.keyInquiryQuestions))}
+    ${section("Learning resources", list(c.learningResources))}
+    ${section(
+      "Organisation of learning",
+      c.organisationOfLearning ? `<p>${esc(c.organisationOfLearning)}</p>` : "",
+    )}
 
-    <div class="section">
-      <h2>Main Activities</h2>
-      <table>
-        <thead><tr><th>Activity</th><th>Time</th><th>Grouping</th><th>Teacher Actions</th><th>Learner Actions</th></tr></thead>
-        <tbody>${mainRows}</tbody>
-      </table>
-    </div>
+    ${section(
+      `Introduction${mins(intro?.duration)}`,
+      para("Recap", intro?.recap) +
+        para("Link to learners' lives", intro?.connectionToLearnersLives) +
+        para("Learning intentions", intro?.learningIntentions) +
+        para("Success criteria", intro?.successCriteria),
+    )}
 
-    <div class="section">
-      <h2>Differentiation</h2>
-      <table>
-        <tr><th>Learners Needing Support</th><th>Average Learners</th><th>Advanced Learners</th></tr>
+    ${section(
+      "Lesson development",
+      stepRows
+        ? `<table>
+        <thead><tr><th style="width:16%">Step</th><th style="width:6%">Min</th><th>Learner activities</th><th>Teacher</th><th style="width:20%">Competencies, values and PCIs</th></tr></thead>
+        <tbody>${stepRows}</tbody>
+      </table>`
+        : "",
+    )}
+
+    ${section(
+      `Conclusion${mins(conc?.duration)}`,
+      para("Summary", conc?.summary) +
+        para("Assessment", conc?.assessmentOfLearning) +
+        para("Exit ticket", conc?.exitTicket),
+    )}
+
+    ${section("Extended activity", extended ? `<p>${esc(extended)}</p>` : "")}
+
+    ${section(
+      "Differentiation",
+      diff
+        ? `<table>
+        <tr><th>Learners needing support</th><th>Most learners</th><th>Learners ready for more</th></tr>
         <tr>
-          <td>${esc(diff?.learnersNeedingSupport)}</td>
-          <td>${esc(diff?.averageLearners)}</td>
-          <td>${esc(diff?.advancedLearners)}</td>
+          <td>${esc(diff.learnersNeedingSupport)}</td>
+          <td>${esc(diff.averageLearners)}</td>
+          <td>${esc(diff.advancedLearners)}</td>
         </tr>
-      </table>
-    </div>
+      </table>`
+        : "",
+    )}
+
+    ${section(
+      "Core competencies, values and issues",
+      pairs(
+        "Core competencies",
+        c.coreCompetencies,
+        "competency",
+        "howDeveloped",
+      ) +
+        pairs("Values", c.values, "value", "howDemonstrated") +
+        pairs(
+          "Pertinent and contemporary issues",
+          c.pertinentIssues,
+          "issue",
+          "howAddressed",
+        ) +
+        pairs(
+          "Links to other learning areas",
+          c.linksToOtherLearningAreas,
+          "learningArea",
+          "link",
+        ),
+    )}
+
+    ${section(
+      "Assessment rubric",
+      rubric
+        ? `${rubric.criteria ? `<p>${esc(rubric.criteria)}</p>` : ""}<table>
+        <tr><th>Exceeding expectations</th><th>Meeting expectations</th><th>Approaching expectations</th><th>Below expectations</th></tr>
+        <tr><td>${esc(rubric.exceeding)}</td><td>${esc(rubric.meeting)}</td><td>${esc(rubric.approaching)}</td><td>${esc(rubric.below)}</td></tr>
+      </table>`
+        : "",
+    )}
 
     <div class="section">
-      <h2>Conclusion (${esc(conc?.duration)}min)</h2>
-      <p><strong>Summary:</strong> ${esc(conc?.summary)}</p>
-      <p><strong>Exit Ticket:</strong> ${esc(conc?.exitTicket)}</p>
-      <p><strong>Homework:</strong> ${esc(conc?.homework)}</p>
+      <h2>Reflection</h2>
+      ${c.reflection ? `<p>${esc(c.reflection)}</p>` : blank + blank + blank}
+      <div class="signline">Teacher's signature: ____________________ &nbsp; Date: ____________</div>
     </div>
   `;
-  return body;
 }
 
 function buildLessonHTML(lesson: LessonExport) {

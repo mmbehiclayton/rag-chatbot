@@ -225,13 +225,25 @@ const SchemeOfWorkSchema = z.object({
   ),
 });
 
+// Follows the KICD lesson plan format: strand, sub-strand, outcomes, inquiry questions, resources,
+// organisation of learning, introduction, lesson development in steps, conclusion, extended activity.
+// The teacher's reflection is left out: they write it after teaching.
 const LessonPlanSchema = z.object({
-  topic: z.string(),
+  topic: z.string().describe("Short lesson title within the sub-strand"),
   strand: z.string(),
   subStrand: z.string(),
-  specificLearningOutcomes: z.array(z.string()),
+  specificLearningOutcomes: z
+    .array(z.string())
+    .describe(
+      "2-3 measurable outcomes completing 'By the end of the lesson, the learner should be able to:', each starting with an action verb, without that stem",
+    ),
   keyInquiryQuestions: z.array(z.string()),
   learningResources: z.array(z.string()),
+  organisationOfLearning: z
+    .string()
+    .describe(
+      "Where the lesson happens and how learners are grouped, e.g. 'In class, in groups of five'",
+    ),
   coreCompetencies: z.array(
     z.object({
       competency: z.string(),
@@ -244,6 +256,20 @@ const LessonPlanSchema = z.object({
       howDemonstrated: z.string(),
     }),
   ),
+  pertinentIssues: z
+    .array(
+      z.object({
+        issue: z.string(),
+        howAddressed: z.string(),
+      }),
+    )
+    .describe("Pertinent and contemporary issues (PCIs) the lesson touches"),
+  linksToOtherLearningAreas: z.array(
+    z.object({
+      learningArea: z.string(),
+      link: z.string(),
+    }),
+  ),
   lessonStructure: z.object({
     introduction: z.object({
       duration: z.number(),
@@ -252,16 +278,27 @@ const LessonPlanSchema = z.object({
       learningIntentions: z.string(),
       successCriteria: z.string(),
     }),
-    mainActivities: z.array(
-      z.object({
-        activityName: z.string(),
-        duration: z.number(),
-        grouping: z.string(),
-        teacherActions: z.array(z.string()),
-        learnerActions: z.array(z.string()),
-        formativeAssessment: z.string(),
-      }),
-    ),
+    mainActivities: z
+      .array(
+        z.object({
+          activityName: z.string().describe("Short name for this step"),
+          duration: z.number(),
+          grouping: z.string(),
+          learnerActions: z
+            .array(z.string())
+            .describe("What learners do, e.g. 'Learners discuss…'"),
+          teacherActions: z
+            .array(z.string())
+            .describe("How the teacher guides, e.g. 'Guide learners to…'"),
+          integration: z
+            .string()
+            .describe(
+              "At most one or two core competencies, values or PCIs this step develops, and how",
+            ),
+          formativeAssessment: z.string(),
+        }),
+      )
+      .describe("Lesson development, in steps (Step 1, Step 2, …)"),
     differentiation: z.object({
       learnersNeedingSupport: z.string(),
       averageLearners: z.string(),
@@ -273,9 +310,13 @@ const LessonPlanSchema = z.object({
       assessmentOfLearning: z.string(),
       exitTicket: z.string(),
       previewNextLesson: z.string(),
-      homework: z.string(),
     }),
   }),
+  extendedActivity: z
+    .string()
+    .describe(
+      "A short task beyond the lesson, at home or in the community, using things learners have",
+    ),
   assessmentRubric: z.object({
     criteria: z.string(),
     exceeding: z.string(),
@@ -283,19 +324,26 @@ const LessonPlanSchema = z.object({
     approaching: z.string(),
     below: z.string(),
   }),
-  multimediaSuggestions: z
-    .array(
-      z.object({
-        type: z.enum(["IMAGE", "VIDEO", "DIAGRAM", "EXPERIMENT"]),
-        description: z.string(),
-        purpose: z.string(),
-        suggestedSource: z
-          .string()
-          .describe("Empty array if no specific source"),
-      }),
-    )
-    .describe("List 3-5 multimedia suggestions, or an empty array if none"),
 });
+
+const CORE_COMPETENCIES =
+  "Communication and collaboration; Critical thinking and problem solving; Imagination and creativity; Citizenship; Digital literacy; Learning to learn; Self-efficacy";
+
+/** The KICD lesson plan rules both lesson plan prompts share. */
+function lessonPlanRules(durationMinutes: number) {
+  return `FOLLOW THE KICD LESSON PLAN FORMAT:
+1. Specific learning outcomes: 2-3, measurable, each starting with an action verb (identify, describe, construct…). Cover knowledge, skills and attitudes. Use the curriculum design's wording where it fits.
+2. Organisation of learning: where the lesson takes place and how learners are grouped.
+3. Timing adds up to ${durationMinutes} minutes: introduction about ${Math.round(durationMinutes * 0.125)} minutes, lesson development about ${durationMinutes - 2 * Math.round(durationMinutes * 0.125)} minutes in 2-4 steps, conclusion about ${Math.round(durationMinutes * 0.125)} minutes.
+4. Lesson development is learner-centred. In each step, learners do the work (discuss, observe, try, present) and the teacher guides. Avoid "Teacher explains". Give each step at most one or two core competencies, values or PCIs in "integration".
+5. Core competencies come from this list: ${CORE_COMPETENCIES}. Values come from: love, responsibility, respect, unity, peace, patriotism, social justice, integrity.
+6. Name the pertinent and contemporary issues (PCIs) the lesson naturally touches, e.g. environmental conservation, health, safety and security, financial literacy, citizenship, life skills. Add links to other learning areas.
+7. Learning resources are things a Kenyan school has or can make: course books, charts, realia, locally available materials. Mention a video or diagram only where it truly helps. Do not invent textbook page numbers.
+8. Extended activity: one short task learners do at home or in the community.
+9. Differentiation for learners needing support, most learners, and learners ready for more.
+10. Rubric on the four CBC levels (exceeding, meeting, approaching, below expectations), describing what a learner does at each level against the outcomes.
+11. Do not write the teacher's reflection; the teacher writes it after the lesson.`;
+}
 
 const LessonNotesSchema = z.object({
   topic: z.string(),
@@ -615,12 +663,8 @@ async function generateLessonPlanImpl(
 
   const systemPrompt = `You are an expert KICD-trained teacher. Generate a highly detailed Lesson Plan conforming to strict CBC architecture.${customRuleText}
 
-MANDATORY REQUIREMENTS:
-1. Follow the 3-part lesson structure (10-15% Intro, 70-80% Main, 10-15% Conclusion).
-2. Expand scheme activities into step-by-step detailed activities with specific dialogue.
-3. Include differentiation for 3 levels (Support/Average/Advanced).
-4. Create a 4-level CBC assessment rubric with observable behaviors.
-5. Provide 3-5 Multimedia Suggestions (YouTube concepts, diagrams to draw, or specific images) to enhance the 40-minute block.
+${lessonPlanRules(40)}
+12. Expand the scheme's learning experiences for this lesson into the steps.
 
 SCHEME CONTENT TO EXTRACT FROM:
 ${JSON.stringify(scheme.content)}
@@ -724,12 +768,7 @@ INPUT DATA:
 - Topic / sub-strand: ${topic}
 - Lesson duration: ${durationMinutes} minutes
 
-MANDATORY REQUIREMENTS:
-1. Follow the 3-part lesson structure (10-15% Intro, 70-80% Main, 10-15% Conclusion); durations must add up to ${durationMinutes} minutes.
-2. Write step-by-step activities with specific teacher and learner actions, using locally available Kenyan resources.
-3. Include differentiation for 3 levels (Support/Average/Advanced).
-4. Create a 4-level CBC assessment rubric with observable behaviours.
-5. Provide 3-5 Multimedia Suggestions.
+${lessonPlanRules(durationMinutes)}
 
 ${groundingText}
 `;

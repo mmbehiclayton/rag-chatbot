@@ -125,7 +125,12 @@ export function Field({
   label: string;
   children: React.ReactNode;
 }) {
-  if (children === null || children === undefined || children === "")
+  if (
+    children === null ||
+    children === undefined ||
+    children === false ||
+    children === ""
+  )
     return null;
   return (
     <div className="space-y-1">

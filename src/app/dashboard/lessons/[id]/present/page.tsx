@@ -51,7 +51,7 @@ export default async function PresentLessonPage({
       ? [{ heading: "Think about it", points: strings(c.keyInquiryQuestions) }]
       : []),
     ...asArray<LessonActivity>(s.mainActivities).map((a, n) => ({
-      heading: a.activityName || `Activity ${n + 1}`,
+      heading: a.activityName || `Step ${n + 1}`,
       lead: a.grouping,
       points: strings(a.learnerActions),
     })),
@@ -60,7 +60,8 @@ export default async function PresentLessonPage({
       lead: s.conclusion?.summary,
       points: strings([
         s.conclusion?.exitTicket && `Exit ticket: ${s.conclusion.exitTicket}`,
-        s.conclusion?.homework && `Homework: ${s.conclusion.homework}`,
+        (c.extendedActivity || s.conclusion?.homework) &&
+          `At home: ${c.extendedActivity || s.conclusion?.homework}`,
       ]),
     },
   ];

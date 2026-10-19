@@ -74,14 +74,19 @@ function ListField({
 }
 
 function Section({
+  id,
   title,
   children,
 }: {
+  id?: string;
   title: string;
   children: React.ReactNode;
 }) {
   return (
-    <fieldset className="space-y-4 rounded-xl border bg-card p-4 sm:p-5">
+    <fieldset
+      id={id}
+      className="scroll-mt-20 space-y-4 rounded-xl border bg-card p-4 sm:p-5"
+    >
       <legend className="px-1 text-base font-semibold">{title}</legend>
       {children}
     </fieldset>
@@ -96,7 +101,13 @@ export function LessonEditor({
   initial: LessonContent;
 }) {
   const router = useRouter();
-  const [c, setC] = useState<LessonContent>(() => structuredClone(initial));
+  const [c, setC] = useState<LessonContent>(() => {
+    const copy = structuredClone(initial);
+    // Older plans kept the extended activity as homework in the conclusion.
+    if (!copy.extendedActivity && copy.lessonStructure?.conclusion?.homework)
+      copy.extendedActivity = copy.lessonStructure.conclusion.homework;
+    return copy;
+  });
   const [isPending, startTransition] = useTransition();
   const s = c.lessonStructure ?? {};
 
@@ -151,7 +162,7 @@ export function LessonEditor({
     >
       <Section title="Overview">
         <div className="space-y-1.5">
-          <Label htmlFor="topic">Topic</Label>
+          <Label htmlFor="topic">Lesson title</Label>
           <Input
             id="topic"
             value={c.topic ?? ""}
@@ -176,6 +187,13 @@ export function LessonEditor({
           label="Learning resources"
           value={c.learningResources}
           onChange={(v) => set({ learningResources: v })}
+        />
+        <TextField
+          id="org"
+          label="Organisation of learning"
+          value={c.organisationOfLearning}
+          onChange={(v) => set({ organisationOfLearning: v })}
+          hint="Where the lesson happens and how learners are grouped"
         />
       </Section>
 
@@ -213,7 +231,7 @@ export function LessonEditor({
       {(s.mainActivities ?? []).map((a, i) => (
         <Section
           key={a.activityName ?? `activity-${i}`}
-          title={`Activity ${i + 1}`}
+          title={`Step ${i + 1}`}
         >
           <div className="space-y-1.5">
             <Label htmlFor={`a${i}-name`}>Name</Label>
@@ -225,16 +243,22 @@ export function LessonEditor({
             />
           </div>
           <ListField
+            id={`a${i}-l`}
+            label="Learners"
+            value={a.learnerActions}
+            onChange={(v) => setActivity(i, { learnerActions: v })}
+          />
+          <ListField
             id={`a${i}-t`}
             label="Teacher"
             value={a.teacherActions}
             onChange={(v) => setActivity(i, { teacherActions: v })}
           />
-          <ListField
-            id={`a${i}-l`}
-            label="Learners"
-            value={a.learnerActions}
-            onChange={(v) => setActivity(i, { learnerActions: v })}
+          <TextField
+            id={`a${i}-i`}
+            label="Competencies, values and issues"
+            value={a.integration}
+            onChange={(v) => setActivity(i, { integration: v })}
           />
           <TextField
             id={`a${i}-f`}
@@ -285,11 +309,24 @@ export function LessonEditor({
           value={s.conclusion?.exitTicket}
           onChange={(v) => setStructure("conclusion", { exitTicket: v })}
         />
+      </Section>
+
+      <Section title="Extended activity">
         <TextField
-          id="hw"
-          label="Homework"
-          value={s.conclusion?.homework}
-          onChange={(v) => setStructure("conclusion", { homework: v })}
+          id="ext"
+          label="Task for home or the community"
+          value={c.extendedActivity}
+          onChange={(v) => set({ extendedActivity: v })}
+        />
+      </Section>
+
+      <Section id="reflection" title="Reflection">
+        <TextField
+          id="refl"
+          label="After the lesson"
+          value={c.reflection}
+          onChange={(v) => set({ reflection: v })}
+          hint="What went well, which learners need more help, and what you will change"
         />
       </Section>
 
