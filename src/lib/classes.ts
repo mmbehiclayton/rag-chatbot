@@ -1,6 +1,6 @@
 import { formatDistanceToNow } from "date-fns";
-import { db, withDbRetry } from "@/lib/db";
 import { getGradeOptions } from "@/lib/curriculum-options";
+import { db, withDbRetry } from "@/lib/db";
 
 /** A class is one grade + learning area the teacher teaches, e.g. "Grade 7 · Integrated Science". */
 export type TeacherClass = {
@@ -17,15 +17,26 @@ export function classHref(grade: string, subject: string) {
 }
 
 /** Create-page link pre-filled with this class. */
-export function createHref(kind: "lesson" | "scheme" | "assessment", grade: string, subject: string) {
+export function createHref(
+  kind: "lesson" | "scheme" | "assessment",
+  grade: string,
+  subject: string,
+) {
   return `/dashboard/create/${kind}?${new URLSearchParams({ grade, subject })}`;
 }
 
 /** Where clause for a teacher's lesson plans in one class (older scheme lessons only carry grade on the scheme). */
-export function classLessonWhere(teacherId: string, grade: string, subject: string) {
+export function classLessonWhere(
+  teacherId: string,
+  grade: string,
+  subject: string,
+) {
   return {
     teacherId,
-    OR: [{ grade, subject }, { grade: null, scheme: { grade, subject } }],
+    OR: [
+      { grade, subject },
+      { grade: null, scheme: { grade, subject } },
+    ],
   };
 }
 
@@ -41,7 +52,13 @@ export function classSummary(c: TeacherClass) {
     c.assessments > 0 && plural(c.assessments, "assessment", "assessments"),
   ].filter(Boolean);
   if (parts.length === 0) return "Nothing prepared yet";
-  return [...parts, c.updatedAt && `updated ${formatDistanceToNow(c.updatedAt, { addSuffix: true })}`].filter(Boolean).join(" · ");
+  return [
+    ...parts,
+    c.updatedAt &&
+      `updated ${formatDistanceToNow(c.updatedAt, { addSuffix: true })}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 const key = (grade: string, subject: string) => `${grade}|${subject}`;
@@ -50,21 +67,43 @@ const key = (grade: string, subject: string) => `${grade}|${subject}`;
  * The teacher's classes: pairs from onboarding that exist in the curriculum structure,
  * plus any grade + learning area they already have documents for.
  */
-export async function getTeacherClasses(teacherId: string): Promise<TeacherClass[]> {
+export async function getTeacherClasses(
+  teacherId: string,
+): Promise<TeacherClass[]> {
   const [user, grades, schemes, lessons, assessments] = await Promise.all([
-    withDbRetry(() => db.user.findUnique({ where: { id: teacherId }, select: { gradesTaught: true, subjectsTaught: true } })),
+    withDbRetry(() =>
+      db.user.findUnique({
+        where: { id: teacherId },
+        select: { gradesTaught: true, subjectsTaught: true },
+      }),
+    ),
     getGradeOptions(),
     withDbRetry(() =>
-      db.schemeOfWork.groupBy({ by: ["grade", "subject"], where: { teacherId }, _count: { _all: true }, _max: { updatedAt: true } })
+      db.schemeOfWork.groupBy({
+        by: ["grade", "subject"],
+        where: { teacherId },
+        _count: { _all: true },
+        _max: { updatedAt: true },
+      }),
     ),
     withDbRetry(() =>
       db.lessonPlan.findMany({
         where: { teacherId },
-        select: { grade: true, subject: true, updatedAt: true, scheme: { select: { grade: true, subject: true } } },
-      })
+        select: {
+          grade: true,
+          subject: true,
+          updatedAt: true,
+          scheme: { select: { grade: true, subject: true } },
+        },
+      }),
     ),
     withDbRetry(() =>
-      db.assessment.groupBy({ by: ["grade", "subject"], where: { teacherId }, _count: { _all: true }, _max: { updatedAt: true } })
+      db.assessment.groupBy({
+        by: ["grade", "subject"],
+        where: { teacherId },
+        _count: { _all: true },
+        _max: { updatedAt: true },
+      }),
     ),
   ]);
 
@@ -73,7 +112,14 @@ export async function getTeacherClasses(teacherId: string): Promise<TeacherClass
     const k = key(grade, subject);
     let c = classes.get(k);
     if (!c) {
-      c = { grade, subject, schemes: 0, lessons: 0, assessments: 0, updatedAt: null };
+      c = {
+        grade,
+        subject,
+        schemes: 0,
+        lessons: 0,
+        assessments: 0,
+        updatedAt: null,
+      };
       classes.set(k, c);
     }
     return c;
@@ -85,7 +131,8 @@ export async function getTeacherClasses(teacherId: string): Promise<TeacherClass
   // Onboarding pairs first, in the order the teacher chose them.
   for (const grade of user?.gradesTaught ?? []) {
     const areas = grades.find((g) => g.name === grade)?.learningAreas ?? [];
-    for (const subject of user?.subjectsTaught ?? []) if (areas.includes(subject)) get(grade, subject);
+    for (const subject of user?.subjectsTaught ?? [])
+      if (areas.includes(subject)) get(grade, subject);
   }
 
   for (const s of schemes) {
@@ -110,16 +157,33 @@ export async function getTeacherClasses(teacherId: string): Promise<TeacherClass
   return [...classes.values()];
 }
 
-type SchemeContent = { weeks?: { weekNumber?: number; rows?: { strand?: string; subStrand?: string }[] }[] };
+type SchemeContent = {
+  weeks?: {
+    weekNumber?: number;
+    rows?: { strand?: string; subStrand?: string }[];
+  }[];
+};
 
-export type NextLesson = { schemeId: string; lessonNumber: number; weekNumber: number; topic: string; total: number; done: number };
+export type NextLesson = {
+  schemeId: string;
+  lessonNumber: number;
+  weekNumber: number;
+  topic: string;
+  total: number;
+  done: number;
+};
 
 /**
  * The first lesson in a scheme that has no lesson plan yet. Lesson numbers run across the
  * whole term, one per scheme row, matching the scheme page and getSchemeLessonsStatus.
  */
-export function nextLessonInScheme(scheme: { id: string; content: unknown }, planned: Set<number>): NextLesson | null {
-  const weeks = Array.isArray((scheme.content as SchemeContent | null)?.weeks) ? (scheme.content as SchemeContent).weeks! : [];
+export function nextLessonInScheme(
+  scheme: { id: string; content: unknown },
+  planned: Set<number>,
+): NextLesson | null {
+  const weeks = Array.isArray((scheme.content as SchemeContent | null)?.weeks)
+    ? ((scheme.content as SchemeContent).weeks ?? [])
+    : [];
   let counter = 0;
   let next: NextLesson | null = null;
   weeks.forEach((week, wi) => {

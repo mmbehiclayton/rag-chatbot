@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Check, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { reviewPayment } from "@/lib/actions/pilot";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { reviewPayment } from "@/lib/actions/pilot";
 
 /** Activate a pass once the code is on the M-Pesa statement, or turn it down with a reason the teacher sees. */
 export function PaymentReview({ id }: { id: string }) {
@@ -19,7 +19,9 @@ export function PaymentReview({ id }: { id: string }) {
     startTransition(async () => {
       const result = await reviewPayment({ id, approve, note });
       if (!result.success) return void toast.error(result.error);
-      toast.success(approve ? "Term pass switched on" : "Teacher will see your reason");
+      toast.success(
+        approve ? "Term pass switched on" : "Teacher will see your reason",
+      );
       router.refresh();
     });
 
@@ -35,10 +37,18 @@ export function PaymentReview({ id }: { id: string }) {
           autoFocus
         />
         <div className="flex gap-2">
-          <Button variant="destructive" disabled={isPending || !note.trim()} onClick={() => send(false)}>
+          <Button
+            variant="destructive"
+            disabled={isPending || !note.trim()}
+            onClick={() => send(false)}
+          >
             Turn down
           </Button>
-          <Button variant="ghost" disabled={isPending} onClick={() => setRejecting(false)}>
+          <Button
+            variant="ghost"
+            disabled={isPending}
+            onClick={() => setRejecting(false)}
+          >
             Cancel
           </Button>
         </div>
@@ -50,7 +60,11 @@ export function PaymentReview({ id }: { id: string }) {
       <Button disabled={isPending} onClick={() => send(true)}>
         <Check /> Activate
       </Button>
-      <Button variant="outline" disabled={isPending} onClick={() => setRejecting(true)}>
+      <Button
+        variant="outline"
+        disabled={isPending}
+        onClick={() => setRejecting(true)}
+      >
         <X /> Turn down
       </Button>
     </div>

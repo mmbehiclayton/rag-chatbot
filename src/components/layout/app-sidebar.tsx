@@ -1,12 +1,17 @@
 "use client";
 
+import { LogOut } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { Logo } from "@/components/shared/logo";
 import { logout } from "@/lib/actions/auth";
 import { cn } from "@/lib/utils";
-import { Logo } from "@/components/shared/logo";
-import { PRIMARY_NAV, adminNavGroups, isActivePath, type NavItem } from "./nav-config";
+import {
+  adminNavGroups,
+  isActivePath,
+  type NavItem,
+  PRIMARY_NAV,
+} from "./nav-config";
 
 function SidebarLink({ item, active }: { item: NavItem; active: boolean }) {
   const Icon = item.icon;
@@ -16,7 +21,9 @@ function SidebarLink({ item, active }: { item: NavItem; active: boolean }) {
       aria-current={active ? "page" : undefined}
       className={cn(
         "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-        active ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+        active
+          ? "bg-accent text-accent-foreground"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
       <Icon className="h-4 w-4 shrink-0" aria-hidden />
@@ -25,7 +32,13 @@ function SidebarLink({ item, active }: { item: NavItem; active: boolean }) {
   );
 }
 
-export function AppSidebar({ role, isCurator = false }: { role: string | null; isCurator?: boolean }) {
+export function AppSidebar({
+  role,
+  isCurator = false,
+}: {
+  role: string | null;
+  isCurator?: boolean;
+}) {
   const pathname = usePathname();
   const groups = adminNavGroups(role, isCurator);
 
@@ -35,17 +48,30 @@ export function AppSidebar({ role, isCurator = false }: { role: string | null; i
         <Logo href="/dashboard" />
       </div>
 
-      <nav aria-label="Main" className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
+      <nav
+        aria-label="Main"
+        className="flex-1 space-y-6 overflow-y-auto px-3 py-4"
+      >
         <div className="space-y-1">
           {PRIMARY_NAV.map((item) => (
-            <SidebarLink key={item.href} item={item} active={isActivePath(pathname, item.href)} />
+            <SidebarLink
+              key={item.href}
+              item={item}
+              active={isActivePath(pathname, item.href)}
+            />
           ))}
         </div>
         {groups.map((group) => (
           <div key={group.label} className="space-y-1">
-            <p className="px-3 pb-1 text-xs font-medium text-muted-foreground">{group.label}</p>
+            <p className="px-3 pb-1 text-xs font-medium text-muted-foreground">
+              {group.label}
+            </p>
             {group.items.map((item) => (
-              <SidebarLink key={item.href} item={item} active={isActivePath(pathname, item.href)} />
+              <SidebarLink
+                key={item.href}
+                item={item}
+                active={isActivePath(pathname, item.href)}
+              />
             ))}
           </div>
         ))}

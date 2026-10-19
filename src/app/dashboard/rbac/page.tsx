@@ -1,12 +1,24 @@
+import { Check, Minus } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Check, Minus } from "lucide-react";
-import { auth } from "@/lib/auth";
-import { db, withDbRetry } from "@/lib/db";
-import { OTHER_RULES, ROLE_LABELS, ROUTE_ACCESS, type Role } from "@/lib/access";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  OTHER_RULES,
+  ROLE_LABELS,
+  ROUTE_ACCESS,
+  type Role,
+} from "@/lib/access";
+import { auth } from "@/lib/auth";
+import { db, withDbRetry } from "@/lib/db";
 
 const ROLES = Object.keys(ROLE_LABELS) as Role[];
 
@@ -15,7 +27,9 @@ export default async function AccessControlPage() {
   const session = await auth();
   if (session?.role !== "SUPERADMIN") redirect("/dashboard");
 
-  const counts = await withDbRetry(() => db.user.groupBy({ by: ["role"], _count: true }));
+  const counts = await withDbRetry(() =>
+    db.user.groupBy({ by: ["role"], _count: true }),
+  );
   const count = (r: Role) => counts.find((c) => c.role === r)?._count ?? 0;
 
   return (
@@ -23,7 +37,14 @@ export default async function AccessControlPage() {
       <PageHeader
         title="Access control"
         description="What each role can open. These rules are set in the code, so this page always shows what really happens."
-        action={<Button variant="outline" render={<Link href="/dashboard/teachers" />}>Change someone's role</Button>}
+        action={
+          <Button
+            variant="outline"
+            render={<Link href="/dashboard/teachers" />}
+          >
+            Change someone's role
+          </Button>
+        }
       />
 
       <dl className="grid grid-cols-3 divide-x rounded-xl border bg-card text-center">
@@ -57,9 +78,15 @@ export default async function AccessControlPage() {
                 {ROLES.map((r) => (
                   <TableCell key={r} className="text-center">
                     {a.roles.includes(r) ? (
-                      <Check className="mx-auto size-4 text-success" aria-label="Allowed" />
+                      <Check
+                        className="mx-auto size-4 text-success"
+                        aria-label="Allowed"
+                      />
                     ) : (
-                      <Minus className="mx-auto size-4 text-muted-foreground" aria-label="Not allowed" />
+                      <Minus
+                        className="mx-auto size-4 text-muted-foreground"
+                        aria-label="Not allowed"
+                      />
                     )}
                   </TableCell>
                 ))}

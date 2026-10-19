@@ -1,7 +1,7 @@
-import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { RulesClient } from "@/components/dashboard/rules-client";
+import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
 
 export default async function RulesPage() {
   const session = await auth();

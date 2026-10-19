@@ -1,6 +1,10 @@
 import { db, withDbRetry } from "@/lib/db";
 
-export const MAP_STATUS = { DRAFT: "DRAFT", IN_REVIEW: "IN_REVIEW", PUBLISHED: "PUBLISHED" } as const;
+export const MAP_STATUS = {
+  DRAFT: "DRAFT",
+  IN_REVIEW: "IN_REVIEW",
+  PUBLISHED: "PUBLISHED",
+} as const;
 export type MapStatus = keyof typeof MAP_STATUS;
 
 export type MapSubStrand = {
@@ -12,7 +16,12 @@ export type MapSubStrand = {
   learningExperiences: string[];
 };
 export type MapStrand = { name: string; subStrands: MapSubStrand[] };
-export type PublishedMap = { id: string; grade: string; subject: string; strands: MapStrand[] };
+export type PublishedMap = {
+  id: string;
+  grade: string;
+  subject: string;
+  strands: MapStrand[];
+};
 
 const strandSelect = {
   orderBy: { order: "asc" as const },
@@ -20,7 +29,14 @@ const strandSelect = {
     name: true,
     subStrands: {
       orderBy: { order: "asc" as const },
-      select: { name: true, lessons: true, term: true, outcomes: true, inquiryQuestions: true, learningExperiences: true },
+      select: {
+        name: true,
+        lessons: true,
+        term: true,
+        outcomes: true,
+        inquiryQuestions: true,
+        learningExperiences: true,
+      },
     },
   },
 };
@@ -29,67 +45,100 @@ const strandSelect = {
  * Replaces a map's strands and puts it back to Draft. Any change takes a map out of use until
  * a curator other than `editorId` checks it again.
  */
-export async function writeMapDraft(grade: string, subject: string, editorId: string | null, data: { sourceNote?: string; strands: MapStrand[] }) {
-  await db.$transaction(async (tx) => {
-    const map = await tx.curriculumMap.upsert({
-      where: { grade_subject: { grade, subject } },
-      create: { grade, subject, sourceNote: data.sourceNote || null, editedById: editorId },
-      update: {
-        sourceNote: data.sourceNote || null,
-        editedById: editorId,
-        status: MAP_STATUS.DRAFT,
-        checkedById: null,
-        publishedAt: null,
-      },
-      select: { id: true },
-    });
-    await tx.curriculumStrand.deleteMany({ where: { mapId: map.id } });
-    for (const [order, strand] of data.strands.entries()) {
-      await tx.curriculumStrand.create({
-        data: {
-          mapId: map.id,
-          order,
-          name: strand.name,
-          subStrands: { create: strand.subStrands.map((s, i) => ({ ...s, order: i })) },
+export async function writeMapDraft(
+  grade: string,
+  subject: string,
+  editorId: string | null,
+  data: { sourceNote?: string; strands: MapStrand[] },
+) {
+  await db.$transaction(
+    async (tx) => {
+      const map = await tx.curriculumMap.upsert({
+        where: { grade_subject: { grade, subject } },
+        create: {
+          grade,
+          subject,
+          sourceNote: data.sourceNote || null,
+          editedById: editorId,
         },
+        update: {
+          sourceNote: data.sourceNote || null,
+          editedById: editorId,
+          status: MAP_STATUS.DRAFT,
+          checkedById: null,
+          publishedAt: null,
+        },
+        select: { id: true },
       });
-    }
-  }, { timeout: 30_000 });
+      await tx.curriculumStrand.deleteMany({ where: { mapId: map.id } });
+      for (const [order, strand] of data.strands.entries()) {
+        await tx.curriculumStrand.create({
+          data: {
+            mapId: map.id,
+            order,
+            name: strand.name,
+            subStrands: {
+              create: strand.subStrands.map((s, i) => ({ ...s, order: i })),
+            },
+          },
+        });
+      }
+    },
+    { timeout: 30_000 },
+  );
 }
 
 /** Superadmins and teachers marked as curators can enter and check curriculum maps. */
 export async function getCurator(userId: string | null) {
   if (!userId) return null;
   const user = await withDbRetry(() =>
-    db.user.findUnique({ where: { id: userId }, select: { id: true, role: true, isCurator: true } })
+    db.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true, isCurator: true },
+    }),
   );
   return user && (user.role === "SUPERADMIN" || user.isCurator) ? user : null;
 }
 
 /** The checked map for a class, or null. Only published maps are used for generation. */
-export async function getPublishedMap(grade: string, subject: string): Promise<PublishedMap | null> {
+export async function getPublishedMap(
+  grade: string,
+  subject: string,
+): Promise<PublishedMap | null> {
   const map = await withDbRetry(() =>
     db.curriculumMap.findFirst({
       where: { grade, subject, status: MAP_STATUS.PUBLISHED },
       select: { id: true, grade: true, subject: true, strands: strandSelect },
-    })
+    }),
   );
-  return map && map.strands.some((s) => s.subStrands.length > 0) ? map : null;
+  return map?.strands.some((s) => s.subStrands.length > 0) ? map : null;
 }
 
 /** "Grade|Learning area" keys for every published map. */
 export async function getPublishedMapKeys() {
   const maps = await withDbRetry(() =>
-    db.curriculumMap.findMany({ where: { status: MAP_STATUS.PUBLISHED }, select: { grade: true, subject: true } })
+    db.curriculumMap.findMany({
+      where: { status: MAP_STATUS.PUBLISHED },
+      select: { grade: true, subject: true },
+    }),
   );
   return maps.map((m) => `${m.grade}|${m.subject}`);
 }
 
-type Located = MapSubStrand & { strand: string; strandNumber: number; number: string };
+type Located = MapSubStrand & {
+  strand: string;
+  strandNumber: number;
+  number: string;
+};
 
 function flatten(map: PublishedMap): Located[] {
   return map.strands.flatMap((strand, si) =>
-    strand.subStrands.map((sub, ui) => ({ ...sub, strand: strand.name, strandNumber: si + 1, number: `${si + 1}.${ui + 1}` }))
+    strand.subStrands.map((sub, ui) => ({
+      ...sub,
+      strand: strand.name,
+      strandNumber: si + 1,
+      number: `${si + 1}.${ui + 1}`,
+    })),
   );
 }
 
@@ -107,17 +156,36 @@ export function subStrandsForTerm(map: PublishedMap, term: string) {
   const evenTerm = new Map<Located, number>();
   for (const s of untagged) {
     // The term a sub-strand starts in decides where it goes.
-    evenTerm.set(s, Math.min(3, Math.floor((before / Math.max(1, total)) * 3) + 1));
+    evenTerm.set(
+      s,
+      Math.min(3, Math.floor((before / Math.max(1, total)) * 3) + 1),
+    );
     before += Math.max(1, s.lessons);
   }
   return all.filter((s) => (s.term ?? evenTerm.get(s)) === n);
 }
 
 function describe(s: Located) {
-  const lines = [`Sub-strand ${s.number}: ${s.name} (${s.lessons} lesson${s.lessons === 1 ? "" : "s"})`];
-  if (s.outcomes.length) lines.push("  Specific learning outcomes:", ...s.outcomes.map((o, i) => `    ${String.fromCharCode(97 + (i % 26))}) ${o}`));
-  if (s.inquiryQuestions.length) lines.push("  Key inquiry questions:", ...s.inquiryQuestions.map((q) => `    - ${q}`));
-  if (s.learningExperiences.length) lines.push("  Suggested learning experiences:", ...s.learningExperiences.map((e) => `    - ${e}`));
+  const lines = [
+    `Sub-strand ${s.number}: ${s.name} (${s.lessons} lesson${s.lessons === 1 ? "" : "s"})`,
+  ];
+  if (s.outcomes.length)
+    lines.push(
+      "  Specific learning outcomes:",
+      ...s.outcomes.map(
+        (o, i) => `    ${String.fromCharCode(97 + (i % 26))}) ${o}`,
+      ),
+    );
+  if (s.inquiryQuestions.length)
+    lines.push(
+      "  Key inquiry questions:",
+      ...s.inquiryQuestions.map((q) => `    - ${q}`),
+    );
+  if (s.learningExperiences.length)
+    lines.push(
+      "  Suggested learning experiences:",
+      ...s.learningExperiences.map((e) => `    - ${e}`),
+    );
   return lines.join("\n");
 }
 
@@ -135,7 +203,12 @@ export function mapToPrompt(subStrands: Located[]) {
   return out.join("\n");
 }
 
-const normalise = (v: string) => v.toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+const normalise = (v: string) =>
+  v
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
 /** The sub-strand a free-text topic most likely refers to, or null. */
 export function findSubStrand(map: PublishedMap, topic: string) {
@@ -144,7 +217,9 @@ export function findSubStrand(map: PublishedMap, topic: string) {
   const all = flatten(map);
   return (
     all.find((s) => normalise(s.name) === t) ??
-    all.find((s) => t.includes(normalise(s.name)) || normalise(s.name).includes(t)) ??
+    all.find(
+      (s) => t.includes(normalise(s.name)) || normalise(s.name).includes(t),
+    ) ??
     null
   );
 }
@@ -153,7 +228,10 @@ export function findSubStrand(map: PublishedMap, topic: string) {
 export function lessonGrounding(map: PublishedMap, topic: string) {
   const match = findSubStrand(map, topic);
   const outline = map.strands
-    .map((st, si) => `Strand ${si + 1}: ${st.name} — ${st.subStrands.map((s, ui) => `${si + 1}.${ui + 1} ${s.name}`).join("; ")}`)
+    .map(
+      (st, si) =>
+        `Strand ${si + 1}: ${st.name} — ${st.subStrands.map((s, ui) => `${si + 1}.${ui + 1} ${s.name}`).join("; ")}`,
+    )
     .join("\n");
   return match
     ? `${mapToPrompt([match])}\n\nFULL OUTLINE (for context):\n${outline}`

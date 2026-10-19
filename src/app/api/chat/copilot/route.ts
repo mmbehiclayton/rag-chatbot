@@ -1,5 +1,5 @@
 import { openai } from "@ai-sdk/openai";
-import { streamText, convertToModelMessages } from "ai";
+import { convertToModelMessages, streamText } from "ai";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 
@@ -10,23 +10,39 @@ export async function POST(req: Request) {
   if (!session?.userId) return new Response("Unauthorized", { status: 401 });
 
   const { messages, lessonId } = await req.json();
-  if (typeof lessonId !== "string" || !Array.isArray(messages)) return new Response("Bad request", { status: 400 });
+  if (typeof lessonId !== "string" || !Array.isArray(messages))
+    return new Response("Bad request", { status: 400 });
 
   // Load the lesson server-side (owner-scoped) instead of trusting context sent by the browser.
-  const lesson = await db.lessonPlan.findFirst({ where: { id: lessonId, teacherId: session.userId }, select: { content: true } });
+  const lesson = await db.lessonPlan.findFirst({
+    where: { id: lessonId, teacherId: session.userId },
+    select: { content: true },
+  });
   if (!lesson) return new Response("Not found", { status: 404 });
-  const lessonContext = lesson.content as any;
+
+  const lessonContext = (lesson.content ?? {}) as Record<string, unknown>;
+  const lessonTopic =
+    typeof lessonContext.topic === "string" ? lessonContext.topic : "";
+  const lessonStrand =
+    typeof lessonContext.strand === "string" ? lessonContext.strand : "";
+  const lessonSubStrand =
+    typeof lessonContext.subStrand === "string" ? lessonContext.subStrand : "";
+  const learningIntentions =
+    typeof lessonContext.lessonStructure === "object" &&
+    lessonContext.lessonStructure !== null
+      ? JSON.stringify(lessonContext.lessonStructure)
+      : "";
 
   const systemPrompt = `You are Elimu, an assistant for a Kenyan teacher using the CBC (Competency-Based Curriculum).
 Your goal is to help the teacher refine, adjust, or brainstorm for the following lesson:
 
-LESSON TOPIC: ${lessonContext?.topic}
-STRAND: ${lessonContext?.strand}
-SUB-STRAND: ${lessonContext?.subStrand}
-LEARNING INTENTIONS: ${lessonContext?.lessonStructure?.introduction?.learningIntentions}
+LESSON TOPIC: ${lessonTopic}
+STRAND: ${lessonStrand}
+SUB-STRAND: ${lessonSubStrand}
+LEARNING INTENTIONS: ${learningIntentions}
 
 CURRENT LESSON STRUCTURE:
-${JSON.stringify(lessonContext?.lessonStructure)}
+${learningIntentions}
 
 GUIDELINES:
 1. Always suggest variations that are practical for a classroom with potentially limited resources.

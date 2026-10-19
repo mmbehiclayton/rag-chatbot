@@ -1,7 +1,20 @@
 import {
-  BarChart3, BookMarked, Building2, Database, FlaskConical, GraduationCap, Home, LayoutGrid, MessageSquare,
-  Settings, Settings2, ShieldAlert, ShieldCheck, UserCircle, Users,
+  BarChart3,
+  BookMarked,
+  Building2,
+  Database,
+  FlaskConical,
+  GraduationCap,
+  Home,
+  LayoutGrid,
   type LucideIcon,
+  MessageSquare,
+  Settings,
+  Settings2,
+  ShieldAlert,
+  ShieldCheck,
+  UserCircle,
+  Users,
 } from "lucide-react";
 
 export type NavItem = { name: string; href: string; icon: LucideIcon };
@@ -16,18 +29,30 @@ export const PRIMARY_NAV: NavItem[] = [
 ];
 
 /** Extra groups for school admins and superadmins (sidebar on desktop, Me page on mobile). */
-export function adminNavGroups(role: string | null, isCurator = false): NavGroup[] {
+export function adminNavGroups(
+  role: string | null,
+  isCurator = false,
+): NavGroup[] {
   const groups: NavGroup[] = [];
-  const curatorLink = { name: "Curriculum maps", href: "/dashboard/curriculum", icon: BookMarked };
+  const curatorLink = {
+    name: "Curriculum maps",
+    href: "/dashboard/curriculum",
+    icon: BookMarked,
+  };
   // Curators are trusted teachers who enter and check curriculum maps.
-  if (isCurator && role !== "SUPERADMIN") groups.push({ label: "Curriculum", items: [curatorLink] });
+  if (isCurator && role !== "SUPERADMIN")
+    groups.push({ label: "Curriculum", items: [curatorLink] });
   if (role === "ADMIN" || role === "SUPERADMIN") {
     groups.push({
       label: "School",
       items: [
         { name: "Teachers", href: "/dashboard/teachers", icon: Users },
         { name: "Usage", href: "/dashboard/admin/analytics", icon: BarChart3 },
-        { name: "Content review", href: "/dashboard/verification", icon: ShieldCheck },
+        {
+          name: "Content review",
+          href: "/dashboard/verification",
+          icon: ShieldCheck,
+        },
         { name: "Settings", href: "/dashboard/settings", icon: Settings },
       ],
     });
@@ -38,8 +63,16 @@ export function adminNavGroups(role: string | null, isCurator = false): NavGroup
       items: [
         { name: "Pilot", href: "/dashboard/pilot", icon: FlaskConical },
         curatorLink,
-        { name: "Curriculum structure", href: "/dashboard/structure", icon: LayoutGrid },
-        { name: "Knowledge base", href: "/dashboard/knowledge", icon: Database },
+        {
+          name: "Curriculum structure",
+          href: "/dashboard/structure",
+          icon: LayoutGrid,
+        },
+        {
+          name: "Knowledge base",
+          href: "/dashboard/knowledge",
+          icon: Database,
+        },
         { name: "Prompt rules", href: "/dashboard/rules", icon: Settings2 },
         { name: "Tenants", href: "/dashboard/tenants", icon: Building2 },
         { name: "Access control", href: "/dashboard/rbac", icon: ShieldAlert },
@@ -84,6 +117,11 @@ const TITLES: [string, string][] = [
 ];
 
 export function titleForPath(pathname: string) {
-  if (/^\/dashboard\/schemes\/[^/]+\/record$/.test(pathname)) return "Record of work";
-  return TITLES.find(([prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`))?.[1] ?? "Today";
+  if (/^\/dashboard\/schemes\/[^/]+\/record$/.test(pathname))
+    return "Record of work";
+  return (
+    TITLES.find(
+      ([prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+    )?.[1] ?? "Today"
+  );
 }

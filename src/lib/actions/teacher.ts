@@ -1,8 +1,8 @@
-"use server"
+"use server";
 
-import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
 
 /**
  * General teacher actions (Management, Profile, etc.)
@@ -15,7 +15,7 @@ export async function getTeacherProfile() {
 
   return db.user.findUnique({
     where: { id: session.userId },
-    include: { tenant: true }
+    include: { tenant: true },
   });
 }
 
@@ -34,13 +34,15 @@ export async function completeOnboarding(input: {
 
   const name = input.name.trim().slice(0, 100);
   const schoolName = input.schoolName.trim().slice(0, 150);
-  const clean = (values: string[]) => [...new Set(values.map((v) => v.trim()).filter(Boolean))].slice(0, 20);
+  const clean = (values: string[]) =>
+    [...new Set(values.map((v) => v.trim()).filter(Boolean))].slice(0, 20);
   const gradesTaught = clean(input.gradesTaught);
   const subjectsTaught = clean(input.subjectsTaught);
 
   if (!name) return { error: "Enter your name." };
   if (gradesTaught.length === 0) return { error: "Choose at least one grade." };
-  if (subjectsTaught.length === 0) return { error: "Choose at least one learning area." };
+  if (subjectsTaught.length === 0)
+    return { error: "Choose at least one learning area." };
 
   await db.user.update({
     where: { id: session.userId },

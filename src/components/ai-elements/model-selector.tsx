@@ -1,3 +1,5 @@
+import Image from "next/image";
+import type { ComponentProps, ReactNode } from "react";
 import {
   Command,
   CommandDialog,
@@ -16,7 +18,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import type { ComponentProps, ReactNode } from "react";
 
 export type ModelSelectorProps = ComponentProps<typeof Dialog>;
 
@@ -44,7 +45,7 @@ export const ModelSelectorContent = ({
     aria-describedby={undefined}
     className={cn(
       "outline! border-none! p-0 outline-border! outline-solid!",
-      className
+      className,
     )}
     {...props}
   >
@@ -178,12 +179,13 @@ export const ModelSelectorLogo = ({
   className,
   ...props
 }: ModelSelectorLogoProps) => (
-  <img
+  <Image
     {...props}
     alt={`${provider} logo`}
     className={cn("size-3 dark:invert", className)}
     height={12}
     src={`https://models.dev/logos/${provider}.svg`}
+    unoptimized
     width={12}
   />
 );
@@ -197,7 +199,7 @@ export const ModelSelectorLogoGroup = ({
   <div
     className={cn(
       "flex shrink-0 items-center -space-x-1 [&>img]:rounded-full [&>img]:bg-background [&>img]:p-px [&>img]:ring-1 dark:[&>img]:bg-foreground",
-      className
+      className,
     )}
     {...props}
   />

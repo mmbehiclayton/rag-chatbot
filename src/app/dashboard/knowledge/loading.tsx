@@ -1,3 +1,9 @@
+const statsPlaceholders = ["one", "two", "three", "four"];
+const tabPlaceholders = ["primary", "secondary", "tertiary", "quaternary"];
+const gradeCardPlaceholders = ["a", "b", "c", "d", "e", "f"];
+const filterPlaceholders = ["all", "ready", "indexing", "failed"];
+const documentRows = ["row-1", "row-2", "row-3", "row-4", "row-5"];
+
 export default function KnowledgeLoading() {
   return (
     <div className="space-y-8 pb-10 mt-6 sm:mt-0 animate-pulse">
@@ -15,8 +21,11 @@ export default function KnowledgeLoading() {
 
       {/* Stats bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="p-5 rounded-xl bg-muted/40 border border-border/20 flex items-center gap-4">
+        {statsPlaceholders.map((key) => (
+          <div
+            key={key}
+            className="p-5 rounded-xl bg-muted/40 border border-border/20 flex items-center gap-4"
+          >
             <div className="w-12 h-12 rounded-xl bg-muted" />
             <div className="space-y-2">
               <div className="h-7 w-12 bg-muted rounded-lg" />
@@ -36,8 +45,8 @@ export default function KnowledgeLoading() {
         {/* Level tabs + search */}
         <div className="flex flex-col xl:flex-row gap-4 xl:items-center justify-between">
           <div className="flex gap-2 p-1.5 bg-muted/30 border border-border/30 rounded-xl w-fit">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-9 w-28 bg-muted rounded-xl" />
+            {tabPlaceholders.map((key) => (
+              <div key={key} className="h-9 w-28 bg-muted rounded-xl" />
             ))}
           </div>
           <div className="h-12 w-full xl:max-w-xs bg-muted/50 rounded-xl" />
@@ -60,15 +69,21 @@ export default function KnowledgeLoading() {
 
         {/* Grade cards grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-6">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="bg-muted/20 border border-border/20 rounded-xl overflow-hidden">
+          {gradeCardPlaceholders.map((key) => (
+            <div
+              key={key}
+              className="bg-muted/20 border border-border/20 rounded-xl overflow-hidden"
+            >
               <div className="p-6 border-b border-border/20 flex items-center justify-between">
                 <div className="h-6 w-24 bg-muted rounded-xl" />
                 <div className="h-6 w-16 bg-muted/60 rounded-full" />
               </div>
               <div className="p-6 space-y-3">
                 {Array.from({ length: 4 }).map((_, j) => (
-                  <div key={j} className="h-12 rounded-xl bg-muted/40" />
+                  <div
+                    key={`${key}-row-${j + 1}`}
+                    className="h-12 rounded-xl bg-muted/40"
+                  />
                 ))}
               </div>
               <div className="p-4">
@@ -87,14 +102,17 @@ export default function KnowledgeLoading() {
           <div className="flex flex-col gap-4">
             <div className="h-12 w-full max-w-sm bg-muted/50 rounded-xl" />
             <div className="flex gap-2">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-8 w-20 bg-muted/50 rounded-full" />
+              {filterPlaceholders.map((key) => (
+                <div key={key} className="h-8 w-20 bg-muted/50 rounded-full" />
               ))}
             </div>
           </div>
           {/* Doc rows */}
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-5 p-5 rounded-xl bg-muted/20 border border-border/20">
+          {documentRows.map((key) => (
+            <div
+              key={key}
+              className="flex items-center gap-5 p-5 rounded-xl bg-muted/20 border border-border/20"
+            >
               <div className="w-14 h-14 rounded-xl bg-muted shrink-0" />
               <div className="flex-1 space-y-2">
                 <div className="h-5 w-48 bg-muted rounded-lg" />

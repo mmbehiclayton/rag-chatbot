@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { saveLessonRemarks } from "@/lib/actions/term-pack";
 import { Input } from "@/components/ui/input";
+import { saveLessonRemarks } from "@/lib/actions/term-pack";
 
 /** The reflection column of the record of work. Saves when the teacher leaves the field. */
 export function LessonRemarks({
@@ -26,7 +26,13 @@ export function LessonRemarks({
   const save = () => {
     if (value.trim() === saved.trim()) return;
     startTransition(async () => {
-      const result = await saveLessonRemarks({ schemeId, stream, date, slot, remarks: value });
+      const result = await saveLessonRemarks({
+        schemeId,
+        stream,
+        date,
+        slot,
+        remarks: value,
+      });
       if (!result.success) return void toast.error(result.error);
       setSaved(value);
       toast.success("Reflection saved");

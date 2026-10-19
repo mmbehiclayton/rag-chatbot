@@ -1,12 +1,12 @@
+import { GraduationCap, Pencil } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { GraduationCap, Pencil } from "lucide-react";
-import { auth } from "@/lib/auth";
-import { classHref, classSummary, getTeacherClasses } from "@/lib/classes";
-import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { LinkList } from "@/components/shared/link-list";
+import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
+import { auth } from "@/lib/auth";
+import { classHref, classSummary, getTeacherClasses } from "@/lib/classes";
 
 export default async function ClassesPage() {
   const session = await auth();
@@ -20,7 +20,10 @@ export default async function ClassesPage() {
         title="My classes"
         description="Schemes, lesson plans and assessments for each class you teach."
         action={
-          <Button variant="outline" render={<Link href="/onboarding?from=profile" />}>
+          <Button
+            variant="outline"
+            render={<Link href="/onboarding?from=profile" />}
+          >
             <Pencil /> Change classes
           </Button>
         }
@@ -31,7 +34,11 @@ export default async function ClassesPage() {
           icon={GraduationCap}
           title="Add the classes you teach"
           description="Choose your grades and learning areas. Elimu will set up a page for each class."
-          action={<Button render={<Link href="/onboarding?from=profile" />}>Add classes</Button>}
+          action={
+            <Button render={<Link href="/onboarding?from=profile" />}>
+              Add classes
+            </Button>
+          }
         />
       ) : (
         <LinkList
@@ -46,7 +53,10 @@ export default async function ClassesPage() {
 
       <p className="text-sm text-muted-foreground">
         Looking for something else?{" "}
-        <Link href="/dashboard/library" className="font-medium text-primary hover:underline">
+        <Link
+          href="/dashboard/library"
+          className="font-medium text-primary hover:underline"
+        >
           See all your documents
         </Link>
       </p>

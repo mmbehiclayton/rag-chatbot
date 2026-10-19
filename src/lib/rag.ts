@@ -1,9 +1,18 @@
-import { Prisma } from "@prisma/client";
-import { db } from "@/lib/db";
-import { embed } from "ai";
 import { openai } from "@ai-sdk/openai";
+import { Prisma } from "@prisma/client";
+import { embed } from "ai";
+import { db } from "@/lib/db";
 
-export async function retrieveContext(query: string, k = 5, filters?: { grade?: string, subject?: string, tenantId?: string, grades?: string[] }) {
+export async function retrieveContext(
+  query: string,
+  k = 5,
+  filters?: {
+    grade?: string;
+    subject?: string;
+    tenantId?: string;
+    grades?: string[];
+  },
+) {
   try {
     // Generate embedding for the user query
     const { embedding } = await embed({
@@ -16,7 +25,13 @@ export async function retrieveContext(query: string, k = 5, filters?: { grade?: 
     // Perform semantic search using pgvector's cosine distance operator (<=>)
     // We calculate similarity as 1 - cosine distance
     // If filters are provided, we dynamically build a strict WHERE-clause joined search
-    let results: any[] = [];
+    type ContextRow = {
+      chunkText: string;
+      pageNumber: number | null;
+      curriculumId: string;
+      similarity: number | string;
+    };
+    let results: ContextRow[] = [];
 
     // Pass 1: Priority filtered search (by Grade & Subject)
     if (filters?.grade && filters?.subject) {
@@ -37,7 +52,9 @@ export async function retrieveContext(query: string, k = 5, filters?: { grade?: 
     // pad the results with another class's curriculum: it reads as plausible but is wrong.
     // `grades` narrows it to the classes the teacher teaches.
     if (!(filters?.grade && filters?.subject)) {
-      const inGrades = filters?.grades?.length ? Prisma.sql`AND d."gradeLevel" = ANY(${filters.grades})` : Prisma.empty;
+      const inGrades = filters?.grades?.length
+        ? Prisma.sql`AND d."gradeLevel" = ANY(${filters.grades})`
+        : Prisma.empty;
       results = await db.$queryRaw`
         SELECT c."chunkText", c."pageNumber", c."curriculumId",
                1 - (c."embedding" <=> ${vectorString}::vector) as similarity
@@ -50,11 +67,11 @@ export async function retrieveContext(query: string, k = 5, filters?: { grade?: 
       `;
     }
 
-    return results.map(r => ({
+    return results.map((r) => ({
       chunkText: r.chunkText,
       pageNumber: r.pageNumber,
       curriculumId: r.curriculumId,
-      similarity: Number(r.similarity)
+      similarity: Number(r.similarity),
     }));
   } catch (error) {
     console.error("Error retrieving context:", error);

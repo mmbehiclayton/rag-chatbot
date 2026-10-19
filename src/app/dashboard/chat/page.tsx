@@ -1,14 +1,21 @@
-import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { getChatSession, getChatSessions } from "@/lib/actions/chat";
 import { ChatInterface } from "@/components/dashboard/chat-interface";
+import { getChatSession, getChatSessions } from "@/lib/actions/chat";
+import { auth } from "@/lib/auth";
 
-export default async function ChatPage({ searchParams }: { searchParams: Promise<{ c?: string }> }) {
+export default async function ChatPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ c?: string }>;
+}) {
   const session = await auth();
   if (!session?.userId) redirect("/login");
 
   const { c } = await searchParams;
-  const [sessions, active] = await Promise.all([getChatSessions(), c ? getChatSession(c) : null]);
+  const [sessions, active] = await Promise.all([
+    getChatSessions(),
+    c ? getChatSession(c) : null,
+  ]);
 
   return (
     <ChatInterface

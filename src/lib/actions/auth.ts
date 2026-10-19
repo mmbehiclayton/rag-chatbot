@@ -1,15 +1,15 @@
 "use server";
 
-import { db } from "@/lib/db";
-import { createSession, destroySession } from "@/lib/auth";
+import { randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
-import { redirect } from "next/navigation";
-import { randomBytes } from "crypto";
 import { cookies, headers } from "next/headers";
-import { INVITE_COOKIE, findInviter } from "@/lib/invites";
-import { sendVerificationEmail, sendPasswordResetEmail } from "@/lib/email";
+import { redirect } from "next/navigation";
+import { createSession, destroySession } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { sendPasswordResetEmail, sendVerificationEmail } from "@/lib/email";
+import { findInviter, INVITE_COOKIE } from "@/lib/invites";
 
-export async function register(prevState: any, formData: FormData) {
+export async function register(_prevState: unknown, formData: FormData) {
   const name = formData.get("name") as string;
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
@@ -23,7 +23,9 @@ export async function register(prevState: any, formData: FormData) {
 
   const existingUser = await db.user.findUnique({ where: { email } });
   if (existingUser) {
-    return { error: "An account with this email already exists. Sign in instead." };
+    return {
+      error: "An account with this email already exists. Sign in instead.",
+    };
   }
 
   // An invite link leaves the inviter's code in a cookie, so we can count who brought whom.
@@ -58,13 +60,13 @@ export async function register(prevState: any, formData: FormData) {
   if (inviteCode) cookieStore.delete(INVITE_COOKIE);
 
   // Generate Email Verification Token
-  const token = randomBytes(32).toString('hex');
+  const token = randomBytes(32).toString("hex");
   await db.emailVerificationToken.create({
     data: {
       email,
       token,
       expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24), // 24 hours
-    }
+    },
   });
 
   await sendVerificationEmail(email, token);
@@ -75,7 +77,7 @@ export async function register(prevState: any, formData: FormData) {
   redirect("/onboarding");
 }
 
-export async function login(prevState: any, formData: FormData) {
+export async function login(_prevState: unknown, formData: FormData) {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
 
@@ -86,13 +88,19 @@ export async function login(prevState: any, formData: FormData) {
   const headerStore = await headers();
   const ip = headerStore.get("x-forwarded-for") || "127.0.0.1";
   const rateLimitKey = `login_${ip}`;
-  
-  await db.rateLimit.deleteMany({ where: { expiresAt: { lt: new Date() } } }).catch(() => {});
+
+  await db.rateLimit
+    .deleteMany({ where: { expiresAt: { lt: new Date() } } })
+    .catch(() => {});
 
   const limit = await db.rateLimit.upsert({
     where: { key: rateLimitKey },
-    create: { key: rateLimitKey, expiresAt: new Date(Date.now() + 15 * 60 * 1000), points: 1 },
-    update: { points: { increment: 1 } }
+    create: {
+      key: rateLimitKey,
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      points: 1,
+    },
+    update: { points: { increment: 1 } },
   });
 
   if (limit.points > 10 && limit.expiresAt > new Date()) {
@@ -101,12 +109,18 @@ export async function login(prevState: any, formData: FormData) {
 
   const user = await db.user.findUnique({ where: { email } });
   if (!user || !user.passwordHash) {
-    return { error: "That email and password don't match. Try again or reset your password." };
+    return {
+      error:
+        "That email and password don't match. Try again or reset your password.",
+    };
   }
 
   const isValid = await bcrypt.compare(password, user.passwordHash);
   if (!isValid) {
-    return { error: "That email and password don't match. Try again or reset your password." };
+    return {
+      error:
+        "That email and password don't match. Try again or reset your password.",
+    };
   }
 
   // Skip email verification for now as per user request
@@ -119,7 +133,7 @@ export async function login(prevState: any, formData: FormData) {
   await db.rateLimit.delete({ where: { key: rateLimitKey } }).catch(() => {});
 
   await createSession(user);
-  
+
   redirect("/dashboard");
 }
 
@@ -128,7 +142,7 @@ export async function logout() {
   redirect("/");
 }
 
-export async function forgotPassword(prevState: any, formData: FormData) {
+export async function forgotPassword(_prevState: unknown, formData: FormData) {
   const email = formData.get("email") as string;
   if (!email) return { error: "Enter your email address." };
 
@@ -137,11 +151,11 @@ export async function forgotPassword(prevState: any, formData: FormData) {
     return { success: true };
   }
 
-  const token = randomBytes(32).toString('hex');
+  const token = randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + 1000 * 60 * 60);
 
   await db.passwordResetToken.create({
-    data: { email, token, expiresAt }
+    data: { email, token, expiresAt },
   });
 
   await sendPasswordResetEmail(email, token);
@@ -149,55 +163,71 @@ export async function forgotPassword(prevState: any, formData: FormData) {
   return { success: true };
 }
 
-export async function resetPassword(prevState: any, formData: FormData) {
+export async function resetPassword(_prevState: unknown, formData: FormData) {
   const token = formData.get("token") as string;
   const password = formData.get("password") as string;
   const confirmPassword = formData.get("confirmPassword") as string;
 
-  if (!token || !password || !confirmPassword) return { error: "Missing fields" };
-  if (password !== confirmPassword) return { error: "The two passwords don't match." };
-  if (password.length < 8) return { error: "Use a password with at least 8 characters." };
+  if (!token || !password || !confirmPassword)
+    return { error: "Missing fields" };
+  if (password !== confirmPassword)
+    return { error: "The two passwords don't match." };
+  if (password.length < 8)
+    return { error: "Use a password with at least 8 characters." };
 
-  const resetToken = await db.passwordResetToken.findUnique({ where: { token } });
-  
+  const resetToken = await db.passwordResetToken.findUnique({
+    where: { token },
+  });
+
   if (!resetToken || resetToken.expiresAt < new Date()) {
-    return { error: "This link has expired or was already used. Request a new one." };
+    return {
+      error: "This link has expired or was already used. Request a new one.",
+    };
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
   await db.user.update({
     where: { email: resetToken.email },
-    data: { passwordHash }
+    data: { passwordHash },
   });
 
   await db.passwordResetToken.delete({ where: { id: resetToken.id } });
 
-  const users = await db.user.findUnique({ where: { email: resetToken.email }, include: { sessions: true } });
+  const users = await db.user.findUnique({
+    where: { email: resetToken.email },
+    include: { sessions: true },
+  });
   if (users?.sessions) {
-      for (const sess of users.sessions) {
-         await db.session.delete({ where: { id: sess.id } }).catch(() => {});
-      }
+    for (const sess of users.sessions) {
+      await db.session.delete({ where: { id: sess.id } }).catch(() => {});
+    }
   }
 
   return { success: true };
 }
 
-export async function verifyEmail(prevState: any, formData: FormData) {
+export async function verifyEmail(_prevState: unknown, formData: FormData) {
   const token = formData.get("token") as string;
   if (!token) return { error: "Missing token" };
 
-  const verificationToken = await db.emailVerificationToken.findUnique({ where: { token } });
-  
+  const verificationToken = await db.emailVerificationToken.findUnique({
+    where: { token },
+  });
+
   if (!verificationToken || verificationToken.expiresAt < new Date()) {
-    return { error: "This link has expired or was already used. Request a new one." };
+    return {
+      error: "This link has expired or was already used. Request a new one.",
+    };
   }
 
   await db.user.update({
     where: { email: verificationToken.email },
-    data: { emailVerified: new Date() }
+    data: { emailVerified: new Date() },
   });
 
-  await db.emailVerificationToken.delete({ where: { id: verificationToken.id } });
+  await db.emailVerificationToken.delete({
+    where: { id: verificationToken.id },
+  });
 
   return { success: true };
 }

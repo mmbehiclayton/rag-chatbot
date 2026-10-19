@@ -1,17 +1,29 @@
 "use server";
 
-import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
-import { generateObject } from "ai";
-import { explainAIError } from "@/lib/ai-errors";
 import { openai } from "@ai-sdk/openai";
-import { retrieveContext } from "@/lib/rag";
-import { schemeLessons } from "@/lib/term-pack";
-import { getPublishedMap, lessonGrounding, mapToPrompt, subStrandsForTerm, allSubStrands } from "@/lib/curriculum-map";
-import { z } from "zod";
+import { generateObject } from "ai";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import { coversClass, freePlanMessage, getAccess, plansOn, type ClassRef } from "@/lib/plans";
+import { z } from "zod";
+import { explainAIError } from "@/lib/ai-errors";
+import { auth } from "@/lib/auth";
+import {
+  allSubStrands,
+  getPublishedMap,
+  lessonGrounding,
+  mapToPrompt,
+  subStrandsForTerm,
+} from "@/lib/curriculum-map";
+import { db } from "@/lib/db";
+import {
+  type ClassRef,
+  coversClass,
+  freePlanMessage,
+  getAccess,
+  plansOn,
+} from "@/lib/plans";
+import { retrieveContext } from "@/lib/rag";
+import { schemeLessons } from "@/lib/term-pack";
 
 // ─── Results and errors ───────────────────────────────────────────────────────
 
@@ -19,13 +31,18 @@ import { coversClass, freePlanMessage, getAccess, plansOn, type ClassRef } from 
 // generators return their outcome instead. TeacherError messages are shown as written.
 class TeacherError extends Error {}
 
-export type GenerationResult = { ok: true; id: string } | { ok: false; error: string };
+export type GenerationResult =
+  | { ok: true; id: string }
+  | { ok: false; error: string };
 
 function explain(label: string, e: unknown): string {
   return e instanceof TeacherError ? e.message : explainAIError(label, e);
 }
 
-async function asResult(label: string, fn: () => Promise<{ id: string }>): Promise<GenerationResult> {
+async function asResult(
+  label: string,
+  fn: () => Promise<{ id: string }>,
+): Promise<GenerationResult> {
   try {
     const { id } = await fn();
     return { ok: true, id };
@@ -36,7 +53,8 @@ async function asResult(label: string, fn: () => Promise<{ id: string }>): Promi
 
 async function requireSession() {
   const session = await auth();
-  if (!session?.userId) throw new TeacherError("Your session has ended. Please sign in again.");
+  if (!session?.userId)
+    throw new TeacherError("Your session has ended. Please sign in again.");
   return session as typeof session & { userId: string };
 }
 
@@ -52,11 +70,15 @@ async function passesVerification(content: unknown, context: string) {
 
 // ─── Shared Guards ────────────────────────────────────────────────────────────
 
-async function checkGenerationGuards(session: { userId: string; tenantId?: string | null }, cls: ClassRef) {
+async function checkGenerationGuards(
+  session: { userId: string; tenantId?: string | null },
+  cls: ClassRef,
+) {
   // 0. Plan: the free plan covers one class
   if (await plansOn()) {
     const access = await getAccess(session.userId);
-    if (!coversClass(access, cls)) throw new TeacherError(freePlanMessage(access));
+    if (!coversClass(access, cls))
+      throw new TeacherError(freePlanMessage(access));
   }
 
   // 1. Rate limit: 20 generations per user per hour
@@ -65,21 +87,31 @@ async function checkGenerationGuards(session: { userId: string; tenantId?: strin
   const rateLimitKey = `gen_${session.userId}_${ip}`;
   const windowMs = 60 * 60 * 1000; // 1 hour
 
-  await db.rateLimit.deleteMany({ where: { expiresAt: { lt: new Date() } } }).catch(() => {});
+  await db.rateLimit
+    .deleteMany({ where: { expiresAt: { lt: new Date() } } })
+    .catch(() => {});
 
   const limit = await db.rateLimit.upsert({
     where: { key: rateLimitKey },
-    create: { key: rateLimitKey, expiresAt: new Date(Date.now() + windowMs), points: 1 },
+    create: {
+      key: rateLimitKey,
+      expiresAt: new Date(Date.now() + windowMs),
+      points: 1,
+    },
     update: { points: { increment: 1 } },
   });
 
   if (limit.points > 20 && limit.expiresAt > new Date()) {
-    throw new TeacherError("You have created 20 documents in the last hour. Please wait a while before creating more.");
+    throw new TeacherError(
+      "You have created 20 documents in the last hour. Please wait a while before creating more.",
+    );
   }
 
   // 2. Token quota: check tenant monthly usage
   if (session.tenantId) {
-    const tenant = await db.tenant.findUnique({ where: { id: session.tenantId } });
+    const tenant = await db.tenant.findUnique({
+      where: { id: session.tenantId },
+    });
     if (tenant) {
       const startOfMonth = new Date();
       startOfMonth.setDate(1);
@@ -93,7 +125,7 @@ async function checkGenerationGuards(session: { userId: string; tenantId?: strin
       const usedTokens = usage._sum.totalTokens ?? 0;
       if (usedTokens >= tenant.tokenQuota) {
         throw new TeacherError(
-          `Your school has used this month's allowance (${usedTokens.toLocaleString()} of ${tenant.tokenQuota.toLocaleString()} tokens). Ask your school admin to raise it.`
+          `Your school has used this month's allowance (${usedTokens.toLocaleString()} of ${tenant.tokenQuota.toLocaleString()} tokens). Ask your school admin to raise it.`,
         );
       }
     }
@@ -102,7 +134,11 @@ async function checkGenerationGuards(session: { userId: string; tenantId?: strin
 
 // ─── Curriculum grounding ─────────────────────────────────────────────────────
 
-type Grounding = { source: "map" | "design"; text: string; curriculumId: string | null };
+type Grounding = {
+  source: "map" | "design";
+  text: string;
+  curriculumId: string | null;
+};
 
 const MAP_RULES = `The CURRICULUM MAP below was entered and checked by practising teachers. Use only its strands, sub-strands and specific learning outcomes, with names and outcomes exactly as written, in the order given.`;
 
@@ -110,24 +146,48 @@ const MAP_RULES = `The CURRICULUM MAP below was entered and checked by practisin
  * What generation is grounded on, in order of trust: the checked curriculum map for the
  * class, then extracts from an uploaded curriculum design. Null when neither exists.
  */
-async function termGrounding(grade: string, subject: string, term: string, tenantId: string | null | undefined): Promise<Grounding | null> {
+async function termGrounding(
+  grade: string,
+  subject: string,
+  term: string,
+  tenantId: string | null | undefined,
+): Promise<Grounding | null> {
   const map = await getPublishedMap(grade, subject);
   if (map) {
     const forTerm = subStrandsForTerm(map, term);
-    return { source: "map", text: mapToPrompt(forTerm.length ? forTerm : allSubStrands(map)), curriculumId: null };
+    return {
+      source: "map",
+      text: mapToPrompt(forTerm.length ? forTerm : allSubStrands(map)),
+      curriculumId: null,
+    };
   }
 
   const doc = await db.curriculumDocument.findFirst({
-    where: { gradeLevel: grade, subject, status: "completed", OR: [{ tenantId: tenantId ?? null }, { tenantId: null }] },
+    where: {
+      gradeLevel: grade,
+      subject,
+      status: "completed",
+      OR: [{ tenantId: tenantId ?? null }, { tenantId: null }],
+    },
     select: { id: true },
   });
   if (!doc) return null;
-  const chunks = await retrieveContext(`Curriculum for ${grade} ${subject} ${term}`, 12, { grade, subject, tenantId: tenantId ?? undefined });
-  return { source: "design", text: chunks.map((c) => c.chunkText).join("\n\n"), curriculumId: doc.id };
+  const chunks = await retrieveContext(
+    `Curriculum for ${grade} ${subject} ${term}`,
+    12,
+    { grade, subject, tenantId: tenantId ?? undefined },
+  );
+  return {
+    source: "design",
+    text: chunks.map((c) => c.chunkText).join("\n\n"),
+    curriculumId: doc.id,
+  };
 }
 
 function groundingBlock(g: Grounding) {
-  return g.source === "map" ? `${MAP_RULES}\n\nCURRICULUM MAP:\n${g.text}` : `CURRICULUM CONTEXT (extracts from the KICD curriculum design):\n${g.text}`;
+  return g.source === "map"
+    ? `${MAP_RULES}\n\nCURRICULUM MAP:\n${g.text}`
+    : `CURRICULUM CONTEXT (extracts from the KICD curriculum design):\n${g.text}`;
 }
 
 const missingCurriculum = (grade: string, subject: string) =>
@@ -142,21 +202,27 @@ const SchemeOfWorkSchema = z.object({
     strandsCovered: z.array(z.string()),
     communityServiceActivities: z.array(z.string()),
     parentalEngagementStrategies: z.array(z.string()),
-    crossCurricularIntegration: z.array(z.string())
+    crossCurricularIntegration: z.array(z.string()),
   }),
-  weeks: z.array(z.object({
-    weekNumber: z.number(),
-    rows: z.array(z.object({
-      strand: z.string(),
-      subStrand: z.string(),
-      specificLearningOutcomes: z.array(z.string()),
-      keyInquiryQuestions: z.array(z.string()),
-      learningExperiences: z.array(z.string()),
-      learningResources: z.array(z.string()),
-      assessmentMethods: z.array(z.string()),
-      reflection: z.string().describe("Teacher's post-lesson reflection, empty string if none")
-    }))
-  }))
+  weeks: z.array(
+    z.object({
+      weekNumber: z.number(),
+      rows: z.array(
+        z.object({
+          strand: z.string(),
+          subStrand: z.string(),
+          specificLearningOutcomes: z.array(z.string()),
+          keyInquiryQuestions: z.array(z.string()),
+          learningExperiences: z.array(z.string()),
+          learningResources: z.array(z.string()),
+          assessmentMethods: z.array(z.string()),
+          reflection: z
+            .string()
+            .describe("Teacher's post-lesson reflection, empty string if none"),
+        }),
+      ),
+    }),
+  ),
 });
 
 const LessonPlanSchema = z.object({
@@ -166,34 +232,40 @@ const LessonPlanSchema = z.object({
   specificLearningOutcomes: z.array(z.string()),
   keyInquiryQuestions: z.array(z.string()),
   learningResources: z.array(z.string()),
-  coreCompetencies: z.array(z.object({
-    competency: z.string(),
-    howDeveloped: z.string()
-  })),
-  values: z.array(z.object({
-    value: z.string(),
-    howDemonstrated: z.string()
-  })),
+  coreCompetencies: z.array(
+    z.object({
+      competency: z.string(),
+      howDeveloped: z.string(),
+    }),
+  ),
+  values: z.array(
+    z.object({
+      value: z.string(),
+      howDemonstrated: z.string(),
+    }),
+  ),
   lessonStructure: z.object({
     introduction: z.object({
       duration: z.number(),
       recap: z.string(),
       connectionToLearnersLives: z.string(),
       learningIntentions: z.string(),
-      successCriteria: z.string()
+      successCriteria: z.string(),
     }),
-    mainActivities: z.array(z.object({
-      activityName: z.string(),
-      duration: z.number(),
-      grouping: z.string(),
-      teacherActions: z.array(z.string()),
-      learnerActions: z.array(z.string()),
-      formativeAssessment: z.string()
-    })),
+    mainActivities: z.array(
+      z.object({
+        activityName: z.string(),
+        duration: z.number(),
+        grouping: z.string(),
+        teacherActions: z.array(z.string()),
+        learnerActions: z.array(z.string()),
+        formativeAssessment: z.string(),
+      }),
+    ),
     differentiation: z.object({
       learnersNeedingSupport: z.string(),
       averageLearners: z.string(),
-      advancedLearners: z.string()
+      advancedLearners: z.string(),
     }),
     conclusion: z.object({
       duration: z.number(),
@@ -201,22 +273,28 @@ const LessonPlanSchema = z.object({
       assessmentOfLearning: z.string(),
       exitTicket: z.string(),
       previewNextLesson: z.string(),
-      homework: z.string()
-    })
+      homework: z.string(),
+    }),
   }),
   assessmentRubric: z.object({
     criteria: z.string(),
     exceeding: z.string(),
     meeting: z.string(),
     approaching: z.string(),
-    below: z.string()
+    below: z.string(),
   }),
-  multimediaSuggestions: z.array(z.object({
-    type: z.enum(["IMAGE", "VIDEO", "DIAGRAM", "EXPERIMENT"]),
-    description: z.string(),
-    purpose: z.string(),
-    suggestedSource: z.string().describe("Empty array if no specific source")
-  })).describe("List 3-5 multimedia suggestions, or an empty array if none")
+  multimediaSuggestions: z
+    .array(
+      z.object({
+        type: z.enum(["IMAGE", "VIDEO", "DIAGRAM", "EXPERIMENT"]),
+        description: z.string(),
+        purpose: z.string(),
+        suggestedSource: z
+          .string()
+          .describe("Empty array if no specific source"),
+      }),
+    )
+    .describe("List 3-5 multimedia suggestions, or an empty array if none"),
 });
 
 const LessonNotesSchema = z.object({
@@ -224,72 +302,98 @@ const LessonNotesSchema = z.object({
   conceptOverview: z.object({
     keyDefinitions: z.array(z.string()),
     backgroundContext: z.string(),
-    whatLearnersNeedToKnow: z.string()
+    whatLearnersNeedToKnow: z.string(),
   }),
-  workedExamples: z.array(z.object({
-    title: z.string(),
-    level: z.enum(["BASIC", "MEDIUM", "ADVANCED"]),
-    procedure: z.array(z.string()),
-    thinkAloudCommentary: z.string()
-  })),
-  questioningSequences: z.array(z.object({
-    trigger: z.string(),
-    initialQuestion: z.string(),
-    expectedAnswer: z.string(),
-    followUpIfWrong: z.string(),
-    followUpIfCorrect: z.string()
-  })),
-  misconceptions: z.array(z.object({
-    misconception: z.string(),
-    correction: z.string()
-  }))
+  workedExamples: z.array(
+    z.object({
+      title: z.string(),
+      level: z.enum(["BASIC", "MEDIUM", "ADVANCED"]),
+      procedure: z.array(z.string()),
+      thinkAloudCommentary: z.string(),
+    }),
+  ),
+  questioningSequences: z.array(
+    z.object({
+      trigger: z.string(),
+      initialQuestion: z.string(),
+      expectedAnswer: z.string(),
+      followUpIfWrong: z.string(),
+      followUpIfCorrect: z.string(),
+    }),
+  ),
+  misconceptions: z.array(
+    z.object({
+      misconception: z.string(),
+      correction: z.string(),
+    }),
+  ),
 });
+
+type SchemeOfWorkContent = z.infer<typeof SchemeOfWorkSchema>;
+type LessonPlanContent = z.infer<typeof LessonPlanSchema>;
 
 const AssessmentSchema = z.object({
   title: z.string(),
-  sections: z.array(z.object({
-    sectionTitle: z.string(),
-    instructions: z.string(),
-    questions: z.array(z.object({
-      questionNumber: z.number(),
-      questionText: z.string(),
-      marks: z.number(),
-      modelAnswer: z.string(),
-      rubric: z.string().describe("Scoring rubric details, empty string if none")
-    }))
-  })),
+  sections: z.array(
+    z.object({
+      sectionTitle: z.string(),
+      instructions: z.string(),
+      questions: z.array(
+        z.object({
+          questionNumber: z.number(),
+          questionText: z.string(),
+          marks: z.number(),
+          modelAnswer: z.string(),
+          rubric: z
+            .string()
+            .describe("Scoring rubric details, empty string if none"),
+        }),
+      ),
+    }),
+  ),
   markingScheme: z.object({
     totalMarks: z.number(),
-    gradingScale: z.array(z.object({
-      range: z.string(),
-      descriptor: z.string()
-    }))
-  })
+    gradingScale: z.array(
+      z.object({
+        range: z.string(),
+        descriptor: z.string(),
+      }),
+    ),
+  }),
 });
 
 // --- Server Actions ---
 
-async function generateSchemeOfWorkImpl(parameters: {
-  grade: string;
-  subject: string;
-  term: string;
-  weeks: number;
-  holidays: number;
-  lessonsPerWeek: number;
-  durationMinutes: number;
-  forceFresh?: boolean;
-  /** From the teacher's term dates and timetable, when set: the school year and the exact number of lessons. */
-  year?: number;
-  totalLessons?: number;
-} | null) {
+async function generateSchemeOfWorkImpl(
+  parameters: {
+    grade: string;
+    subject: string;
+    term: string;
+    weeks: number;
+    holidays: number;
+    lessonsPerWeek: number;
+    durationMinutes: number;
+    forceFresh?: boolean;
+    /** From the teacher's term dates and timetable, when set: the school year and the exact number of lessons. */
+    year?: number;
+    totalLessons?: number;
+  } | null,
+) {
   if (!parameters) throw new TeacherError("Fill in the form and try again.");
   const session = await requireSession();
 
   // Cache: reuse a verified scheme for the same grade/subject/term. A scheme from
   // another teacher is cloned so it lands in the requester's own library.
   const totalLessons =
-    parameters.totalLessons && parameters.totalLessons > 0 && parameters.totalLessons <= 200 ? Math.round(parameters.totalLessons) : null;
-  const year = parameters.year && parameters.year >= 2024 && parameters.year <= 2100 ? parameters.year : null;
+    parameters.totalLessons &&
+    parameters.totalLessons > 0 &&
+    parameters.totalLessons <= 200
+      ? Math.round(parameters.totalLessons)
+      : null;
+  const year =
+    parameters.year && parameters.year >= 2024 && parameters.year <= 2100
+      ? parameters.year
+      : null;
 
   if (!parameters.forceFresh) {
     const candidates = await db.schemeOfWork.findMany({
@@ -303,9 +407,12 @@ async function generateSchemeOfWorkImpl(parameters: {
       take: 10,
     });
     // With a real timetable, only reuse a scheme that has the same number of lessons.
-    const cachedScheme = candidates.find((c) => !totalLessons || schemeLessons(c.content).length === totalLessons);
+    const cachedScheme = candidates.find(
+      (c) => !totalLessons || schemeLessons(c.content).length === totalLessons,
+    );
 
-    if (cachedScheme && cachedScheme.teacherId === session.userId) return cachedScheme;
+    if (cachedScheme && cachedScheme.teacherId === session.userId)
+      return cachedScheme;
 
     if (cachedScheme) {
       const clone = await db.schemeOfWork.create({
@@ -315,7 +422,7 @@ async function generateSchemeOfWorkImpl(parameters: {
           subject: cachedScheme.subject,
           term: cachedScheme.term,
           year,
-          content: cachedScheme.content as any,
+          content: cachedScheme.content as SchemeOfWorkContent,
           teacherId: session.userId,
           curriculumId: cachedScheme.curriculumId,
         },
@@ -337,14 +444,26 @@ async function generateSchemeOfWorkImpl(parameters: {
   }
 
   // Check the curriculum first so a missing one doesn't use up the teacher's hourly limit.
-  const grounding = await termGrounding(parameters.grade, parameters.subject, parameters.term, session.tenantId);
-  if (!grounding) throw new TeacherError(missingCurriculum(parameters.grade, parameters.subject));
+  const grounding = await termGrounding(
+    parameters.grade,
+    parameters.subject,
+    parameters.term,
+    session.tenantId,
+  );
+  if (!grounding)
+    throw new TeacherError(
+      missingCurriculum(parameters.grade, parameters.subject),
+    );
   const contextText = grounding.text;
 
   await checkGenerationGuards(session, parameters);
 
-  const customRule = await db.generationRule.findUnique({ where: { contentType: "SCHEME_OF_WORK" } });
-  const customRuleText = customRule?.customPrompt ? `\n\nCUSTOM PLATFORM GUIDELINES (STRICTLY ENFORCE):\n${customRule.customPrompt}\n` : "";
+  const customRule = await db.generationRule.findUnique({
+    where: { contentType: "SCHEME_OF_WORK" },
+  });
+  const customRuleText = customRule?.customPrompt
+    ? `\n\nCUSTOM PLATFORM GUIDELINES (STRICTLY ENFORCE):\n${customRule.customPrompt}\n`
+    : "";
 
   const systemPrompt = `You are an expert KICD curriculum specialist. Generate a Scheme of Work strictly following the Competency-Based Curriculum (CBC) architecture rules.${customRuleText}
 
@@ -358,10 +477,10 @@ MANDATORY REQUIREMENTS:
 1. Cover the strands and sub-strands from the curriculum provided below${grounding.source === "map" ? ", sharing the lessons out in proportion to each sub-strand's suggested lessons" : ""}.
 2. Use the EXACT specific learning outcomes (DO NOT paraphrase).
 ${
-    totalLessons
-      ? `3. Write exactly ${totalLessons} lessons (one row each) across ${parameters.weeks} teaching weeks, numbered 1 to ${parameters.weeks}. This comes from the teacher's real timetable, about ${parameters.lessonsPerWeek} lessons a week.`
-      : `3. Calculate total lessons: (${parameters.weeks} - ${parameters.holidays}) × ${parameters.lessonsPerWeek} = TOTAL LESSONS.`
-  }
+  totalLessons
+    ? `3. Write exactly ${totalLessons} lessons (one row each) across ${parameters.weeks} teaching weeks, numbered 1 to ${parameters.weeks}. This comes from the teacher's real timetable, about ${parameters.lessonsPerWeek} lessons a week.`
+    : `3. Calculate total lessons: (${parameters.weeks} - ${parameters.holidays}) × ${parameters.lessonsPerWeek} = TOTAL LESSONS.`
+}
 4. Structure into Weeks and Rows, one row per lesson. Keep each row brief: 1-3 outcomes, 1-2 inquiry questions, 2-3 learning experiences, 2-3 resources and 1-2 assessment methods, each a short phrase.
 5. Tag all 7 core competencies in activities.
 6. Include min 2 Community Service Learning and 2 Parental Engagement strategies.
@@ -385,10 +504,10 @@ ${groundingBlock(grounding)}
       subject: parameters.subject,
       term: parameters.term,
       year,
-      content: object as any,
+      content: object as SchemeOfWorkContent,
       teacherId: session.userId,
-      curriculumId: grounding.curriculumId
-    }
+      curriculumId: grounding.curriculumId,
+    },
   });
 
   // Log Usage
@@ -400,18 +519,20 @@ ${groundingBlock(grounding)}
       promptTokens: usage.inputTokens ?? 0,
       completionTokens: usage.outputTokens ?? 0,
       totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-      model: "gpt-4o"
-    }
+      model: "gpt-4o",
+    },
   });
 
   // [NEW] Hallucination Guardrail: Deep Verification Pass
   const isAccurate = await passesVerification(object, contextText);
   if (!isAccurate) {
-    console.warn("HALLUCINATION DETECTED: Scheme of Work failed verification pass. Tagging for review.");
+    console.warn(
+      "HALLUCINATION DETECTED: Scheme of Work failed verification pass. Tagging for review.",
+    );
     // In a production system, we might re-generate, but here we'll just flag the DB record
     await db.schemeOfWork.update({
       where: { id: scheme.id },
-      data: { title: `[Needs Review] ${scheme.title}` }
+      data: { title: `[Needs Review] ${scheme.title}` },
     });
   }
 
@@ -448,7 +569,10 @@ export async function reviewScheme(schemeId: string) {
  * Deletes a generated asset (and its cascade — a scheme removes its lesson plans
  * and their notes). Ownership-scoped via teacherId.
  */
-export async function deleteAsset(type: "SCHEMES" | "LESSONS" | "NOTES" | "ASSESSMENTS", id: string) {
+export async function deleteAsset(
+  type: "SCHEMES" | "LESSONS" | "NOTES" | "ASSESSMENTS",
+  id: string,
+) {
   const session = await auth();
   if (!session?.userId) throw new Error("Unauthorized");
 
@@ -467,17 +591,27 @@ export async function deleteAsset(type: "SCHEMES" | "LESSONS" | "NOTES" | "ASSES
   return { success: true };
 }
 
-async function generateLessonPlanImpl(schemeId: string, lessonNumber: number, topic: string) {
+async function generateLessonPlanImpl(
+  schemeId: string,
+  lessonNumber: number,
+  topic: string,
+) {
   const session = await requireSession();
 
-  const scheme = await db.schemeOfWork.findFirst({ where: { id: schemeId, teacherId: session.userId } });
+  const scheme = await db.schemeOfWork.findFirst({
+    where: { id: schemeId, teacherId: session.userId },
+  });
   if (!scheme) throw new TeacherError("We couldn't find that scheme of work.");
 
   await checkGenerationGuards(session, scheme);
 
   const schemeMap = await getPublishedMap(scheme.grade, scheme.subject);
-  const customRule = await db.generationRule.findUnique({ where: { contentType: "LESSON_PLAN" } });
-  const customRuleText = customRule?.customPrompt ? `\n\nCUSTOM PLATFORM GUIDELINES (STRICTLY ENFORCE):\n${customRule.customPrompt}\n` : "";
+  const customRule = await db.generationRule.findUnique({
+    where: { contentType: "LESSON_PLAN" },
+  });
+  const customRuleText = customRule?.customPrompt
+    ? `\n\nCUSTOM PLATFORM GUIDELINES (STRICTLY ENFORCE):\n${customRule.customPrompt}\n`
+    : "";
 
   const systemPrompt = `You are an expert KICD-trained teacher. Generate a highly detailed Lesson Plan conforming to strict CBC architecture.${customRuleText}
 
@@ -504,12 +638,12 @@ ${schemeMap ? `\n${MAP_RULES}\n\nCURRICULUM MAP FOR THIS LESSON:\n${lessonGround
       lessonNumber,
       topic: object.topic,
       objectives: object.specificLearningOutcomes,
-      content: object as any,
+      content: object as LessonPlanContent,
       schemeId,
       grade: scheme.grade,
       subject: scheme.subject,
-      teacherId: session.userId
-    }
+      teacherId: session.userId,
+    },
   });
 
   // Log Usage
@@ -521,8 +655,8 @@ ${schemeMap ? `\n${MAP_RULES}\n\nCURRICULUM MAP FOR THIS LESSON:\n${lessonGround
       promptTokens: usage.inputTokens ?? 0,
       completionTokens: usage.outputTokens ?? 0,
       totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-      model: "gpt-4o"
-    }
+      model: "gpt-4o",
+    },
   });
 
   revalidatePath("/dashboard/library");
@@ -533,12 +667,22 @@ ${schemeMap ? `\n${MAP_RULES}\n\nCURRICULUM MAP FOR THIS LESSON:\n${lessonGround
  * Quick path: a single lesson plan straight from grade, learning area and topic,
  * without a scheme of work. Grounded on the curriculum design when one is indexed.
  */
-async function generateQuickLessonPlanImpl(parameters: { grade: string; subject: string; topic: string; durationMinutes: number }) {
+async function generateQuickLessonPlanImpl(parameters: {
+  grade: string;
+  subject: string;
+  topic: string;
+  durationMinutes: number;
+}) {
   const session = await requireSession();
 
   const topic = parameters.topic.trim().slice(0, 200);
-  if (!parameters.grade || !parameters.subject || !topic) throw new TeacherError("Choose a grade, learning area and topic.");
-  const durationMinutes = [30, 35, 40, 60, 70, 80].includes(parameters.durationMinutes) ? parameters.durationMinutes : 40;
+  if (!parameters.grade || !parameters.subject || !topic)
+    throw new TeacherError("Choose a grade, learning area and topic.");
+  const durationMinutes = [30, 35, 40, 60, 70, 80].includes(
+    parameters.durationMinutes,
+  )
+    ? parameters.durationMinutes
+    : 40;
 
   await checkGenerationGuards(session, parameters);
 
@@ -546,23 +690,31 @@ async function generateQuickLessonPlanImpl(parameters: { grade: string; subject:
   const contextText = quickMap
     ? ""
     : (
-        await retrieveContext(`${parameters.grade} ${parameters.subject} ${topic}`, 8, {
-          grade: parameters.grade,
-          subject: parameters.subject,
-          tenantId: session.tenantId ?? undefined,
-        })
+        await retrieveContext(
+          `${parameters.grade} ${parameters.subject} ${topic}`,
+          8,
+          {
+            grade: parameters.grade,
+            subject: parameters.subject,
+            tenantId: session.tenantId ?? undefined,
+          },
+        )
       )
         .map((c) => c.chunkText)
         .join("\n\n");
 
-  const customRule = await db.generationRule.findUnique({ where: { contentType: "LESSON_PLAN" } });
-  const customRuleText = customRule?.customPrompt ? `\n\nCUSTOM PLATFORM GUIDELINES (STRICTLY ENFORCE):\n${customRule.customPrompt}\n` : "";
+  const customRule = await db.generationRule.findUnique({
+    where: { contentType: "LESSON_PLAN" },
+  });
+  const customRuleText = customRule?.customPrompt
+    ? `\n\nCUSTOM PLATFORM GUIDELINES (STRICTLY ENFORCE):\n${customRule.customPrompt}\n`
+    : "";
 
   const groundingText = quickMap
     ? `${MAP_RULES}\n\nCURRICULUM MAP:\n${lessonGrounding(quickMap, topic)}`
     : contextText
-    ? `CURRICULUM DESIGN EXTRACTS (use the strand, sub-strand and learning outcomes exactly as written here):\n${contextText}`
-    : "No curriculum design extract is available for this grade and learning area. Use your knowledge of the KICD CBC curriculum design and keep strand and sub-strand names conservative.";
+      ? `CURRICULUM DESIGN EXTRACTS (use the strand, sub-strand and learning outcomes exactly as written here):\n${contextText}`
+      : "No curriculum design extract is available for this grade and learning area. Use your knowledge of the KICD CBC curriculum design and keep strand and sub-strand names conservative.";
 
   const systemPrompt = `You are an expert KICD-trained teacher. Generate a highly detailed Lesson Plan conforming to strict CBC architecture.${customRuleText}
 
@@ -593,7 +745,7 @@ ${groundingText}
     data: {
       topic: object.topic,
       objectives: object.specificLearningOutcomes,
-      content: object as any,
+      content: object as LessonPlanContent,
       grade: parameters.grade,
       subject: parameters.subject,
       durationMinutes,
@@ -632,8 +784,12 @@ async function generateLessonNotesImpl(lessonPlanId: string) {
     subject: lessonPlan.subject ?? lessonPlan.scheme?.subject ?? "",
   });
 
-  const customRule = await db.generationRule.findUnique({ where: { contentType: "LESSON_NOTES" } });
-  const customRuleText = customRule?.customPrompt ? `\n\nCUSTOM PLATFORM GUIDELINES (STRICTLY ENFORCE):\n${customRule.customPrompt}\n` : "";
+  const customRule = await db.generationRule.findUnique({
+    where: { contentType: "LESSON_NOTES" },
+  });
+  const customRuleText = customRule?.customPrompt
+    ? `\n\nCUSTOM PLATFORM GUIDELINES (STRICTLY ENFORCE):\n${customRule.customPrompt}\n`
+    : "";
 
   const systemPrompt = `You are an experienced Kenyan educator crafting granular Lesson Notes for classroom delivery.
 The Lesson Notes are the TEACHER'S DETAILED GUIDE for delivering the lesson plan.${customRuleText}
@@ -660,8 +816,8 @@ ${JSON.stringify(lessonPlan.content)}
       lessonPlanId,
       notes: object.conceptOverview.whatLearnersNeedToKnow,
       resources: object,
-      teacherId: session.userId
-    }
+      teacherId: session.userId,
+    },
   });
 
   // Log Usage
@@ -673,25 +829,44 @@ ${JSON.stringify(lessonPlan.content)}
       promptTokens: usage.inputTokens ?? 0,
       completionTokens: usage.outputTokens ?? 0,
       totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-      model: "gpt-4o"
-    }
+      model: "gpt-4o",
+    },
   });
 
   revalidatePath("/dashboard/notes");
   return notes;
 }
 
-async function generateAssessmentImpl(parameters: { grade: string, subject: string, term: string, type: string, totalMarks: number, durationMinutes: number }) {
+async function generateAssessmentImpl(parameters: {
+  grade: string;
+  subject: string;
+  term: string;
+  type: string;
+  totalMarks: number;
+  durationMinutes: number;
+}) {
   const session = await requireSession();
 
-  const grounding = await termGrounding(parameters.grade, parameters.subject, parameters.term, session.tenantId);
-  if (!grounding) throw new TeacherError(missingCurriculum(parameters.grade, parameters.subject));
+  const grounding = await termGrounding(
+    parameters.grade,
+    parameters.subject,
+    parameters.term,
+    session.tenantId,
+  );
+  if (!grounding)
+    throw new TeacherError(
+      missingCurriculum(parameters.grade, parameters.subject),
+    );
   const contextText = grounding.text;
 
   await checkGenerationGuards(session, parameters);
 
-  const customRule = await db.generationRule.findUnique({ where: { contentType: "ASSESSMENT" } });
-  const customRuleText = customRule?.customPrompt ? `\n\nCUSTOM PLATFORM GUIDELINES (STRICTLY ENFORCE):\n${customRule.customPrompt}\n` : "";
+  const customRule = await db.generationRule.findUnique({
+    where: { contentType: "ASSESSMENT" },
+  });
+  const customRuleText = customRule?.customPrompt
+    ? `\n\nCUSTOM PLATFORM GUIDELINES (STRICTLY ENFORCE):\n${customRule.customPrompt}\n`
+    : "";
 
   const systemPrompt = `You are an expert assessment designer following KICD CBC guidelines.
 Generate a formal Assessment Paper and marking scheme.${customRuleText}
@@ -725,8 +900,8 @@ ${groundingBlock(grounding)}
       subject: parameters.subject,
       type: parameters.type,
       content: object,
-      teacherId: session.userId
-    }
+      teacherId: session.userId,
+    },
   });
 
   // Log Usage
@@ -738,17 +913,19 @@ ${groundingBlock(grounding)}
       promptTokens: usage.inputTokens ?? 0,
       completionTokens: usage.outputTokens ?? 0,
       totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-      model: "gpt-4o"
-    }
+      model: "gpt-4o",
+    },
   });
 
   // [NEW] Hallucination Guardrail
   const isAccurate = await passesVerification(object, contextText);
   if (!isAccurate) {
-    console.warn("HALLUCINATION DETECTED: Assessment failed verification pass.");
+    console.warn(
+      "HALLUCINATION DETECTED: Assessment failed verification pass.",
+    );
     await db.assessment.update({
       where: { id: assessment.id },
-      data: { title: `[Needs Review] ${assessment.title}` }
+      data: { title: `[Needs Review] ${assessment.title}` },
     });
   }
 
@@ -762,7 +939,7 @@ export async function getAssessments() {
 
   return db.assessment.findMany({
     where: { teacherId: session.userId },
-    orderBy: { createdAt: "desc" }
+    orderBy: { createdAt: "desc" },
   });
 }
 
@@ -771,23 +948,33 @@ export async function deleteAssessment(id: string) {
   if (!session?.userId) throw new Error("Unauthorized");
 
   await db.assessment.delete({
-    where: { id, teacherId: session.userId }
+    where: { id, teacherId: session.userId },
   });
 
   revalidatePath("/dashboard/assessments");
 }
 
-export async function updateLessonPlan(id: string, content: any) {
+export async function updateLessonPlan(id: string, content: unknown) {
   const session = await auth();
   if (!session?.userId) throw new Error("Unauthorized");
 
-  if (!content || typeof content !== "object" || Array.isArray(content)) throw new Error("Invalid lesson plan");
-  const topic = typeof content.topic === "string" && content.topic.trim() ? content.topic.trim().slice(0, 300) : undefined;
-  const objectives = Array.isArray(content.specificLearningOutcomes) ? content.specificLearningOutcomes.filter((o: unknown) => typeof o === "string") : undefined;
+  if (!content || typeof content !== "object" || Array.isArray(content))
+    throw new Error("Invalid lesson plan");
+
+  const planContent = content as Partial<LessonPlanContent>;
+  const topic =
+    typeof planContent.topic === "string" && planContent.topic.trim()
+      ? planContent.topic.trim().slice(0, 300)
+      : undefined;
+  const objectives = Array.isArray(planContent.specificLearningOutcomes)
+    ? planContent.specificLearningOutcomes.filter(
+        (o: unknown): o is string => typeof o === "string",
+      )
+    : undefined;
 
   await db.lessonPlan.update({
     where: { id, teacherId: session.userId },
-    data: { content: content as any, topic, objectives }
+    data: { content: planContent as LessonPlanContent, topic, objectives },
   });
 
   revalidatePath(`/dashboard/lessons/${id}`);
@@ -801,24 +988,27 @@ export async function getSchemeLessonsStatus(schemeId: string) {
 
   const scheme = await db.schemeOfWork.findFirst({
     where: { id: schemeId, teacherId: session.userId },
-    include: { lessonPlans: { select: { lessonNumber: true, topic: true } } }
+    include: { lessonPlans: { select: { lessonNumber: true, topic: true } } },
   });
 
   if (!scheme) throw new Error("Scheme not found");
 
-  const content = scheme.content as any;
-  const allLessons: { lessonNumber: number; topic: string; exists: boolean }[] = [];
+  const content = scheme.content as SchemeOfWorkContent;
+  const allLessons: { lessonNumber: number; topic: string; exists: boolean }[] =
+    [];
 
   let lessonCounter = 1;
-  content.weeks.forEach((week: any) => {
-    week.rows.forEach((row: any) => {
+  content.weeks.forEach((week) => {
+    week.rows.forEach((row) => {
       // Assuming each row corresponds to one or more lessons
       // For simplicity, let's say each row is one topic/lesson
-      const exists = scheme.lessonPlans.some((lp: any) => lp.lessonNumber === lessonCounter);
+      const exists = scheme.lessonPlans.some(
+        (lp) => lp.lessonNumber === lessonCounter,
+      );
       allLessons.push({
         lessonNumber: lessonCounter,
         topic: row.subStrand,
-        exists
+        exists,
       });
       lessonCounter++;
     });
@@ -858,15 +1048,19 @@ export async function getSchemeLessonPlans(schemeId: string) {
  * [PHASE 4] Hallucination Guardrail
  * Cross-references generated content against RAG context to ensure 100% pedagogical accuracy.
  */
-async function verifyPedagogicalAccuracy(generatedContent: string, contextChunks: string) {
+async function verifyPedagogicalAccuracy(
+  generatedContent: string,
+  contextChunks: string,
+) {
   const { object } = await generateObject({
     model: openai("gpt-4o"), // Use the most capable model for verification
     schema: z.object({
       isAccurate: z.boolean(),
       conflicts: z.array(z.string()),
-      confidenceScore: z.number().min(0).max(100)
+      confidenceScore: z.number().min(0).max(100),
     }),
-    system: "You are a KICD Auditor. Compare the GENERATED CONTENT against the OFFICIAL CURRICULUM CONTEXT. Identify if any strands, sub-strands, or learning outcomes in the generated content do NOT exist in the official context (Hallucinations).",
+    system:
+      "You are a KICD Auditor. Compare the GENERATED CONTENT against the OFFICIAL CURRICULUM CONTEXT. Identify if any strands, sub-strands, or learning outcomes in the generated content do NOT exist in the official context (Hallucinations).",
     prompt: `
       OFFICIAL CONTEXT:
       ${contextChunks}
@@ -875,7 +1069,7 @@ async function verifyPedagogicalAccuracy(generatedContent: string, contextChunks
       ${generatedContent}
 
       Return accuracy status and list any specific hallucinations.
-    `
+    `,
   });
 
   return object.isAccurate && object.confidenceScore > 85;
@@ -883,22 +1077,36 @@ async function verifyPedagogicalAccuracy(generatedContent: string, contextChunks
 
 // ─── Generators (each returns a GenerationResult) ─────────────────────────────
 
-export async function generateSchemeOfWork(parameters: Parameters<typeof generateSchemeOfWorkImpl>[0]) {
+export async function generateSchemeOfWork(
+  parameters: Parameters<typeof generateSchemeOfWorkImpl>[0],
+) {
   return asResult("scheme of work", () => generateSchemeOfWorkImpl(parameters));
 }
 
-export async function generateLessonPlan(schemeId: string, lessonNumber: number, topic: string) {
-  return asResult("lesson plan", () => generateLessonPlanImpl(schemeId, lessonNumber, topic));
+export async function generateLessonPlan(
+  schemeId: string,
+  lessonNumber: number,
+  topic: string,
+) {
+  return asResult("lesson plan", () =>
+    generateLessonPlanImpl(schemeId, lessonNumber, topic),
+  );
 }
 
-export async function generateQuickLessonPlan(parameters: Parameters<typeof generateQuickLessonPlanImpl>[0]) {
-  return asResult("quick lesson plan", () => generateQuickLessonPlanImpl(parameters));
+export async function generateQuickLessonPlan(
+  parameters: Parameters<typeof generateQuickLessonPlanImpl>[0],
+) {
+  return asResult("quick lesson plan", () =>
+    generateQuickLessonPlanImpl(parameters),
+  );
 }
 
 export async function generateLessonNotes(lessonPlanId: string) {
   return asResult("lesson notes", () => generateLessonNotesImpl(lessonPlanId));
 }
 
-export async function generateAssessment(parameters: Parameters<typeof generateAssessmentImpl>[0]) {
+export async function generateAssessment(
+  parameters: Parameters<typeof generateAssessmentImpl>[0],
+) {
   return asResult("assessment", () => generateAssessmentImpl(parameters));
 }

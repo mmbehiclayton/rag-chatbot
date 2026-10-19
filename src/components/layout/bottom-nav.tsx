@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { PRIMARY_NAV, isActivePath } from "./nav-config";
+import { isActivePath, PRIMARY_NAV } from "./nav-config";
 
 export function BottomNav() {
   const pathname = usePathname();
@@ -24,7 +24,7 @@ export function BottomNav() {
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex h-16 flex-col items-center justify-center gap-1 text-xs font-medium",
-                  active ? "text-primary" : "text-muted-foreground"
+                  active ? "text-primary" : "text-muted-foreground",
                 )}
               >
                 <Icon className="h-5 w-5" aria-hidden />

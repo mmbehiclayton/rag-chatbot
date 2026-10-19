@@ -1,12 +1,12 @@
 "use client";
 
-import { useOptimistic, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Check, CornerDownRight, Undo2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useOptimistic, useTransition } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { markLesson } from "@/lib/actions/term-pack";
 import type { LessonStatus } from "@/lib/term-pack";
-import { Button } from "@/components/ui/button";
 
 /** "Taught" / "Carry over" for one timetabled lesson. Once marked, shows the result with an undo. */
 export function MarkLesson({
@@ -31,7 +31,13 @@ export function MarkLesson({
   const set = (next: LessonStatus | null) =>
     startTransition(async () => {
       setShown(next);
-      const result = await markLesson({ schemeId, stream, date, slot, status: next });
+      const result = await markLesson({
+        schemeId,
+        stream,
+        date,
+        slot,
+        status: next,
+      });
       if (!result.success) toast.error(result.error);
       router.refresh();
     });
@@ -39,10 +45,21 @@ export function MarkLesson({
   if (shown) {
     return (
       <div className="flex items-center gap-2">
-        <span className={shown === "TAUGHT" ? "text-sm font-medium text-success" : "text-sm font-medium text-muted-foreground"}>
+        <span
+          className={
+            shown === "TAUGHT"
+              ? "text-sm font-medium text-success"
+              : "text-sm font-medium text-muted-foreground"
+          }
+        >
           {shown === "TAUGHT" ? "Taught" : "Carried over"}
         </span>
-        <Button variant="ghost" size={size} onClick={() => set(null)} disabled={isPending}>
+        <Button
+          variant="ghost"
+          size={size}
+          onClick={() => set(null)}
+          disabled={isPending}
+        >
           <Undo2 /> Undo
         </Button>
       </div>
@@ -54,7 +71,12 @@ export function MarkLesson({
       <Button size={size} onClick={() => set("TAUGHT")} disabled={isPending}>
         <Check /> Taught
       </Button>
-      <Button variant="outline" size={size} onClick={() => set("CARRIED_OVER")} disabled={isPending}>
+      <Button
+        variant="outline"
+        size={size}
+        onClick={() => set("CARRIED_OVER")}
+        disabled={isPending}
+      >
         <CornerDownRight /> Carry over
       </Button>
     </div>

@@ -1,16 +1,24 @@
 "use client";
 
-import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { setTermPrice } from "@/lib/actions/pilot";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { setTermPrice } from "@/lib/actions/pilot";
 
 /** Change the term pass price for every teacher. New checkouts use it straight away. */
-export function PriceForm({ price, min, max }: { price: number; min: number; max: number }) {
+export function PriceForm({
+  price,
+  min,
+  max,
+}: {
+  price: number;
+  min: number;
+  max: number;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [value, setValue] = useState(String(price));
@@ -30,7 +38,13 @@ export function PriceForm({ price, min, max }: { price: number; min: number; max
       className="flex flex-col gap-3 sm:flex-row sm:items-end"
       onSubmit={(e) => {
         e.preventDefault();
-        if (changed && window.confirm(`Change the term pass from KES ${price} to KES ${next} for all teachers?`)) save();
+        if (
+          changed &&
+          window.confirm(
+            `Change the term pass from KES ${price} to KES ${next} for all teachers?`,
+          )
+        )
+          save();
       }}
     >
       <div className="space-y-2">
@@ -48,7 +62,10 @@ export function PriceForm({ price, min, max }: { price: number; min: number; max
           required
         />
       </div>
-      <Button type="submit" disabled={isPending || !changed || !(next >= min && next <= max)}>
+      <Button
+        type="submit"
+        disabled={isPending || !changed || !(next >= min && next <= max)}
+      >
         {isPending && <Spinner />} Save price
       </Button>
     </form>

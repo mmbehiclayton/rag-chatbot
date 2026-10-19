@@ -1,17 +1,23 @@
 "use client";
 
-import { useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTransition } from "react";
 import { toast } from "sonner";
 import { setTestMode } from "@/lib/actions/pilot";
 import { cn } from "@/lib/utils";
 
 const OPTIONS = [
-  { on: true, label: "Test mode: free for everyone", confirm: "Turn test mode on? Every teacher can use every class without paying." },
+  {
+    on: true,
+    label: "Test mode: free for everyone",
+    confirm:
+      "Turn test mode on? Every teacher can use every class without paying.",
+  },
   {
     on: false,
     label: "Payments on: pass required",
-    confirm: "Turn payments on? After their 14-day trial, teachers keep one free class and need a term pass for the rest.",
+    confirm:
+      "Turn payments on? After their 14-day trial, teachers keep one free class and need a term pass for the rest.",
   },
 ] as const;
 
@@ -24,28 +30,41 @@ export function TestModeToggle({ on }: { on: boolean }) {
     startTransition(async () => {
       const result = await setTestMode({ on: option.on });
       if (!result.success) return void toast.error(result.error);
-      toast.success(option.on ? "Test mode is on. Nobody needs to pay." : "Payments are on.");
+      toast.success(
+        option.on
+          ? "Test mode is on. Nobody needs to pay."
+          : "Payments are on.",
+      );
       router.refresh();
     });
   };
 
   return (
-    <div role="radiogroup" aria-label="Test mode" className="flex flex-col gap-2 sm:flex-row">
+    <div
+      role="radiogroup"
+      aria-label="Test mode"
+      className="flex flex-col gap-2 sm:flex-row"
+    >
       {OPTIONS.map((o) => (
-        <button
+        <label
           key={o.label}
-          type="button"
-          role="radio"
-          aria-checked={o.on === on}
-          disabled={isPending}
-          onClick={() => choose(o)}
           className={cn(
-            "inline-flex min-h-11 items-center rounded-md border px-3.5 text-sm font-medium transition-colors disabled:opacity-60",
-            o.on === on ? "border-primary bg-accent text-accent-foreground" : "border-input bg-card hover:bg-muted"
+            "inline-flex min-h-11 cursor-pointer items-center rounded-md border px-3.5 text-sm font-medium transition-colors disabled:opacity-60",
+            o.on === on
+              ? "border-primary bg-accent text-accent-foreground"
+              : "border-input bg-card hover:bg-muted",
           )}
         >
+          <input
+            type="radio"
+            name="test-mode"
+            className="sr-only"
+            checked={o.on === on}
+            disabled={isPending}
+            onChange={() => choose(o)}
+          />
           {o.label}
-        </button>
+        </label>
       ))}
     </div>
   );

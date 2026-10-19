@@ -5,8 +5,16 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
 /** Share the teacher's invite link on WhatsApp, or copy it to paste anywhere. */
-export function InviteShare({ url, message: customMessage }: { url: string; message?: string }) {
-  const message = customMessage ?? `I use Elimu to draft my schemes of work, lesson plans and records of work. Try it free: ${url}`;
+export function InviteShare({
+  url,
+  message: customMessage,
+}: {
+  url: string;
+  message?: string;
+}) {
+  const message =
+    customMessage ??
+    `I use Elimu to draft my schemes of work, lesson plans and records of work. Try it free: ${url}`;
 
   const copy = async () => {
     try {
@@ -21,7 +29,18 @@ export function InviteShare({ url, message: customMessage }: { url: string; mess
     <div className="space-y-3">
       <p className="break-all rounded-md bg-muted px-3 py-2 text-sm">{url}</p>
       <div className="flex flex-col gap-2 sm:flex-row">
-        <Button size="lg" render={<a href={`https://wa.me/?text=${encodeURIComponent(message)}`} target="_blank" rel="noopener noreferrer" />}>
+        <Button
+          size="lg"
+          render={
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent(message)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <span className="sr-only">Share on WhatsApp</span>
+            </a>
+          }
+        >
           <MessageCircle /> Share on WhatsApp
         </Button>
         <Button variant="outline" size="lg" onClick={copy}>

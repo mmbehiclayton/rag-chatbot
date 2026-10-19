@@ -1,12 +1,9 @@
 "use client";
 
-import { useTransition, useEffect } from "react";
-import { toast } from "sonner";
+import { RefreshCw, RotateCcw, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { deleteCurriculum, retryCurriculum } from "@/lib/actions/curriculum";
-import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
-import { Trash2, RefreshCw, RotateCcw } from "lucide-react";
+import { useEffect, useTransition } from "react";
+import { toast } from "sonner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,6 +15,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { deleteCurriculum, retryCurriculum } from "@/lib/actions/curriculum";
 
 export function AutoRefresh({ hasProcessing }: { hasProcessing: boolean }) {
   const router = useRouter();
@@ -46,7 +46,13 @@ export function KnowledgeRefreshButton() {
   );
 }
 
-export function DeleteCurriculumButton({ documentId, title }: { documentId: string; title: string }) {
+export function DeleteCurriculumButton({
+  documentId,
+  title,
+}: {
+  documentId: string;
+  title: string;
+}) {
   const [isPending, startTransition] = useTransition();
 
   const handleDelete = () => {
@@ -59,14 +65,24 @@ export function DeleteCurriculumButton({ documentId, title }: { documentId: stri
 
   return (
     <AlertDialog>
-      <AlertDialogTrigger render={<Button variant="ghost" size="icon-lg" aria-label={`Delete ${title}`} disabled={isPending} />}>
+      <AlertDialogTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-lg"
+            aria-label={`Delete ${title}`}
+            disabled={isPending}
+          />
+        }
+      >
         {isPending ? <Spinner /> : <Trash2 />}
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Delete this curriculum design?</AlertDialogTitle>
           <AlertDialogDescription>
-            Ask Elimu and document generation will stop using “{title}”. Its curriculum map, if any, is kept. This can't be undone.
+            Ask Elimu and document generation will stop using “{title}”. Its
+            curriculum map, if any, is kept. This can't be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -81,7 +97,13 @@ export function DeleteCurriculumButton({ documentId, title }: { documentId: stri
 }
 
 /** Reads the PDF again. Used after a failure, or to add page numbers to designs indexed before they were recorded. */
-export function RetryButton({ documentId, label = "Try again" }: { documentId: string; label?: string }) {
+export function RetryButton({
+  documentId,
+  label = "Try again",
+}: {
+  documentId: string;
+  label?: string;
+}) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -92,7 +114,9 @@ export function RetryButton({ documentId, label = "Try again" }: { documentId: s
         startTransition(async () => {
           const result = await retryCurriculum(documentId);
           if (result.success) {
-            toast.success("Indexing started. This page updates when it's done.");
+            toast.success(
+              "Indexing started. This page updates when it's done.",
+            );
             router.refresh();
           } else toast.error(result.error ?? "Couldn't start indexing.");
         })

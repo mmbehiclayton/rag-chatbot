@@ -1,17 +1,17 @@
 export const KICD_STRUCTURE: Record<string, string[]> = {
-  "PP1": [
+  PP1: [
     "Language Activities",
     "Mathematical Activities",
     "Environmental Activities",
     "Psychomotor and Creative Activities",
-    "Religious Education Activities"
+    "Religious Education Activities",
   ],
-  "PP2": [
+  PP2: [
     "Language Activities",
     "Mathematical Activities",
     "Environmental Activities",
     "Psychomotor and Creative Activities",
-    "Religious Education Activities"
+    "Religious Education Activities",
   ],
   "Grade 1": [
     "Mathematics",
@@ -23,7 +23,7 @@ export const KICD_STRUCTURE: Record<string, string[]> = {
     "Christian Religious Education",
     "Islamic Religious Education",
     "Hindu Religious Education",
-    "Movement and Creative Activities"
+    "Movement and Creative Activities",
   ],
   "Grade 2": [
     "Mathematics",
@@ -35,7 +35,7 @@ export const KICD_STRUCTURE: Record<string, string[]> = {
     "Christian Religious Education",
     "Islamic Religious Education",
     "Hindu Religious Education",
-    "Movement and Creative Activities"
+    "Movement and Creative Activities",
   ],
   "Grade 3": [
     "Mathematics",
@@ -47,7 +47,7 @@ export const KICD_STRUCTURE: Record<string, string[]> = {
     "Christian Religious Education",
     "Islamic Religious Education",
     "Hindu Religious Education",
-    "Movement and Creative Activities"
+    "Movement and Creative Activities",
   ],
   "Grade 4": [
     "Mathematics",
@@ -62,7 +62,7 @@ export const KICD_STRUCTURE: Record<string, string[]> = {
     "Social Studies",
     "Christian Religious Education",
     "Islamic Religious Education",
-    "Hindu Religious Education"
+    "Hindu Religious Education",
   ],
   "Grade 5": [
     "Mathematics",
@@ -77,7 +77,7 @@ export const KICD_STRUCTURE: Record<string, string[]> = {
     "Social Studies",
     "Christian Religious Education",
     "Islamic Religious Education",
-    "Hindu Religious Education"
+    "Hindu Religious Education",
   ],
   "Grade 6": [
     "Mathematics",
@@ -92,7 +92,7 @@ export const KICD_STRUCTURE: Record<string, string[]> = {
     "Social Studies",
     "Christian Religious Education",
     "Islamic Religious Education",
-    "Hindu Religious Education"
+    "Hindu Religious Education",
   ],
   "Grade 7 (JSS)": [
     "English",
@@ -106,7 +106,7 @@ export const KICD_STRUCTURE: Record<string, string[]> = {
     "Business Studies",
     "Agriculture",
     "Life Skills Education",
-    "Sports and Physical Education"
+    "Sports and Physical Education",
   ],
   "Grade 8 (JSS)": [
     "English",
@@ -120,7 +120,7 @@ export const KICD_STRUCTURE: Record<string, string[]> = {
     "Business Studies",
     "Agriculture",
     "Life Skills Education",
-    "Sports and Physical Education"
+    "Sports and Physical Education",
   ],
   "Grade 9 (JSS)": [
     "English",
@@ -134,8 +134,8 @@ export const KICD_STRUCTURE: Record<string, string[]> = {
     "Business Studies",
     "Agriculture",
     "Life Skills Education",
-    "Sports and Physical Education"
-  ]
+    "Sports and Physical Education",
+  ],
 };
 
 export const GRADES = Object.keys(KICD_STRUCTURE);

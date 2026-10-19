@@ -1,14 +1,14 @@
+import { formatDistanceToNow } from "date-fns";
+import { ArrowLeft, Info } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Info } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-import { auth } from "@/lib/auth";
-import { db, withDbRetry } from "@/lib/db";
-import { getGradeOptions } from "@/lib/curriculum-options";
-import { MAP_STATUS, getCurator } from "@/lib/curriculum-map";
-import { MapStatusBadge } from "@/components/curriculum/map-status-badge";
-import { MapEditor } from "@/components/curriculum/map-editor";
 import { DraftFromDesign } from "@/components/curriculum/draft-from-design";
+import { MapEditor } from "@/components/curriculum/map-editor";
+import { MapStatusBadge } from "@/components/curriculum/map-status-badge";
+import { auth } from "@/lib/auth";
+import { getCurator, MAP_STATUS } from "@/lib/curriculum-map";
+import { getGradeOptions } from "@/lib/curriculum-options";
+import { db, withDbRetry } from "@/lib/db";
 import { findDesign } from "@/lib/map-drafting";
 
 // Drafting a map from a curriculum design reads the whole design with AI.
@@ -22,7 +22,11 @@ function decode(value: string) {
   }
 }
 
-export default async function CurriculumMapPage({ params }: { params: Promise<{ grade: string; subject: string }> }) {
+export default async function CurriculumMapPage({
+  params,
+}: {
+  params: Promise<{ grade: string; subject: string }>;
+}) {
   const session = await auth();
   const curator = await getCurator(session.userId);
   if (!curator) redirect("/dashboard");
@@ -52,19 +56,31 @@ export default async function CurriculumMapPage({ params }: { params: Promise<{ 
             name: true,
             subStrands: {
               orderBy: { order: "asc" },
-              select: { name: true, lessons: true, term: true, outcomes: true, inquiryQuestions: true, learningExperiences: true },
+              select: {
+                name: true,
+                lessons: true,
+                term: true,
+                outcomes: true,
+                inquiryQuestions: true,
+                learningExperiences: true,
+              },
             },
           },
         },
       },
-    })
+    }),
   );
 
   const status = map?.status ?? MAP_STATUS.DRAFT;
-  const design = status === MAP_STATUS.DRAFT ? await findDesign(grade, subject) : null;
-  const canCheck = status === MAP_STATUS.IN_REVIEW && map?.editedById !== curator.id;
-  const canPublish = curator.role === "SUPERADMIN" && status !== MAP_STATUS.PUBLISHED;
-  const person = (u: { name: string | null; email: string } | null | undefined) => u?.name || u?.email || "a curator";
+  const design =
+    status === MAP_STATUS.DRAFT ? await findDesign(grade, subject) : null;
+  const canCheck =
+    status === MAP_STATUS.IN_REVIEW && map?.editedById !== curator.id;
+  const canPublish =
+    curator.role === "SUPERADMIN" && status !== MAP_STATUS.PUBLISHED;
+  const person = (
+    u: { name: string | null; email: string } | null | undefined,
+  ) => u?.name || u?.email || "a curator";
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -83,8 +99,11 @@ export default async function CurriculumMapPage({ params }: { params: Promise<{ 
         </div>
         {map && (
           <p className="text-sm text-muted-foreground">
-            Last edited by {person(map.editedBy)} {formatDistanceToNow(map.updatedAt, { addSuffix: true })}
-            {map.publishedAt && map.checkedBy ? `. Checked by ${person(map.checkedBy)}.` : "."}
+            Last edited by {person(map.editedBy)}{" "}
+            {formatDistanceToNow(map.updatedAt, { addSuffix: true })}
+            {map.publishedAt && map.checkedBy
+              ? `. Checked by ${person(map.checkedBy)}.`
+              : "."}
           </p>
         )}
         {status === MAP_STATUS.DRAFT && map?.reviewComment && (
@@ -100,14 +119,24 @@ export default async function CurriculumMapPage({ params }: { params: Promise<{ 
           <p className="flex gap-2 rounded-xl border bg-card p-3 text-sm">
             <Info className="mt-0.5 size-4 shrink-0 text-info" aria-hidden />
             <span>
-              You made the last changes, so another curator needs to check this map
-              {canPublish ? ", or you can publish it now without a check." : "."}
+              You made the last changes, so another curator needs to check this
+              map
+              {canPublish
+                ? ", or you can publish it now without a check."
+                : "."}
             </span>
           </p>
         )}
       </div>
 
-      {design && <DraftFromDesign grade={grade} subject={subject} designTitle={design.title} hasStrands={(map?.strands.length ?? 0) > 0} />}
+      {design && (
+        <DraftFromDesign
+          grade={grade}
+          subject={subject}
+          designTitle={design.title}
+          hasStrands={(map?.strands.length ?? 0) > 0}
+        />
+      )}
 
       <MapEditor
         key={map?.updatedAt.toISOString() ?? "new"}
@@ -116,7 +145,10 @@ export default async function CurriculumMapPage({ params }: { params: Promise<{ 
         status={status}
         canCheck={canCheck}
         canPublish={canPublish}
-        initial={{ sourceNote: map?.sourceNote ?? "", strands: map?.strands ?? [] }}
+        initial={{
+          sourceNote: map?.sourceNote ?? "",
+          strands: map?.strands ?? [],
+        }}
       />
     </div>
   );

@@ -1,14 +1,17 @@
-const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
-const { PrismaClient } = require('@prisma/client');
+const path = require("node:path");
+require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
+const { PrismaClient } = require("@prisma/client");
 
 const url = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
-console.log("🔍 Using Database URL (unpooled preferred):", url ? url.split('@')[1] : 'MISSING');
+console.log(
+  "🔍 Using Database URL (unpooled preferred):",
+  url ? url.split("@")[1] : "MISSING",
+);
 
 const db = new PrismaClient({
   datasources: {
-    db: { url }
-  }
+    db: { url },
+  },
 });
 
 const CBC_STRUCTURE = [
@@ -159,16 +162,27 @@ async function seedCBC() {
       const grade = await db.gradeLevel.upsert({
         where: { name: gradeData.name },
         update: { order: gradeData.order, levelId: level.id },
-        create: { name: gradeData.name, order: gradeData.order, levelId: level.id },
+        create: {
+          name: gradeData.name,
+          order: gradeData.order,
+          levelId: level.id,
+        },
       });
       process.stdout.write("Done\n");
 
       // Upsert junctions
-      process.stdout.write(`    Junctions (${lvlData.learningAreas.length})... `);
+      process.stdout.write(
+        `    Junctions (${lvlData.learningAreas.length})... `,
+      );
       for (const areaName of lvlData.learningAreas) {
         const areaId = areaMap.get(areaName);
         await db.levelLearningArea.upsert({
-          where: { gradeId_learningAreaId: { gradeId: grade.id, learningAreaId: areaId } },
+          where: {
+            gradeId_learningAreaId: {
+              gradeId: grade.id,
+              learningAreaId: areaId,
+            },
+          },
           update: {},
           create: { gradeId: grade.id, learningAreaId: areaId },
         });
@@ -180,9 +194,14 @@ async function seedCBC() {
   const gradeCount = await db.gradeLevel.count();
   const areaCount = await db.learningArea.count();
   const junctionCount = await db.levelLearningArea.count();
-  console.log(`✅ Seeded: ${gradeCount} grades, ${areaCount} learning areas, ${junctionCount} combinations`);
+  console.log(
+    `✅ Seeded: ${gradeCount} grades, ${areaCount} learning areas, ${junctionCount} combinations`,
+  );
 }
 
 seedCBC()
-  .catch((e) => { console.error(e); process.exit(1); })
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
   .finally(() => db.$disconnect());

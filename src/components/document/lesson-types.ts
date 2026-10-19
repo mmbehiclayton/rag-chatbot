@@ -27,7 +27,11 @@ export type LessonContent = {
       successCriteria?: string;
     };
     mainActivities?: LessonActivity[];
-    differentiation?: { learnersNeedingSupport?: string; averageLearners?: string; advancedLearners?: string };
+    differentiation?: {
+      learnersNeedingSupport?: string;
+      averageLearners?: string;
+      advancedLearners?: string;
+    };
     conclusion?: {
       duration?: number;
       summary?: string;
@@ -37,6 +41,17 @@ export type LessonContent = {
       homework?: string;
     };
   };
-  assessmentRubric?: { criteria?: string; exceeding?: string; meeting?: string; approaching?: string; below?: string };
-  multimediaSuggestions?: { type?: string; description?: string; purpose?: string; suggestedSource?: string }[];
+  assessmentRubric?: {
+    criteria?: string;
+    exceeding?: string;
+    meeting?: string;
+    approaching?: string;
+    below?: string;
+  };
+  multimediaSuggestions?: {
+    type?: string;
+    description?: string;
+    purpose?: string;
+    suggestedSource?: string;
+  }[];
 };

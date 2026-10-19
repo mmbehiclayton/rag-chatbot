@@ -1,26 +1,51 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import { ChevronDown, History, MessageSquare, Plus, RotateCw, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  History,
+  MessageSquare,
+  Plus,
+  RotateCw,
+  Trash2,
+} from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { toast } from "sonner";
+import {
+  Conversation,
+  ConversationContent,
+  ConversationScrollButton,
+} from "@/components/ai-elements/conversation";
+import {
+  Message,
+  MessageContent,
+  MessageResponse,
+} from "@/components/ai-elements/message";
 import {
   PromptInput,
   PromptInputBody,
-  type PromptInputMessage,
   PromptInputFooter,
+  type PromptInputMessage,
   PromptInputSubmit,
   PromptInputTextarea,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
-import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/ai-elements/conversation";
-import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
-import { Source, Sources, SourcesContent, SourcesTrigger } from "@/components/ai-elements/sources";
+import {
+  Source,
+  Sources,
+  SourcesContent,
+  SourcesTrigger,
+} from "@/components/ai-elements/sources";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 import { createChatSession, deleteChatSession } from "@/lib/actions/chat";
 import { cn } from "@/lib/utils";
@@ -34,7 +59,15 @@ const SUGGESTIONS = [
   "Explain the CBC rubric levels in simple terms for parents",
 ];
 
-function SessionList({ sessions, activeId, onNavigate }: { sessions: SessionRow[]; activeId: string | null; onNavigate?: () => void }) {
+function SessionList({
+  sessions,
+  activeId,
+  onNavigate,
+}: {
+  sessions: SessionRow[];
+  activeId: string | null;
+  onNavigate?: () => void;
+}) {
   const router = useRouter();
 
   const remove = async (id: string) => {
@@ -48,7 +81,11 @@ function SessionList({ sessions, activeId, onNavigate }: { sessions: SessionRow[
   };
 
   if (sessions.length === 0) {
-    return <p className="px-3 py-8 text-center text-sm text-muted-foreground">No conversations yet</p>;
+    return (
+      <p className="px-3 py-8 text-center text-sm text-muted-foreground">
+        No conversations yet
+      </p>
+    );
   }
 
   return (
@@ -61,7 +98,9 @@ function SessionList({ sessions, activeId, onNavigate }: { sessions: SessionRow[
             aria-current={s.id === activeId ? "page" : undefined}
             className={cn(
               "flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-md px-3 text-sm hover:bg-muted",
-              s.id === activeId ? "bg-muted font-medium text-foreground" : "text-muted-foreground"
+              s.id === activeId
+                ? "bg-muted font-medium text-foreground"
+                : "text-muted-foreground",
             )}
           >
             <MessageSquare className="size-4 shrink-0" />
@@ -82,7 +121,15 @@ function SessionList({ sessions, activeId, onNavigate }: { sessions: SessionRow[
   );
 }
 
-export function ChatInterface({ sessions, activeId, initialMessages }: { sessions: SessionRow[]; activeId: string | null; initialMessages: UIMessage[] }) {
+export function ChatInterface({
+  sessions,
+  activeId,
+  initialMessages,
+}: {
+  sessions: SessionRow[];
+  activeId: string | null;
+  initialMessages: UIMessage[];
+}) {
   const router = useRouter();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [sessionId, setSessionId] = useState(activeId);
@@ -135,7 +182,11 @@ export function ChatInterface({ sessions, activeId, initialMessages }: { session
 
       <div className="flex min-w-0 flex-1 flex-col bg-card md:rounded-xl md:border">
         <div className="flex items-center justify-between gap-2 border-b px-3 py-2 md:hidden">
-          <Button variant="ghost" size="sm" onClick={() => setHistoryOpen(true)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setHistoryOpen(true)}
+          >
             <History /> History
           </Button>
           <Button variant="ghost" size="sm" onClick={newChat}>
@@ -149,11 +200,19 @@ export function ChatInterface({ sessions, activeId, initialMessages }: { session
               <div className="mx-auto max-w-lg space-y-4 py-6">
                 <div className="space-y-1">
                   <h2 className="text-lg font-semibold">Ask Elimu</h2>
-                  <p className="text-sm text-muted-foreground">Ask about the CBC curriculum, lesson ideas or assessment. Answers use KICD curriculum designs where available.</p>
+                  <p className="text-sm text-muted-foreground">
+                    Ask about the CBC curriculum, lesson ideas or assessment.
+                    Answers use KICD curriculum designs where available.
+                  </p>
                 </div>
                 <div className="flex flex-col gap-2">
                   {SUGGESTIONS.map((s) => (
-                    <Button key={s} variant="outline" className="h-auto min-h-11 justify-start whitespace-normal py-2 text-left font-normal" onClick={() => send(s)}>
+                    <Button
+                      key={s}
+                      variant="outline"
+                      className="h-auto min-h-11 justify-start whitespace-normal py-2 text-left font-normal"
+                      onClick={() => send(s)}
+                    >
                       {s}
                     </Button>
                   ))}
@@ -162,17 +221,35 @@ export function ChatInterface({ sessions, activeId, initialMessages }: { session
             )}
 
             {messages.map((m) => {
-              const sources = m.parts.filter((p) => p.type === "source-document");
+              const sources = m.parts.filter(
+                (p) => p.type === "source-document",
+              );
               // A reply that failed before any text arrived would show as an empty bubble.
-              if (m.role === "assistant" && !m.parts.some((p) => p.type === "text" && p.text)) return null;
+              if (
+                m.role === "assistant" &&
+                !m.parts.some((p) => p.type === "text" && p.text)
+              )
+                return null;
               return (
                 <Message key={m.id} from={m.role}>
                   <MessageContent>
-                    {m.parts.map((p, i) => (p.type === "text" ? <MessageResponse key={i}>{p.text}</MessageResponse> : null))}
+                    {m.parts.map((p) =>
+                      p.type === "text" ? (
+                        <MessageResponse key={`${m.id}-${p.text}`}>
+                          {p.text}
+                        </MessageResponse>
+                      ) : null,
+                    )}
                     {sources.length > 0 && (
                       <Sources className="mt-3 mb-0">
-                        <SourcesTrigger count={sources.length} className="min-h-9">
-                          <span className="font-medium">From {sources.length} curriculum document{sources.length === 1 ? "" : "s"}</span>
+                        <SourcesTrigger
+                          count={sources.length}
+                          className="min-h-9"
+                        >
+                          <span className="font-medium">
+                            From {sources.length} curriculum document
+                            {sources.length === 1 ? "" : "s"}
+                          </span>
                           <ChevronDown className="size-4" aria-hidden />
                         </SourcesTrigger>
                         <SourcesContent>
@@ -188,16 +265,25 @@ export function ChatInterface({ sessions, activeId, initialMessages }: { session
             })}
 
             {status === "submitted" && (
-              <div role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+              <output
+                aria-live="polite"
+                className="flex items-center gap-2 text-sm text-muted-foreground"
+              >
                 <Spinner /> Thinking…
-              </div>
+              </output>
             )}
             {error && (
               <div className="flex flex-wrap items-center gap-2 text-sm text-destructive">
-                {/^(Failed to fetch|NetworkError|Load failed)/i.test(error.message) || !error.message
+                {/^(Failed to fetch|NetworkError|Load failed)/i.test(
+                  error.message,
+                ) || !error.message
                   ? "Elimu could not answer. Check your connection."
                   : error.message}
-                <Button variant="outline" size="sm" onClick={() => regenerate({ body: { sessionId } })}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => regenerate({ body: { sessionId } })}
+                >
                   <RotateCw /> Try again
                 </Button>
               </div>
@@ -209,11 +295,17 @@ export function ChatInterface({ sessions, activeId, initialMessages }: { session
         <div className="border-t p-3">
           <PromptInput onSubmit={onSubmit}>
             <PromptInputBody>
-              <PromptInputTextarea placeholder="Ask Elimu…" className="text-base" />
+              <PromptInputTextarea
+                placeholder="Ask Elimu…"
+                className="text-base"
+              />
             </PromptInputBody>
             <PromptInputFooter>
               <PromptInputTools />
-              <PromptInputSubmit status={busy ? status : undefined} disabled={busy} />
+              <PromptInputSubmit
+                status={busy ? status : undefined}
+                disabled={busy}
+              />
             </PromptInputFooter>
           </PromptInput>
         </div>
@@ -225,7 +317,11 @@ export function ChatInterface({ sessions, activeId, initialMessages }: { session
             <SheetTitle>Conversations</SheetTitle>
           </SheetHeader>
           <div className="flex-1 overflow-y-auto p-2">
-            <SessionList sessions={list} activeId={sessionId} onNavigate={() => setHistoryOpen(false)} />
+            <SessionList
+              sessions={list}
+              activeId={sessionId}
+              onNavigate={() => setHistoryOpen(false)}
+            />
           </div>
         </SheetContent>
       </Sheet>

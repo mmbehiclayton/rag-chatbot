@@ -21,11 +21,18 @@ export function ChoiceChips({
 }) {
   const toggle = (option: string) => {
     if (!multiple) return onChange([option]);
-    onChange(value.includes(option) ? value.filter((v) => v !== option) : [...value, option]);
+    onChange(
+      value.includes(option)
+        ? value.filter((v) => v !== option)
+        : [...value, option],
+    );
   };
 
   return (
-    <div role="group" aria-label={label} className={cn("flex flex-wrap gap-2", className)}>
+    <fieldset
+      aria-label={label}
+      className={cn("flex flex-wrap gap-2 border-0 p-0", className)}
+    >
       {options.map((option) => {
         const selected = value.includes(option);
         return (
@@ -38,7 +45,7 @@ export function ChoiceChips({
               "inline-flex min-h-11 items-center gap-1.5 rounded-md border px-3.5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none",
               selected
                 ? "border-primary bg-accent text-accent-foreground"
-                : "border-input bg-card text-foreground hover:bg-muted"
+                : "border-input bg-card text-foreground hover:bg-muted",
             )}
           >
             {selected && <Check className="size-4" aria-hidden />}
@@ -46,6 +53,6 @@ export function ChoiceChips({
           </button>
         );
       })}
-    </div>
+    </fieldset>
   );
 }

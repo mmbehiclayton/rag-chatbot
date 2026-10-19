@@ -1,14 +1,18 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { revalidatePath } from "next/cache";
 
 export async function updateUserRole(userId: string, newRole: string) {
   try {
     const session = await auth();
     if (!session || session.role !== "SUPERADMIN") {
-      return { success: false, error: "Unauthorized: Only Superadmins can manually mutate RBAC controls." };
+      return {
+        success: false,
+        error:
+          "Unauthorized: Only Superadmins can manually mutate RBAC controls.",
+      };
     }
 
     // Protection against self-demotion
@@ -23,16 +27,19 @@ export async function updateUserRole(userId: string, newRole: string) {
 
     await db.user.update({
       where: { id: userId },
-      data: { role: newRole }
+      data: { role: newRole },
     });
     // Sign the user out everywhere so their menus and route access match the new role.
     await db.session.deleteMany({ where: { userId } });
 
     revalidatePath("/dashboard/teachers");
     return { success: true };
-    
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[RBAC_ERROR]", error);
-    return { success: false, error: error.message || "Failed to update user role." };
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Failed to update user role.",
+    };
   }
 }

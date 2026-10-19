@@ -1,17 +1,21 @@
 "use server";
 
-import { db } from "@/lib/db";
-import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
 
-export async function updateGenerationRule(contentType: string, customPrompt: string) {
+export async function updateGenerationRule(
+  contentType: string,
+  customPrompt: string,
+) {
   const session = await auth();
-  if (session?.role !== "SUPERADMIN") throw new Error("Unauthorized: Superadmin access required");
+  if (session?.role !== "SUPERADMIN")
+    throw new Error("Unauthorized: Superadmin access required");
 
   const rule = await db.generationRule.upsert({
     where: { contentType },
     update: { customPrompt },
-    create: { contentType, customPrompt }
+    create: { contentType, customPrompt },
   });
 
   revalidatePath("/dashboard/rules");

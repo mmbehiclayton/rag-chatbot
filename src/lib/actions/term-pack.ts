@@ -1,11 +1,11 @@
 "use server";
 
-import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getSchemeSchedule } from "@/lib/term-pack-data";
 import { isIsoDate, teachingWeeks, todayInKenya } from "@/lib/term-pack";
+import { getSchemeSchedule } from "@/lib/term-pack-data";
 
 type Result = { success: true } | { success: false; error: string };
 
@@ -18,12 +18,27 @@ const TermInput = z
     opensOn: isoDate,
     closesOn: isoDate,
     breaks: z
-      .array(z.object({ from: isoDate, to: isoDate, label: z.string().trim().max(60) }))
+      .array(
+        z.object({
+          from: isoDate,
+          to: isoDate,
+          label: z.string().trim().max(60),
+        }),
+      )
       .max(10)
-      .refine((bs) => bs.every((b) => b.from <= b.to), "A break must end on or after the day it starts."),
+      .refine(
+        (bs) => bs.every((b) => b.from <= b.to),
+        "A break must end on or after the day it starts.",
+      ),
   })
-  .refine((t) => t.opensOn < t.closesOn, "The closing date must be after the opening date.")
-  .refine((t) => t.breaks.every((b) => b.from >= t.opensOn && b.to <= t.closesOn), "Breaks must fall inside the term.");
+  .refine(
+    (t) => t.opensOn < t.closesOn,
+    "The closing date must be after the opening date.",
+  )
+  .refine(
+    (t) => t.breaks.every((b) => b.from >= t.opensOn && b.to <= t.closesOn),
+    "Breaks must fall inside the term.",
+  );
 
 export type TermInputData = z.infer<typeof TermInput>;
 
@@ -43,13 +58,28 @@ export async function saveTerm(input: TermInputData): Promise<Result> {
   const userId = await teacherId();
   if (!userId) return { success: false, error: "Please sign in again." };
   const parsed = TermInput.safeParse(input);
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Check the dates and try again." };
+  if (!parsed.success)
+    return {
+      success: false,
+      error:
+        parsed.error.issues[0]?.message ?? "Check the dates and try again.",
+    };
   const t = parsed.data;
-  if (teachingWeeks(t).length < 4) return { success: false, error: "That term has fewer than 4 teaching weeks. Check the dates." };
+  if (teachingWeeks(t).length < 4)
+    return {
+      success: false,
+      error: "That term has fewer than 4 teaching weeks. Check the dates.",
+    };
 
-  const data = { opensOn: date(t.opensOn), closesOn: date(t.closesOn), breaks: t.breaks };
+  const data = {
+    opensOn: date(t.opensOn),
+    closesOn: date(t.closesOn),
+    breaks: t.breaks,
+  };
   await db.teacherTerm.upsert({
-    where: { teacherId_year_term: { teacherId: userId, year: t.year, term: t.term } },
+    where: {
+      teacherId_year_term: { teacherId: userId, year: t.year, term: t.term },
+    },
     create: { teacherId: userId, year: t.year, term: t.term, ...data },
     update: data,
   });
@@ -65,21 +95,34 @@ const TimetableInput = z
       grade: z.string().trim().min(1).max(100),
       stream: z.string().trim().max(30),
       subject: z.string().trim().min(1).max(100),
-    })
+    }),
   )
   .max(60)
-  .refine((rows) => new Set(rows.map((r) => `${r.weekday}-${r.period}`)).size === rows.length, "Each period can only have one class.");
+  .refine(
+    (rows) =>
+      new Set(rows.map((r) => `${r.weekday}-${r.period}`)).size === rows.length,
+    "Each period can only have one class.",
+  );
 
 /** Replaces the teacher's weekly timetable. Each entry is one period: day, period, grade, optional stream, learning area. */
-export async function saveTimetable(input: z.infer<typeof TimetableInput>): Promise<Result> {
+export async function saveTimetable(
+  input: z.infer<typeof TimetableInput>,
+): Promise<Result> {
   const userId = await teacherId();
   if (!userId) return { success: false, error: "Please sign in again." };
   const parsed = TimetableInput.safeParse(input);
-  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Check the timetable and try again." };
+  if (!parsed.success)
+    return {
+      success: false,
+      error:
+        parsed.error.issues[0]?.message ?? "Check the timetable and try again.",
+    };
 
   await db.$transaction([
     db.timetableSlot.deleteMany({ where: { teacherId: userId } }),
-    db.timetableSlot.createMany({ data: parsed.data.map((r) => ({ ...r, teacherId: userId })) }),
+    db.timetableSlot.createMany({
+      data: parsed.data.map((r) => ({ ...r, teacherId: userId })),
+    }),
   ]);
   refresh();
   revalidatePath("/dashboard/timetable");
@@ -99,22 +142,50 @@ export async function markLesson(input: {
 }): Promise<Result> {
   const userId = await teacherId();
   if (!userId) return { success: false, error: "Please sign in again." };
-  if (!isIsoDate(input.date) || !Number.isInteger(input.slot)) return { success: false, error: "That lesson couldn't be found." };
-  if (input.date > todayInKenya()) return { success: false, error: "You can only mark lessons on or before today." };
+  if (!isIsoDate(input.date) || !Number.isInteger(input.slot))
+    return { success: false, error: "That lesson couldn't be found." };
+  if (input.date > todayInKenya())
+    return {
+      success: false,
+      error: "You can only mark lessons on or before today.",
+    };
 
   const scheme = await db.schemeOfWork.findFirst({
     where: { id: input.schemeId, teacherId: userId },
-    select: { id: true, teacherId: true, grade: true, subject: true, term: true, year: true, content: true },
+    select: {
+      id: true,
+      teacherId: true,
+      grade: true,
+      subject: true,
+      term: true,
+      year: true,
+      content: true,
+    },
   });
-  if (!scheme) return { success: false, error: "That scheme couldn't be found." };
+  if (!scheme)
+    return { success: false, error: "That scheme couldn't be found." };
 
-  const where = { schemeId: scheme.id, stream: input.stream, date: date(input.date), slot: input.slot };
+  const where = {
+    schemeId: scheme.id,
+    stream: input.stream,
+    date: date(input.date),
+    slot: input.slot,
+  };
   if (input.status === null) {
     await db.lessonRecord.deleteMany({ where });
   } else {
     const schedule = await getSchemeSchedule(scheme, input.stream);
-    const slot = schedule.stream === input.stream ? schedule.slots.find((s) => s.date === input.date && s.slot === input.slot) : undefined;
-    if (!slot?.lessonNumber) return { success: false, error: "There is no lesson in the timetable at that time." };
+    const slot =
+      schedule.stream === input.stream
+        ? schedule.slots.find(
+            (s) => s.date === input.date && s.slot === input.slot,
+          )
+        : undefined;
+    if (!slot?.lessonNumber)
+      return {
+        success: false,
+        error: "There is no lesson in the timetable at that time.",
+      };
     const data = { lessonNumber: slot.lessonNumber, status: input.status };
     await db.lessonRecord.upsert({
       where: { schemeId_stream_date_slot: where },
@@ -130,16 +201,30 @@ export async function markLesson(input: {
 }
 
 /** The teacher's reflection on a taught lesson, printed on the record of work. */
-export async function saveLessonRemarks(input: { schemeId: string; stream: string; date: string; slot: number; remarks: string }): Promise<Result> {
+export async function saveLessonRemarks(input: {
+  schemeId: string;
+  stream: string;
+  date: string;
+  slot: number;
+  remarks: string;
+}): Promise<Result> {
   const userId = await teacherId();
   if (!userId) return { success: false, error: "Please sign in again." };
-  if (!isIsoDate(input.date)) return { success: false, error: "That lesson couldn't be found." };
+  if (!isIsoDate(input.date))
+    return { success: false, error: "That lesson couldn't be found." };
   const remarks = input.remarks.trim().slice(0, 500) || null;
   const { count } = await db.lessonRecord.updateMany({
-    where: { schemeId: input.schemeId, teacherId: userId, stream: input.stream, date: date(input.date), slot: input.slot },
+    where: {
+      schemeId: input.schemeId,
+      teacherId: userId,
+      stream: input.stream,
+      date: date(input.date),
+      slot: input.slot,
+    },
     data: { remarks },
   });
-  if (count === 0) return { success: false, error: "Mark the lesson as taught first." };
+  if (count === 0)
+    return { success: false, error: "Mark the lesson as taught first." };
   revalidatePath(`/dashboard/schemes/${input.schemeId}/record`);
   return { success: true };
 }

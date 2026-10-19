@@ -1,12 +1,12 @@
 "use client";
 
-import { Suspense, useActionState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { verifyEmail } from "@/lib/actions/auth";
+import { Suspense, useActionState } from "react";
 import { AuthHeading, FormMessage } from "@/components/shared/auth-parts";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { verifyEmail } from "@/lib/actions/auth";
 
 function VerifyForm() {
   const [state, formAction, isPending] = useActionState(verifyEmail, null);
@@ -16,7 +16,10 @@ function VerifyForm() {
   if (params.get("success") === "true") {
     return (
       <>
-        <AuthHeading title="Check your email" description="We've sent you a link to confirm your email address." />
+        <AuthHeading
+          title="Check your email"
+          description="We've sent you a link to confirm your email address."
+        />
         <Button size="lg" className="w-full" render={<Link href="/login" />}>
           Back to sign in
         </Button>
@@ -27,7 +30,10 @@ function VerifyForm() {
   if (!token) {
     return (
       <>
-        <AuthHeading title="This link doesn't work" description="The confirmation link is missing or incomplete." />
+        <AuthHeading
+          title="This link doesn't work"
+          description="The confirmation link is missing or incomplete."
+        />
         <Button size="lg" className="w-full" render={<Link href="/login" />}>
           Back to sign in
         </Button>
@@ -40,8 +46,14 @@ function VerifyForm() {
       <>
         <AuthHeading title="Email confirmed" />
         <div className="space-y-4">
-          <FormMessage tone="success">Thank you. Your email address is confirmed.</FormMessage>
-          <Button size="lg" className="w-full" render={<Link href="/dashboard" />}>
+          <FormMessage tone="success">
+            Thank you. Your email address is confirmed.
+          </FormMessage>
+          <Button
+            size="lg"
+            className="w-full"
+            render={<Link href="/dashboard" />}
+          >
             Continue
           </Button>
         </div>
@@ -51,7 +63,10 @@ function VerifyForm() {
 
   return (
     <>
-      <AuthHeading title="Confirm your email" description="Tap the button to confirm this is your email address." />
+      <AuthHeading
+        title="Confirm your email"
+        description="Tap the button to confirm this is your email address."
+      />
       <form action={formAction} className="space-y-4">
         <input type="hidden" name="token" value={token} />
         {state?.error && <FormMessage tone="error">{state.error}</FormMessage>}

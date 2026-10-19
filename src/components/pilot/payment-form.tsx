@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { submitPayment } from "@/lib/actions/pilot";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { submitPayment } from "@/lib/actions/pilot";
 
 /** After paying by Paybill, the teacher types the code from their M-Pesa message. */
 export function PaymentForm({ label }: { label: string }) {
@@ -20,7 +20,9 @@ export function PaymentForm({ label }: { label: string }) {
     startTransition(async () => {
       const result = await submitPayment({ mpesaCode: code, phone });
       if (!result.success) return void toast.error(result.error);
-      toast.success("Thank you. We'll check your payment and switch on your term pass.");
+      toast.success(
+        "Thank you. We'll check your payment and switch on your term pass.",
+      );
       setCode("");
       router.refresh();
     });
@@ -51,7 +53,9 @@ export function PaymentForm({ label }: { label: string }) {
         </p>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="mpesa-phone">Phone number you paid from (optional)</Label>
+        <Label htmlFor="mpesa-phone">
+          Phone number you paid from (optional)
+        </Label>
         <Input
           id="mpesa-phone"
           type="tel"
@@ -63,7 +67,12 @@ export function PaymentForm({ label }: { label: string }) {
           maxLength={16}
         />
       </div>
-      <Button type="submit" size="lg" className="w-full sm:w-auto" disabled={isPending || code.trim().length < 10}>
+      <Button
+        type="submit"
+        size="lg"
+        className="w-full sm:w-auto"
+        disabled={isPending || code.trim().length < 10}
+      >
         {isPending && <Spinner />} Send for {label}
       </Button>
     </form>

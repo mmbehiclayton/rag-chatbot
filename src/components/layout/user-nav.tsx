@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { LogOut, Settings, User } from "lucide-react";
-import { logout } from "@/lib/actions/auth";
+import Link from "next/link";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,15 +11,27 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { logout } from "@/lib/actions/auth";
 
 export function initials(name?: string | null, email?: string | null) {
   const source = name?.trim() || email?.split("@")[0] || "";
   const parts = source.split(/\s+/).filter(Boolean);
-  const letters = parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : source.slice(0, 2);
+  const letters =
+    parts.length > 1
+      ? parts[0][0] + parts[parts.length - 1][0]
+      : source.slice(0, 2);
   return letters.toUpperCase() || "?";
 }
 
-export function UserNav({ role, name, email }: { role: string | null; name?: string | null; email?: string | null }) {
+export function UserNav({
+  role,
+  name,
+  email,
+}: {
+  role: string | null;
+  name?: string | null;
+  email?: string | null;
+}) {
   const isAdmin = role === "ADMIN" || role === "SUPERADMIN";
   return (
     <DropdownMenu>
@@ -33,8 +44,12 @@ export function UserNav({ role, name, email }: { role: string | null; name?: str
       <DropdownMenuContent className="w-60" align="end">
         <DropdownMenuGroup>
           <DropdownMenuLabel className="font-normal">
-            <p className="truncate text-sm font-medium text-foreground">{name || "Your account"}</p>
-            {email && <p className="truncate text-xs text-muted-foreground">{email}</p>}
+            <p className="truncate text-sm font-medium text-foreground">
+              {name || "Your account"}
+            </p>
+            {email && (
+              <p className="truncate text-xs text-muted-foreground">{email}</p>
+            )}
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

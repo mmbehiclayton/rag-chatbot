@@ -12,18 +12,66 @@ export const ROLE_LABELS: Record<Role, string> = {
 };
 
 export const ROUTE_ACCESS: { prefix: string; area: string; roles: Role[] }[] = [
-  { prefix: "/dashboard/knowledge", area: "Curriculum designs (upload and index)", roles: ["SUPERADMIN"] },
-  { prefix: "/dashboard/pilot", area: "Pilot: payments, price and test mode", roles: ["SUPERADMIN"] },
-  { prefix: "/dashboard/tenants", area: "Schools and accounts", roles: ["SUPERADMIN"] },
-  { prefix: "/dashboard/structure", area: "Curriculum structure", roles: ["SUPERADMIN"] },
-  { prefix: "/dashboard/rules", area: "Generation rules", roles: ["SUPERADMIN"] },
-  { prefix: "/dashboard/rbac", area: "Access control (this page)", roles: ["SUPERADMIN"] },
-  { prefix: "/dashboard/verification", area: "Accuracy checks", roles: ["SUPERADMIN", "ADMIN"] },
-  { prefix: "/dashboard/admin", area: "Usage reports", roles: ["SUPERADMIN", "ADMIN"] },
-  { prefix: "/dashboard/teachers", area: "Teachers and roles", roles: ["SUPERADMIN", "ADMIN"] },
-  { prefix: "/dashboard/settings", area: "Settings", roles: ["SUPERADMIN", "ADMIN"] },
-  { prefix: "/dashboard/notifications", area: "Notifications (not live yet)", roles: ["SUPERADMIN", "ADMIN"] },
-  { prefix: "/dashboard", area: "Planning: schemes, lessons, records, Ask Elimu, Me", roles: ["SUPERADMIN", "ADMIN", "TEACHER"] },
+  {
+    prefix: "/dashboard/knowledge",
+    area: "Curriculum designs (upload and index)",
+    roles: ["SUPERADMIN"],
+  },
+  {
+    prefix: "/dashboard/pilot",
+    area: "Pilot: payments, price and test mode",
+    roles: ["SUPERADMIN"],
+  },
+  {
+    prefix: "/dashboard/tenants",
+    area: "Schools and accounts",
+    roles: ["SUPERADMIN"],
+  },
+  {
+    prefix: "/dashboard/structure",
+    area: "Curriculum structure",
+    roles: ["SUPERADMIN"],
+  },
+  {
+    prefix: "/dashboard/rules",
+    area: "Generation rules",
+    roles: ["SUPERADMIN"],
+  },
+  {
+    prefix: "/dashboard/rbac",
+    area: "Access control (this page)",
+    roles: ["SUPERADMIN"],
+  },
+  {
+    prefix: "/dashboard/verification",
+    area: "Accuracy checks",
+    roles: ["SUPERADMIN", "ADMIN"],
+  },
+  {
+    prefix: "/dashboard/admin",
+    area: "Usage reports",
+    roles: ["SUPERADMIN", "ADMIN"],
+  },
+  {
+    prefix: "/dashboard/teachers",
+    area: "Teachers and roles",
+    roles: ["SUPERADMIN", "ADMIN"],
+  },
+  {
+    prefix: "/dashboard/settings",
+    area: "Settings",
+    roles: ["SUPERADMIN", "ADMIN"],
+  },
+  {
+    prefix: "/dashboard/notifications",
+    area: "Notifications (not live yet)",
+    roles: ["SUPERADMIN", "ADMIN"],
+  },
+  {
+    prefix: "/dashboard",
+    area: "Planning: schemes, lessons, records, Ask Elimu, Me",
+    roles: ["SUPERADMIN", "ADMIN", "TEACHER"],
+  },
 ];
 
 /** Rules that live in the code rather than in the route table above. */

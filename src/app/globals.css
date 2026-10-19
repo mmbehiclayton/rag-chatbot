@@ -103,10 +103,14 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
   }
+
   html {
     @apply font-sans;
     -webkit-tap-highlight-color: transparent;
@@ -117,9 +121,9 @@
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+    transition-duration: 0.01ms;
   }
 }
 
@@ -127,25 +131,26 @@
 @media print {
   @page {
     margin: 1cm;
-    size: auto; /* Allow browser to choose, or we force via class if supported */
+    size: auto;
+    /* Allow browser to choose, or we force via class if supported */
   }
 
   /* Reset for print */
   body {
-    background: white !important;
-    color: black !important;
-    font-size: 11pt !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
+    background: white;
+    color: black;
+    font-size: 11pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   .no-print {
-    display: none !important;
+    display: none;
   }
 
   /* Document Header */
   .print-header {
-    display: flex !important;
+    display: flex;
     flex-direction: column;
     align-items: center;
     text-align: center;
@@ -155,15 +160,15 @@
   }
 
   .print-header h1 {
-    font-size: 18pt !important;
-    font-weight: 900 !important;
+    font-size: 18pt;
+    font-weight: 900;
     text-transform: uppercase;
     margin: 0;
   }
 
   .print-header h2 {
-    font-size: 14pt !important;
-    font-weight: 700 !important;
+    font-size: 14pt;
+    font-weight: 700;
     margin: 5pt 0;
   }
 
@@ -173,7 +178,8 @@
     margin: 1rem 0;
   }
 
-  .print-table th, .print-table td {
+  .print-table th,
+  .print-table td {
     border: 0.5pt solid black;
     padding: 6pt;
     text-align: left;
@@ -181,7 +187,7 @@
   }
 
   .print-table th {
-    background-color: #f0f0f0 !important;
+    background-color: #f0f0f0;
   }
 
   /* Force Landscape for specific pages */
@@ -197,11 +203,15 @@
 
 @media print {
   .print-only {
-    display: block !important;
+    display: block;
   }
-  
+
   /* Hide all UI elements */
-  nav, aside, header, button, .no-print {
-    display: none !important;
+  nav,
+  aside,
+  header,
+  button,
+  .no-print {
+    display: none;
   }
 }

@@ -2,9 +2,9 @@
 
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { startCheckout } from "@/lib/actions/pilot";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { startCheckout } from "@/lib/actions/pilot";
 
 /** Opens Paystack's checkout, where the teacher pays with M-Pesa or a card. */
 export function CheckoutButton({ price }: { price: number }) {
@@ -18,7 +18,12 @@ export function CheckoutButton({ price }: { price: number }) {
     });
 
   return (
-    <Button size="lg" className="w-full sm:w-auto" disabled={isPending} onClick={pay}>
+    <Button
+      size="lg"
+      className="w-full sm:w-auto"
+      disabled={isPending}
+      onClick={pay}
+    >
       {isPending && <Spinner />} Pay KES {price}
     </Button>
   );

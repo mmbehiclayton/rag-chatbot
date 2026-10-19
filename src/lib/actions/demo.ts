@@ -1,7 +1,7 @@
 "use server";
 
-import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
+import { db } from "@/lib/db";
 
 const DEMO_PASSWORD = "Demo@1234";
 
@@ -32,7 +32,8 @@ const DEMO_USERS = [
 export async function ensureDemoUsers() {
   // This creates accounts with a known password, including a super admin, so it must
   // never run outside an explicit demo/evaluation deployment.
-  if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true") throw new Error("Demo mode is disabled");
+  if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true")
+    throw new Error("Demo mode is disabled");
 
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
 
@@ -41,7 +42,9 @@ export async function ensureDemoUsers() {
     if (existing) continue;
 
     // Reuse or create the tenant
-    let tenant = await db.tenant.findFirst({ where: { name: demo.tenantName } });
+    let tenant = await db.tenant.findFirst({
+      where: { name: demo.tenantName },
+    });
     if (!tenant) {
       tenant = await db.tenant.create({
         data: { name: demo.tenantName, type: demo.tenantType },

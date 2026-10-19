@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 
 async function main() {
   console.log("Seeding Database Permissions and RBAC Baseline...");
-  
+
   // 1. Create a Master Tenant
   const genesisTenant = await prisma.tenant.upsert({
     where: { id: "genesis_tenant_seed_id" },
@@ -13,8 +13,8 @@ async function main() {
     create: {
       id: "genesis_tenant_seed_id",
       name: "Mwalimu System Headquarters",
-      type: "SCHOOL"
-    }
+      type: "SCHOOL",
+    },
   });
 
   const passwordHash = await bcrypt.hash("password123", 10);
@@ -28,8 +28,8 @@ async function main() {
       name: "Global Commander",
       passwordHash,
       role: "SUPERADMIN",
-      tenantId: genesisTenant.id
-    }
+      tenantId: genesisTenant.id,
+    },
   });
 
   // 3. Admin
@@ -41,8 +41,8 @@ async function main() {
       name: "School Principal",
       passwordHash,
       role: "ADMIN",
-      tenantId: genesisTenant.id
-    }
+      tenantId: genesisTenant.id,
+    },
   });
 
   // 4. Teacher
@@ -54,11 +54,13 @@ async function main() {
       name: "Senior Educator",
       passwordHash,
       role: "TEACHER",
-      tenantId: genesisTenant.id
-    }
+      tenantId: genesisTenant.id,
+    },
   });
 
-  console.log("Successfully seeded RBAC hierarchy (SUPERADMIN > ADMIN > TEACHER).");
+  console.log(
+    "Successfully seeded RBAC hierarchy (SUPERADMIN > ADMIN > TEACHER).",
+  );
 }
 
 main()

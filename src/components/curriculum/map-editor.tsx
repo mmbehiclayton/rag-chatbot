@@ -1,14 +1,32 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  Plus,
+  Rocket,
+  Send,
+  Trash2,
+  Undo2,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { ArrowDown, ArrowUp, Check, Plus, Rocket, Send, Trash2, Undo2 } from "lucide-react";
-import { checkCurriculumMap, publishCurriculumMap, saveCurriculumMap, submitCurriculumMap, type MapInputData } from "@/lib/actions/curriculum-map";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import {
+  checkCurriculumMap,
+  type MapInputData,
+  publishCurriculumMap,
+  saveCurriculumMap,
+  submitCurriculumMap,
+} from "@/lib/actions/curriculum-map";
 
 type SubStrand = {
   key: string;
@@ -24,13 +42,32 @@ type Initial = {
   sourceNote: string;
   strands: {
     name: string;
-    subStrands: { name: string; lessons: number; term: number | null; outcomes: string[]; inquiryQuestions: string[]; learningExperiences: string[] }[];
+    subStrands: {
+      name: string;
+      lessons: number;
+      term: number | null;
+      outcomes: string[];
+      inquiryQuestions: string[];
+      learningExperiences: string[];
+    }[];
   }[];
 };
 
 const newKey = () => Math.random().toString(36).slice(2);
-const toLines = (v: string) => v.split("\n").map((l) => l.trim()).filter(Boolean);
-const blankSub = (): SubStrand => ({ key: newKey(), name: "", lessons: 1, term: null, outcomes: "", inquiryQuestions: "", learningExperiences: "" });
+const toLines = (v: string) =>
+  v
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+const blankSub = (): SubStrand => ({
+  key: newKey(),
+  name: "",
+  lessons: 1,
+  term: null,
+  outcomes: "",
+  inquiryQuestions: "",
+  learningExperiences: "",
+});
 
 function move<T>(list: T[], i: number, by: number) {
   const j = i + by;
@@ -40,13 +77,23 @@ function move<T>(list: T[], i: number, by: number) {
   return next;
 }
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <label className="block space-y-1.5">
+    <div className="block space-y-1.5">
       <span className="text-sm font-medium">{label}</span>
-      {hint && <span className="block text-xs text-muted-foreground">{hint}</span>}
+      {hint && (
+        <span className="block text-xs text-muted-foreground">{hint}</span>
+      )}
       {children}
-    </label>
+    </div>
   );
 }
 
@@ -84,21 +131,40 @@ export function MapEditor({
         inquiryQuestions: u.inquiryQuestions.join("\n"),
         learningExperiences: u.learningExperiences.join("\n"),
       })),
-    }))
+    })),
   );
 
   const update = (fn: (s: Strand[]) => Strand[]) => {
     setStrands(fn);
     setDirty(true);
   };
-  const updateStrand = (i: number, patch: Partial<Strand>) => update((s) => s.map((st, k) => (k === i ? { ...st, ...patch } : st)));
+  const updateStrand = (i: number, patch: Partial<Strand>) =>
+    update((s) => s.map((st, k) => (k === i ? { ...st, ...patch } : st)));
   const updateSub = (i: number, j: number, patch: Partial<SubStrand>) =>
-    update((s) => s.map((st, k) => (k === i ? { ...st, subStrands: st.subStrands.map((u, m) => (m === j ? { ...u, ...patch } : u)) } : st)));
+    update((s) =>
+      s.map((st, k) =>
+        k === i
+          ? {
+              ...st,
+              subStrands: st.subStrands.map((u, m) =>
+                m === j ? { ...u, ...patch } : u,
+              ),
+            }
+          : st,
+      ),
+    );
 
-  const totalLessons = strands.reduce((sum, s) => sum + s.subStrands.reduce((a, u) => a + (u.lessons || 0), 0), 0);
+  const totalLessons = strands.reduce(
+    (sum, s) => sum + s.subStrands.reduce((a, u) => a + (u.lessons || 0), 0),
+    0,
+  );
   const subCount = strands.reduce((sum, s) => sum + s.subStrands.length, 0);
 
-  const run = (fn: () => Promise<{ success: boolean; error?: string }>, done: string, after?: () => void) =>
+  const run = (
+    fn: () => Promise<{ success: boolean; error?: string }>,
+    done: string,
+    after?: () => void,
+  ) =>
     startTransition(async () => {
       const result = await fn();
       if (result.success) {
@@ -123,12 +189,19 @@ export function MapEditor({
         })),
       })),
     };
-    run(() => saveCurriculumMap(grade, subject, data), "Map saved", () => setDirty(false));
+    run(
+      () => saveCurriculumMap(grade, subject, data),
+      "Map saved",
+      () => setDirty(false),
+    );
   };
 
   return (
     <div className="space-y-6 pb-24">
-      <Field label="Source" hint="Which curriculum design and edition you entered this from, e.g. KICD Grade 7 Integrated Science design, 2024.">
+      <Field
+        label="Source"
+        hint="Which curriculum design and edition you entered this from, e.g. KICD Grade 7 Integrated Science design, 2024."
+      >
         <Input
           value={sourceNote}
           onChange={(e) => {
@@ -140,24 +213,39 @@ export function MapEditor({
 
       {status === "PUBLISHED" && (
         <p className="rounded-xl border bg-card p-3 text-sm text-muted-foreground">
-          This map is in use. If you save changes, Elimu stops using it until another curator checks it again.
+          This map is in use. If you save changes, Elimu stops using it until
+          another curator checks it again.
         </p>
       )}
 
       <p className="text-sm text-muted-foreground">
-        {strands.length} strand{strands.length === 1 ? "" : "s"} · {subCount} sub-strand{subCount === 1 ? "" : "s"} · {totalLessons} suggested
-        lesson{totalLessons === 1 ? "" : "s"}
+        {strands.length} strand{strands.length === 1 ? "" : "s"} · {subCount}{" "}
+        sub-strand{subCount === 1 ? "" : "s"} · {totalLessons} suggested lesson
+        {totalLessons === 1 ? "" : "s"}
       </p>
 
       {strands.map((strand, i) => (
-        <section key={strand.key} className="space-y-4 rounded-xl border bg-card p-4">
+        <section
+          key={strand.key}
+          className="space-y-4 rounded-xl border bg-card p-4"
+        >
           <div className="flex items-end gap-2">
             <div className="min-w-0 flex-1">
               <Field label={`Strand ${i + 1}`}>
-                <Input value={strand.name} onChange={(e) => updateStrand(i, { name: e.target.value })} placeholder="e.g. Mixtures, Elements and Compounds" />
+                <Input
+                  value={strand.name}
+                  onChange={(e) => updateStrand(i, { name: e.target.value })}
+                  placeholder="e.g. Mixtures, Elements and Compounds"
+                />
               </Field>
             </div>
-            <Button variant="ghost" size="icon" aria-label={`Move strand ${i + 1} up`} disabled={i === 0} onClick={() => update((s) => move(s, i, -1))}>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={`Move strand ${i + 1} up`}
+              disabled={i === 0}
+              onClick={() => update((s) => move(s, i, -1))}
+            >
               <ArrowUp />
             </Button>
             <Button
@@ -174,7 +262,11 @@ export function MapEditor({
               size="icon"
               aria-label={`Remove strand ${i + 1}`}
               onClick={() => {
-                if (strand.subStrands.length === 0 || confirm(`Remove strand ${i + 1} and its sub-strands?`)) update((s) => s.filter((_, k) => k !== i));
+                if (
+                  strand.subStrands.length === 0 ||
+                  confirm(`Remove strand ${i + 1} and its sub-strands?`)
+                )
+                  update((s) => s.filter((_, k) => k !== i));
               }}
             >
               <Trash2 />
@@ -182,19 +274,28 @@ export function MapEditor({
           </div>
 
           {strand.subStrands.map((sub, j) => (
-            <details key={sub.key} open={!sub.name} className="rounded-xl border bg-background">
+            <details
+              key={sub.key}
+              open={!sub.name}
+              className="rounded-xl border bg-background"
+            >
               <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 px-3 text-sm font-medium">
                 <span className="text-muted-foreground">
                   {i + 1}.{j + 1}
                 </span>
-                <span className="min-w-0 flex-1 truncate">{sub.name || "New sub-strand"}</span>
+                <span className="min-w-0 flex-1 truncate">
+                  {sub.name || "New sub-strand"}
+                </span>
                 <span className="text-xs font-normal text-muted-foreground">
                   {sub.lessons} lesson{sub.lessons === 1 ? "" : "s"}
                 </span>
               </summary>
               <div className="space-y-4 border-t p-3">
                 <Field label="Sub-strand">
-                  <Input value={sub.name} onChange={(e) => updateSub(i, j, { name: e.target.value })} />
+                  <Input
+                    value={sub.name}
+                    onChange={(e) => updateSub(i, j, { name: e.target.value })}
+                  />
                 </Field>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Suggested lessons">
@@ -204,13 +305,19 @@ export function MapEditor({
                       min={1}
                       max={60}
                       value={sub.lessons}
-                      onChange={(e) => updateSub(i, j, { lessons: Number(e.target.value) })}
+                      onChange={(e) =>
+                        updateSub(i, j, { lessons: Number(e.target.value) })
+                      }
                     />
                   </Field>
                   <Field label="Term">
                     <NativeSelect
                       value={sub.term ?? ""}
-                      onChange={(e) => updateSub(i, j, { term: e.target.value ? Number(e.target.value) : null })}
+                      onChange={(e) =>
+                        updateSub(i, j, {
+                          term: e.target.value ? Number(e.target.value) : null,
+                        })
+                      }
                     >
                       <NativeSelectOption value="">Not sure</NativeSelectOption>
                       <NativeSelectOption value="1">Term 1</NativeSelectOption>
@@ -219,28 +326,61 @@ export function MapEditor({
                     </NativeSelect>
                   </Field>
                 </div>
-                <Field label="Specific learning outcomes" hint="One per line, as written in the design.">
-                  <Textarea rows={4} value={sub.outcomes} onChange={(e) => updateSub(i, j, { outcomes: e.target.value })} />
+                <Field
+                  label="Specific learning outcomes"
+                  hint="One per line, as written in the design."
+                >
+                  <Textarea
+                    rows={4}
+                    value={sub.outcomes}
+                    onChange={(e) =>
+                      updateSub(i, j, { outcomes: e.target.value })
+                    }
+                  />
                 </Field>
                 <Field label="Key inquiry questions" hint="One per line.">
-                  <Textarea rows={2} value={sub.inquiryQuestions} onChange={(e) => updateSub(i, j, { inquiryQuestions: e.target.value })} />
+                  <Textarea
+                    rows={2}
+                    value={sub.inquiryQuestions}
+                    onChange={(e) =>
+                      updateSub(i, j, { inquiryQuestions: e.target.value })
+                    }
+                  />
                 </Field>
-                <Field label="Suggested learning experiences" hint="One per line. Summarise in your own words.">
+                <Field
+                  label="Suggested learning experiences"
+                  hint="One per line. Summarise in your own words."
+                >
                   <Textarea
                     rows={3}
                     value={sub.learningExperiences}
-                    onChange={(e) => updateSub(i, j, { learningExperiences: e.target.value })}
+                    onChange={(e) =>
+                      updateSub(i, j, { learningExperiences: e.target.value })
+                    }
                   />
                 </Field>
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" disabled={j === 0} onClick={() => updateStrand(i, { subStrands: move(strand.subStrands, j, -1) })}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={j === 0}
+                    onClick={() =>
+                      updateStrand(i, {
+                        subStrands: move(strand.subStrands, j, -1),
+                      })
+                    }
+                  >
                     <ArrowUp /> Up
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     disabled={j === strand.subStrands.length - 1}
-                    onClick={() => updateStrand(i, { subStrands: move(strand.subStrands, j, 1) })}
+                    onClick={() =>
+                      updateStrand(i, {
+                        subStrands: move(strand.subStrands, j, 1),
+                      })
+                    }
                   >
                     <ArrowDown /> Down
                   </Button>
@@ -248,7 +388,11 @@ export function MapEditor({
                     variant="ghost"
                     size="sm"
                     className="text-destructive"
-                    onClick={() => updateStrand(i, { subStrands: strand.subStrands.filter((_, m) => m !== j) })}
+                    onClick={() =>
+                      updateStrand(i, {
+                        subStrands: strand.subStrands.filter((_, m) => m !== j),
+                      })
+                    }
                   >
                     <Trash2 /> Remove
                   </Button>
@@ -257,13 +401,28 @@ export function MapEditor({
             </details>
           ))}
 
-          <Button variant="outline" onClick={() => updateStrand(i, { subStrands: [...strand.subStrands, blankSub()] })}>
+          <Button
+            variant="outline"
+            onClick={() =>
+              updateStrand(i, {
+                subStrands: [...strand.subStrands, blankSub()],
+              })
+            }
+          >
             <Plus /> Add sub-strand
           </Button>
         </section>
       ))}
 
-      <Button variant="outline" onClick={() => update((s) => [...s, { key: newKey(), name: "", subStrands: [blankSub()] }])}>
+      <Button
+        variant="outline"
+        onClick={() =>
+          update((s) => [
+            ...s,
+            { key: newKey(), name: "", subStrands: [blankSub()] },
+          ])
+        }
+      >
         <Plus /> Add strand
       </Button>
 
@@ -271,19 +430,39 @@ export function MapEditor({
         <section className="space-y-3 rounded-xl border bg-card p-4">
           <h2 className="text-base font-semibold">Check this map</h2>
           <p className="text-sm text-muted-foreground">
-            Compare every strand, sub-strand and outcome with the curriculum design. Approve only if it matches.
+            Compare every strand, sub-strand and outcome with the curriculum
+            design. Approve only if it matches.
           </p>
           <Field label="What needs fixing (only if you send it back)">
-            <Textarea rows={2} value={comment} onChange={(e) => setComment(e.target.value)} />
+            <Textarea
+              rows={2}
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+            />
           </Field>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Button disabled={pending} onClick={() => run(() => checkCurriculumMap(grade, subject, "approve"), "Map approved and now in use")}>
+            <Button
+              disabled={pending}
+              onClick={() =>
+                run(
+                  () => checkCurriculumMap(grade, subject, "approve"),
+                  "Map approved and now in use",
+                )
+              }
+            >
               <Check /> Approve and use
             </Button>
             <Button
               variant="outline"
               disabled={pending}
-              onClick={() => run(() => checkCurriculumMap(grade, subject, "send-back", comment), "Sent back to the editor", () => setComment(""))}
+              onClick={() =>
+                run(
+                  () =>
+                    checkCurriculumMap(grade, subject, "send-back", comment),
+                  "Sent back to the editor",
+                  () => setComment(""),
+                )
+              }
             >
               <Undo2 /> Send back
             </Button>
@@ -294,22 +473,42 @@ export function MapEditor({
       <div className="fixed inset-x-0 bottom-16 z-10 border-t bg-card p-3 md:bottom-0 md:left-60">
         <div className="mx-auto flex max-w-3xl flex-col gap-2 sm:flex-row sm:justify-end">
           {status === "DRAFT" && !dirty && strands.length > 0 && (
-            <Button variant="outline" disabled={pending} onClick={() => run(() => submitCurriculumMap(grade, subject), "Sent for checking")}>
-              <Send /> Send for checking
-            </Button>
-          )}
-          {canPublish && status !== "PUBLISHED" && !dirty && strands.length > 0 && (
             <Button
               variant="outline"
               disabled={pending}
-              onClick={() => {
-                if (!window.confirm("Publish this map now, without a second curator checking it? Teachers' generations will use it straight away.")) return;
-                run(() => publishCurriculumMap(grade, subject), "Map published and now in use");
-              }}
+              onClick={() =>
+                run(
+                  () => submitCurriculumMap(grade, subject),
+                  "Sent for checking",
+                )
+              }
             >
-              <Rocket /> Publish now
+              <Send /> Send for checking
             </Button>
           )}
+          {canPublish &&
+            status !== "PUBLISHED" &&
+            !dirty &&
+            strands.length > 0 && (
+              <Button
+                variant="outline"
+                disabled={pending}
+                onClick={() => {
+                  if (
+                    !window.confirm(
+                      "Publish this map now, without a second curator checking it? Teachers' generations will use it straight away.",
+                    )
+                  )
+                    return;
+                  run(
+                    () => publishCurriculumMap(grade, subject),
+                    "Map published and now in use",
+                  );
+                }}
+              >
+                <Rocket /> Publish now
+              </Button>
+            )}
           <Button disabled={pending || !dirty} onClick={save}>
             {pending ? "Saving…" : dirty ? "Save changes" : "Saved"}
           </Button>

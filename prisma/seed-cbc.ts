@@ -8,10 +8,18 @@ if (!process.env.DATABASE_URL) {
 
 const db = new PrismaClient();
 
-console.log("🔍 Database URL loaded (length):", process.env.DATABASE_URL.length);
-console.log("🔍 Available models on prisma client:", Object.keys(db).filter(k => !k.startsWith("_")));
-if (!('curriculumLevel' in db)) {
-  console.error("❌ curriculumLevel model not found on Prisma Client. Please run 'npx prisma generate' again.");
+console.log(
+  "🔍 Database URL loaded (length):",
+  process.env.DATABASE_URL.length,
+);
+console.log(
+  "🔍 Available models on prisma client:",
+  Object.keys(db).filter((k) => !k.startsWith("_")),
+);
+if (!("curriculumLevel" in db)) {
+  console.error(
+    "❌ curriculumLevel model not found on Prisma Client. Please run 'npx prisma generate' again.",
+  );
   process.exit(1);
 }
 
@@ -157,14 +165,27 @@ async function seedCBC() {
       const grade = await db.gradeLevel.upsert({
         where: { name: gradeData.name },
         update: { order: gradeData.order, levelId: level.id },
-        create: { name: gradeData.name, order: gradeData.order, levelId: level.id },
+        create: {
+          name: gradeData.name,
+          order: gradeData.order,
+          levelId: level.id,
+        },
       });
 
       // Upsert junctions
       for (const areaName of lvlData.learningAreas) {
-        const areaId = areaMap.get(areaName)!;
+        const areaId = areaMap.get(areaName);
+        if (!areaId) {
+          throw new Error(`Missing learning area mapping for '${areaName}'`);
+        }
+
         await db.levelLearningArea.upsert({
-          where: { gradeId_learningAreaId: { gradeId: grade.id, learningAreaId: areaId } },
+          where: {
+            gradeId_learningAreaId: {
+              gradeId: grade.id,
+              learningAreaId: areaId,
+            },
+          },
           update: {},
           create: { gradeId: grade.id, learningAreaId: areaId },
         });
@@ -175,9 +196,14 @@ async function seedCBC() {
   const gradeCount = await db.gradeLevel.count();
   const areaCount = await db.learningArea.count();
   const junctionCount = await db.levelLearningArea.count();
-  console.log(`✅ Seeded: ${gradeCount} grades, ${areaCount} learning areas, ${junctionCount} combinations`);
+  console.log(
+    `✅ Seeded: ${gradeCount} grades, ${areaCount} learning areas, ${junctionCount} combinations`,
+  );
 }
 
 seedCBC()
-  .catch((e) => { console.error(e); process.exit(1); })
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
   .finally(() => db.$disconnect());

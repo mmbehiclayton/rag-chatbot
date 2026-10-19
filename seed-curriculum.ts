@@ -4,7 +4,7 @@ const prisma = new PrismaClient();
 
 async function main() {
   const existing = await prisma.curriculumDocument.findFirst({
-    where: { gradeLevel: "Grade 4", subject: "Mathematics" }
+    where: { gradeLevel: "Grade 4", subject: "Mathematics" },
   });
 
   if (!existing) {
@@ -15,8 +15,8 @@ async function main() {
         subject: "Mathematics",
         fileUrl: "https://example.com/mock.pdf",
         status: "completed",
-        uploadedBy: "system"
-      }
+        uploadedBy: "system",
+      },
     });
     console.log("Mock Grade 4 Mathematics curriculum inserted!");
   } else {

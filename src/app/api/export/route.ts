@@ -1,15 +1,27 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import {
+  type ClassRef,
+  coversClass,
+  freePlanMessage,
+  getAccess,
+  plansOn,
+} from "@/lib/plans";
+import {
+  formatDay,
+  formatRange,
+  streamLabel,
+  termLabel,
+} from "@/lib/term-pack";
 import { getSchemeSchedule } from "@/lib/term-pack-data";
-import { formatDay, formatRange, streamLabel, termLabel } from "@/lib/term-pack";
-import { coversClass, freePlanMessage, getAccess, plansOn, type ClassRef } from "@/lib/plans";
 
 // Returns a print-ready HTML document for a scheme, lesson plan, or assessment.
 // Usage: GET /api/export?type=scheme&id=<id>
 export async function GET(req: NextRequest) {
   const session = await auth();
-  if (!session?.userId) return new NextResponse("Unauthorized", { status: 401 });
+  if (!session?.userId)
+    return new NextResponse("Unauthorized", { status: 401 });
 
   const { searchParams } = req.nextUrl;
   const type = searchParams.get("type"); // scheme | lesson | assessment | notes | record
@@ -32,21 +44,27 @@ export async function GET(req: NextRequest) {
           where: { teacherId: session.userId, grade, subject },
           orderBy: { term: "asc" },
         });
-        if (!items.length) return new NextResponse("Not found", { status: 404 });
+        if (!items.length)
+          return new NextResponse("Not found", { status: 404 });
         html = buildCombinedHTML("scheme", items, grade, subject);
       } else if (type === "lesson") {
         const items = await db.lessonPlan.findMany({
-          where: { teacherId: session.userId, OR: [{ grade, subject }, { scheme: { grade, subject } }] },
+          where: {
+            teacherId: session.userId,
+            OR: [{ grade, subject }, { scheme: { grade, subject } }],
+          },
           orderBy: { lessonNumber: "asc" },
         });
-        if (!items.length) return new NextResponse("Not found", { status: 404 });
+        if (!items.length)
+          return new NextResponse("Not found", { status: 404 });
         html = buildCombinedHTML("lesson", items, grade, subject);
       } else if (type === "assessment") {
         const items = await db.assessment.findMany({
           where: { teacherId: session.userId, grade, subject },
           orderBy: { updatedAt: "asc" },
         });
-        if (!items.length) return new NextResponse("Not found", { status: 404 });
+        if (!items.length)
+          return new NextResponse("Not found", { status: 404 });
         html = buildCombinedHTML("assessment", items, grade, subject);
       } else {
         return new NextResponse("Invalid type", { status: 400 });
@@ -65,23 +83,42 @@ export async function GET(req: NextRequest) {
       if (!scheme) return new NextResponse("Not found", { status: 404 });
       cls = scheme;
       const schedule = await getSchemeSchedule(scheme);
-      const weekDates = new Map(schedule.weeks.map((w) => [w.number, formatRange(w.from, w.to)]));
+      const weekDates = new Map(
+        schedule.weeks.map((w) => [w.number, formatRange(w.from, w.to)]),
+      );
       html = buildSchemeHTML(scheme, weekDates);
     } else if (type === "record") {
       const scheme = await db.schemeOfWork.findFirst({
         where: { id, teacherId: session.userId },
-        include: { teacher: { select: { name: true, schoolName: true, tenant: { select: { name: true } } } } },
+        include: {
+          teacher: {
+            select: {
+              name: true,
+              schoolName: true,
+              tenant: { select: { name: true } },
+            },
+          },
+        },
       });
       if (!scheme) return new NextResponse("Not found", { status: 404 });
       cls = scheme;
-      html = buildRecordHTML(scheme, await getSchemeSchedule(scheme, searchParams.get("stream") ?? undefined));
+      html = buildRecordHTML(
+        scheme,
+        await getSchemeSchedule(
+          scheme,
+          searchParams.get("stream") ?? undefined,
+        ),
+      );
     } else if (type === "lesson") {
       const lesson = await db.lessonPlan.findFirst({
         where: { id, teacherId: session.userId },
         include: { scheme: { select: { grade: true, subject: true } } },
       });
       if (!lesson) return new NextResponse("Not found", { status: 404 });
-      cls = { grade: lesson.grade ?? lesson.scheme?.grade ?? "", subject: lesson.subject ?? lesson.scheme?.subject ?? "" };
+      cls = {
+        grade: lesson.grade ?? lesson.scheme?.grade ?? "",
+        subject: lesson.subject ?? lesson.scheme?.subject ?? "",
+      };
       html = buildLessonHTML(lesson);
     } else if (type === "assessment") {
       const assessment = await db.assessment.findFirst({
@@ -93,12 +130,22 @@ export async function GET(req: NextRequest) {
     } else if (type === "notes") {
       const note = await db.lessonNote.findFirst({
         where: { id, teacherId: session.userId },
-        include: { lessonPlan: { select: { topic: true, grade: true, subject: true, scheme: { select: { grade: true, subject: true } } } } },
+        include: {
+          lessonPlan: {
+            select: {
+              topic: true,
+              grade: true,
+              subject: true,
+              scheme: { select: { grade: true, subject: true } },
+            },
+          },
+        },
       });
       if (!note) return new NextResponse("Not found", { status: 404 });
       cls = {
         grade: note.lessonPlan?.grade ?? note.lessonPlan?.scheme?.grade ?? "",
-        subject: note.lessonPlan?.subject ?? note.lessonPlan?.scheme?.subject ?? "",
+        subject:
+          note.lessonPlan?.subject ?? note.lessonPlan?.scheme?.subject ?? "",
       };
       html = buildNotesHTML(note);
     } else {
@@ -108,18 +155,25 @@ export async function GET(req: NextRequest) {
     if (cls && (await plansOn())) {
       const access = await getAccess(session.userId);
       if (!coversClass(access, cls)) {
-        return new NextResponse(wrap("Term pass needed", `<h1>Term pass needed</h1><p>${esc(freePlanMessage(access))}</p>`), {
-          status: 402,
-          headers: { "Content-Type": "text/html; charset=utf-8" },
-        });
+        return new NextResponse(
+          wrap(
+            "Term pass needed",
+            `<h1>Term pass needed</h1><p>${esc(freePlanMessage(access))}</p>`,
+          ),
+          {
+            status: 402,
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+          },
+        );
       }
     }
 
     return new NextResponse(html, {
       headers: { "Content-Type": "text/html; charset=utf-8" },
     });
-  } catch (e: any) {
-    return new NextResponse(e.message, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Export failed";
+    return new NextResponse(message, { status: 500 });
   }
 }
 
@@ -201,31 +255,59 @@ function esc(v: unknown): string {
     .replace(/>/g, "&gt;");
 }
 
-function schemeBody(scheme: any, weekDates?: Map<number, string>) {
-  const c = scheme.content as any;
-  const weeks = Array.isArray(c?.weeks) ? c.weeks : [];
+type SchemeWeekRow = Record<string, unknown>;
+
+type SchemeContent = {
+  weeks?: Array<{
+    weekNumber?: number;
+    rows?: SchemeWeekRow[];
+  }>;
+};
+
+type SchemeExport = {
+  title?: string;
+  grade?: string;
+  subject?: string;
+  term?: string;
+  content?: SchemeContent;
+};
+
+function schemeBody(scheme: SchemeExport, weekDates?: Map<number, string>) {
+  const c = (scheme.content ?? {}) as SchemeContent;
+  const weeks = Array.isArray(c.weeks) ? c.weeks : [];
 
   // Flatten week -> rows. The week number is shown on the first row only (no
   // rowspan) so the table paginates cleanly across printed pages.
   const weekRows = weeks
-    .map((week: any) => {
+    .map((week) => {
       const rows = Array.isArray(week.rows) ? week.rows : [];
       return rows
-        .map(
-          (row: any, ri: number) => `
+        .map((row, ri) => {
+          const rowData = row as Record<string, unknown>;
+          return `
       <tr>
-        <td class="wk">${ri === 0 ? `Wk ${esc(week.weekNumber)}${weekDates?.get(week.weekNumber) ? `<br><small>${esc(weekDates.get(week.weekNumber))}</small>` : ""}` : ""}</td>
-        <td class="b">${esc(row.strand)}</td>
-        <td class="sub">${esc(row.subStrand)}</td>
-        <td>${arr(row.specificLearningOutcomes).map((o) => `<div class="out">${esc(o)}</div>`).join("")}</td>
-        <td class="kiq">${arr(row.keyInquiryQuestions).map((q) => `<div>Q: ${esc(q)}</div>`).join("")}</td>
-        <td><ul>${arr(row.learningExperiences).map((e) => `<li>${esc(e)}</li>`).join("")}</ul></td>
-        <td>${arr(row.learningResources).map((r) => `<span class="badge">${esc(r)}</span>`).join("")}</td>
-        <td class="assess">${arr(row.assessmentMethods).map((a) => `<div>${esc(a)}</div>`).join("")}</td>
+        <td class="wk">${ri === 0 ? `Wk ${esc(week.weekNumber)}${weekDates?.get(week.weekNumber ?? 0) ? `<br><small>${esc(weekDates.get(week.weekNumber ?? 0))}</small>` : ""}` : ""}</td>
+        <td class="b">${esc(rowData.strand)}</td>
+        <td class="sub">${esc(rowData.subStrand)}</td>
+        <td>${arr(rowData.specificLearningOutcomes)
+          .map((o) => `<div class="out">${esc(o)}</div>`)
+          .join("")}</td>
+        <td class="kiq">${arr(rowData.keyInquiryQuestions)
+          .map((q) => `<div>Q: ${esc(q)}</div>`)
+          .join("")}</td>
+        <td><ul>${arr(rowData.learningExperiences)
+          .map((e) => `<li>${esc(e)}</li>`)
+          .join("")}</ul></td>
+        <td>${arr(rowData.learningResources)
+          .map((r) => `<span class="badge">${esc(r)}</span>`)
+          .join("")}</td>
+        <td class="assess">${arr(rowData.assessmentMethods)
+          .map((a) => `<div>${esc(a)}</div>`)
+          .join("")}</td>
         <td></td>
       </tr>
-    `,
-        )
+    `;
+        })
         .join("");
     })
     .join("");
@@ -257,9 +339,26 @@ function schemeBody(scheme: any, weekDates?: Map<number, string>) {
   return body;
 }
 
-function buildRecordHTML(scheme: any, schedule: Awaited<ReturnType<typeof getSchemeSchedule>>) {
-  const taught = schedule.slots.filter((s) => s.status === "TAUGHT" && s.lessonNumber);
-  const school = scheme.teacher?.schoolName || scheme.teacher?.tenant?.name || "";
+type RecordScheme = {
+  teacher?: {
+    schoolName?: string | null;
+    tenant?: { name?: string | null } | null;
+    name?: string | null;
+  } | null;
+  grade?: string;
+  subject?: string;
+  term?: string;
+};
+
+function buildRecordHTML(
+  scheme: RecordScheme,
+  schedule: Awaited<ReturnType<typeof getSchemeSchedule>>,
+) {
+  const taught = schedule.slots.filter(
+    (s) => s.status === "TAUGHT" && s.lessonNumber,
+  );
+  const school =
+    scheme.teacher?.schoolName || scheme.teacher?.tenant?.name || "";
   const rows = taught
     .map(
       (s) => `
@@ -268,7 +367,9 @@ function buildRecordHTML(scheme: any, schedule: Awaited<ReturnType<typeof getSch
         <td>${esc(formatDay(s.date))}</td>
         <td class="center">${esc(s.lessonNumber)}</td>
         <td><b>${esc(s.lesson?.strand)}</b><br>${esc(s.lesson?.subStrand)}</td>
-        <td>${arr(s.lesson?.outcomes).map((o) => `<div>${esc(o)}</div>`).join("")}</td>
+        <td>${arr(s.lesson?.outcomes)
+          .map((o) => `<div>${esc(o)}</div>`)
+          .join("")}</td>
         <td>${esc(s.remarks)}</td>
         <td></td>
       </tr>`,
@@ -303,29 +404,88 @@ function buildRecordHTML(scheme: any, schedule: Awaited<ReturnType<typeof getSch
     </table>
     <div class="signs">${sign("Teacher")}${sign("Head of department")}${sign("Head teacher")}</div>
   `;
-  return wrap(`Record of work · ${streamLabel(scheme.grade, schedule.stream)} ${scheme.subject}`, body);
+  return wrap(
+    `Record of work · ${streamLabel(scheme.grade, schedule.stream)} ${scheme.subject}`,
+    body,
+  );
 }
 
-function buildSchemeHTML(scheme: any, weekDates?: Map<number, string>) {
-  return wrap(scheme.title, schemeBody(scheme, weekDates), /* landscape */ true);
+function buildSchemeHTML(
+  scheme: SchemeExport,
+  weekDates?: Map<number, string>,
+) {
+  return wrap(
+    scheme.title ?? "Scheme of work",
+    schemeBody(scheme, weekDates),
+    /* landscape */ true,
+  );
 }
 
-function lessonBody(lesson: any) {
-  const c = lesson.content as any;
-  const intro = c?.lessonStructure?.introduction;
-  const main = Array.isArray(c?.lessonStructure?.mainActivities) ? c.lessonStructure.mainActivities : [];
-  const conc = c?.lessonStructure?.conclusion;
-  const diff = c?.lessonStructure?.differentiation;
+type LessonActivity = {
+  activityName?: string;
+  duration?: number | string;
+  grouping?: string;
+  teacherActions?: unknown[];
+  learnerActions?: unknown[];
+};
 
-  const mainRows = main.map((a: any) => `
+type LessonContent = {
+  strand?: string;
+  subStrand?: string;
+  specificLearningOutcomes?: unknown[];
+  lessonStructure?: {
+    introduction?: {
+      duration?: number | string;
+      recap?: string;
+      learningIntentions?: string;
+      successCriteria?: string;
+    };
+    mainActivities?: LessonActivity[];
+    conclusion?: {
+      duration?: number | string;
+      summary?: string;
+      exitTicket?: string;
+      homework?: string;
+    };
+    differentiation?: {
+      learnersNeedingSupport?: string;
+      averageLearners?: string;
+      advancedLearners?: string;
+    };
+  };
+};
+
+type LessonExport = {
+  topic?: string;
+  content?: LessonContent;
+};
+
+function lessonBody(lesson: LessonExport) {
+  const c = (lesson.content ?? {}) as LessonContent;
+  const intro = c.lessonStructure?.introduction;
+  const main = Array.isArray(c.lessonStructure?.mainActivities)
+    ? c.lessonStructure.mainActivities
+    : [];
+  const conc = c.lessonStructure?.conclusion;
+  const diff = c.lessonStructure?.differentiation;
+
+  const mainRows = main
+    .map(
+      (a) => `
     <tr>
       <td><strong>${esc(a.activityName)}</strong></td>
       <td>${esc(a.duration)} min</td>
       <td>${esc(a.grouping)}</td>
-      <td><ul>${arr(a.teacherActions).map(t => `<li>${esc(t)}</li>`).join("")}</ul></td>
-      <td><ul>${arr(a.learnerActions).map(l => `<li>${esc(l)}</li>`).join("")}</ul></td>
+      <td><ul>${arr(a.teacherActions)
+        .map((t) => `<li>${esc(t)}</li>`)
+        .join("")}</ul></td>
+      <td><ul>${arr(a.learnerActions)
+        .map((l) => `<li>${esc(l)}</li>`)
+        .join("")}</ul></td>
     </tr>
-  `).join("");
+  `,
+    )
+    .join("");
 
   const body = `
     <h1>${esc(lesson.topic)}</h1>
@@ -336,7 +496,9 @@ function lessonBody(lesson: any) {
 
     <div class="section">
       <h2>Learning Outcomes</h2>
-      <ul>${arr(c?.specificLearningOutcomes).map(o => `<li>${esc(o)}</li>`).join("")}</ul>
+      <ul>${arr(c?.specificLearningOutcomes)
+        .map((o) => `<li>${esc(o)}</li>`)
+        .join("")}</ul>
     </div>
 
     <div class="section">
@@ -376,17 +538,52 @@ function lessonBody(lesson: any) {
   return body;
 }
 
-function buildLessonHTML(lesson: any) {
-  return wrap(lesson.topic, lessonBody(lesson));
+function buildLessonHTML(lesson: LessonExport) {
+  return wrap(lesson.topic ?? "Lesson plan", lessonBody(lesson));
 }
 
-function assessmentBody(assessment: any) {
-  const c = assessment.content as any;
-  const sections = Array.isArray(c?.sections) ? c.sections : [];
+type AssessmentQuestion = {
+  questionNumber?: string | number;
+  questionText?: string;
+  marks?: number | string;
+  modelAnswer?: string;
+  rubric?: string;
+};
 
-  const sectionsHTML = sections.map((section: any, si: number) => {
-    const questions = Array.isArray(section.questions) ? section.questions : [];
-    const qRows = questions.map((q: any) => `
+type AssessmentSection = {
+  sectionTitle?: string;
+  instructions?: string;
+  questions?: AssessmentQuestion[];
+};
+
+type AssessmentContent = {
+  sections?: AssessmentSection[];
+  markingScheme?: {
+    gradingScale?: Array<{ range?: string; descriptor?: string }>;
+    totalMarks?: number | string;
+  };
+};
+
+type AssessmentExport = {
+  title?: string;
+  grade?: string;
+  subject?: string;
+  type?: string;
+  content?: AssessmentContent;
+};
+
+function assessmentBody(assessment: AssessmentExport) {
+  const c = (assessment.content ?? {}) as AssessmentContent;
+  const sections = Array.isArray(c.sections) ? c.sections : [];
+
+  const sectionsHTML = sections
+    .map((section, si) => {
+      const questions = Array.isArray(section.questions)
+        ? section.questions
+        : [];
+      const qRows = questions
+        .map(
+          (q) => `
       <tr>
         <td style="width:30px;text-align:center">${esc(q.questionNumber)}</td>
         <td>${esc(q.questionText)}</td>
@@ -396,9 +593,11 @@ function assessmentBody(assessment: any) {
         <td></td>
         <td colspan="2"><em>Answer: ${esc(q.modelAnswer)}</em>${q.rubric ? `<br><small>Rubric: ${esc(q.rubric)}</small>` : ""}</td>
       </tr>
-    `).join("");
+    `,
+        )
+        .join("");
 
-    return `
+      return `
       <div class="section">
         <h2>Section ${si + 1}: ${esc(section.sectionTitle)}</h2>
         <p><em>${esc(section.instructions)}</em></p>
@@ -408,10 +607,17 @@ function assessmentBody(assessment: any) {
         </table>
       </div>
     `;
-  }).join("");
+    })
+    .join("");
 
-  const gradingScale = Array.isArray(c?.markingScheme?.gradingScale) ? c.markingScheme.gradingScale : [];
-  const scaleHTML = gradingScale.map((g: any) => `<tr><td>${esc(g.range)}</td><td>${esc(g.descriptor)}</td></tr>`).join("");
+  const gradingScale = Array.isArray(c.markingScheme?.gradingScale)
+    ? c.markingScheme.gradingScale
+    : [];
+  const scaleHTML = gradingScale
+    .map(
+      (g) => `<tr><td>${esc(g.range)}</td><td>${esc(g.descriptor)}</td></tr>`,
+    )
+    .join("");
 
   const body = `
     <h1>${esc(assessment.title)}</h1>
@@ -422,38 +628,77 @@ function assessmentBody(assessment: any) {
       <div>Total Marks: <span>${esc(c?.markingScheme?.totalMarks)}</span></div>
     </div>
     ${sectionsHTML}
-    ${gradingScale.length > 0 ? `
+    ${
+      gradingScale.length > 0
+        ? `
       <h2>Grading Scale</h2>
       <table><thead><tr><th>Mark Range</th><th>Descriptor</th></tr></thead><tbody>${scaleHTML}</tbody></table>
-    ` : ""}
+    `
+        : ""
+    }
   `;
   return body;
 }
 
-function buildNotesHTML(note: any) {
-  const c = (note.resources ?? {}) as any;
+type NotesExport = {
+  resources?: Record<string, unknown>;
+  notes?: string;
+  lessonPlan?: {
+    topic?: string;
+    grade?: string;
+    subject?: string;
+    scheme?: { grade?: string; subject?: string };
+  };
+};
+
+function buildNotesHTML(note: NotesExport) {
+  const c = (note.resources ?? {}) as Record<string, unknown>;
   const plan = note.lessonPlan ?? {};
-  const overview = c.conceptOverview ?? {};
-  const list = (items: unknown) => `<ul>${arr(items).map((i) => `<li>${esc(i)}</li>`).join("")}</ul>`;
+  const overview = (c.conceptOverview ?? {}) as Record<string, unknown>;
+  const list = (items: unknown) =>
+    `<ul>${arr(items)
+      .map((i) => `<li>${esc(i)}</li>`)
+      .join("")}</ul>`;
 
-  const examples = (Array.isArray(c.workedExamples) ? c.workedExamples : []).map((ex: any, i: number) => `
-    <h3>${esc(ex.title || `Example ${i + 1}`)} <span class="badge">${esc(ex.level ?? "")}</span></h3>
-    <ol>${arr(ex.procedure).map((step) => `<li>${esc(step)}</li>`).join("")}</ol>
-    ${ex.thinkAloudCommentary ? `<p><em>Think aloud: ${esc(ex.thinkAloudCommentary)}</em></p>` : ""}
-  `).join("");
+  const examples = (Array.isArray(c.workedExamples) ? c.workedExamples : [])
+    .map((ex, i) => {
+      const example = ex as Record<string, unknown>;
+      return `
+    <h3>${esc(example.title || `Example ${i + 1}`)} <span class="badge">${esc(example.level ?? "")}</span></h3>
+    <ol>${arr(example.procedure)
+      .map((step) => `<li>${esc(step)}</li>`)
+      .join("")}</ol>
+    ${example.thinkAloudCommentary ? `<p><em>Think aloud: ${esc(example.thinkAloudCommentary)}</em></p>` : ""}
+  `;
+    })
+    .join("");
 
-  const questions = (Array.isArray(c.questioningSequences) ? c.questioningSequences : []).map((q: any) => `
+  const questions = (
+    Array.isArray(c.questioningSequences) ? c.questioningSequences : []
+  )
+    .map((q) => {
+      const question = q as Record<string, unknown>;
+      return `
     <tr>
-      <td><strong>${esc(q.initialQuestion)}</strong>${q.trigger ? `<br><small>${esc(q.trigger)}</small>` : ""}</td>
-      <td>${esc(q.expectedAnswer)}</td>
-      <td>${esc(q.followUpIfWrong)}</td>
-      <td>${esc(q.followUpIfCorrect)}</td>
+      <td><strong>${esc(question.initialQuestion)}</strong>${question.trigger ? `<br><small>${esc(question.trigger)}</small>` : ""}</td>
+      <td>${esc(question.expectedAnswer)}</td>
+      <td>${esc(question.followUpIfWrong)}</td>
+      <td>${esc(question.followUpIfCorrect)}</td>
     </tr>
-  `).join("");
+  `;
+    })
+    .join("");
 
-  const misconceptions = (Array.isArray(c.misconceptions) ? c.misconceptions : []).map((m: any) => `
-    <tr><td>${esc(m.misconception)}</td><td>${esc(m.correction)}</td></tr>
-  `).join("");
+  const misconceptions = (
+    Array.isArray(c.misconceptions) ? c.misconceptions : []
+  )
+    .map((m) => {
+      const misconception = m as Record<string, unknown>;
+      return `
+    <tr><td>${esc(misconception.misconception)}</td><td>${esc(misconception.correction)}</td></tr>
+  `;
+    })
+    .join("");
 
   const body = `
     <h1>${esc(plan.topic ?? "Lesson notes")}</h1>
@@ -475,23 +720,35 @@ function buildNotesHTML(note: any) {
   return wrap(`${plan.topic ?? "Lesson"} – Notes`, body);
 }
 
-function buildAssessmentHTML(assessment: any) {
-  return wrap(assessment.title, assessmentBody(assessment));
+function buildAssessmentHTML(assessment: AssessmentExport) {
+  return wrap(assessment.title ?? "Assessment", assessmentBody(assessment));
 }
 
 // Combines every record of a learning area (grade + subject) into one document,
 // each starting on its own page.
 function buildCombinedHTML(
   kind: "scheme" | "lesson" | "assessment",
-  items: any[],
+  items: Array<SchemeExport | LessonExport | AssessmentExport>,
   grade: string,
   subject: string,
 ) {
   const landscape = kind === "scheme";
-  const label = kind === "scheme" ? "Schemes of Work" : kind === "lesson" ? "Lesson Plans" : "Assessments";
-  const bodyFn = kind === "scheme" ? schemeBody : kind === "lesson" ? lessonBody : assessmentBody;
+  const label =
+    kind === "scheme"
+      ? "Schemes of Work"
+      : kind === "lesson"
+        ? "Lesson Plans"
+        : "Assessments";
+  const bodyFn =
+    kind === "scheme"
+      ? schemeBody
+      : kind === "lesson"
+        ? lessonBody
+        : assessmentBody;
   const title = `${label} — ${grade} ${subject}`;
   const cover = `<div class="cover"><h1>${esc(title)}</h1><p>${items.length} ${label.toLowerCase()}</p></div>`;
-  const inner = cover + items.map((it) => `<div class="page-break"></div>${bodyFn(it)}`).join("");
+  const inner =
+    cover +
+    items.map((it) => `<div class="page-break"></div>${bodyFn(it)}`).join("");
   return wrap(title, inner, landscape);
 }

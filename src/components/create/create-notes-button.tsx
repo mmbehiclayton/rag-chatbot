@@ -1,12 +1,12 @@
 "use client";
 
-import { useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { NotebookPen } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
 import { toast } from "sonner";
-import { generateLessonNotes } from "@/lib/actions/generation";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { generateLessonNotes } from "@/lib/actions/generation";
 
 /** Generates teaching notes for one lesson plan, then opens them. */
 export function CreateNotesButton({
@@ -33,7 +33,9 @@ export function CreateNotesButton({
             toast.success("Lesson notes ready");
             router.push(`/dashboard/notes/${result.id}`);
           } catch {
-            toast.error("We couldn't reach Elimu. Check your connection and try again.");
+            toast.error(
+              "We couldn't reach Elimu. Check your connection and try again.",
+            );
           }
         })
       }

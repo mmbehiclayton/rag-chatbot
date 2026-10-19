@@ -12,7 +12,8 @@ const dmSans = DM_Sans({
 
 export const metadata: Metadata = {
   title: "Elimu | Schemes of work and lesson plans for Kenyan teachers",
-  description: "Schemes of work, lesson plans and lesson notes for your classes, based on the KICD curriculum designs. Ready in minutes, on your phone.",
+  description:
+    "Schemes of work, lesson plans and lesson notes for your classes, based on the KICD curriculum designs. Ready in minutes, on your phone.",
 };
 
 export const viewport: Viewport = {
@@ -26,7 +27,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${dmSans.variable} font-sans antialiased min-h-[100dvh] flex flex-col bg-background text-foreground`}>
+      <body
+        className={`${dmSans.variable} font-sans antialiased min-h-[100dvh] flex flex-col bg-background text-foreground`}
+      >
         <main className="flex-1 flex flex-col">{children}</main>
         <Toaster position="top-center" richColors />
       </body>

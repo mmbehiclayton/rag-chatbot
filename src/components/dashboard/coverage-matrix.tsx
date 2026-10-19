@@ -1,18 +1,18 @@
 "use client";
 
-import { useState, useMemo } from "react";
 import {
-  Search,
-  CheckCircle2,
-  Clock,
-  ServerCrash,
-  ChevronDown,
   ArrowRight,
+  CheckCircle2,
+  ChevronDown,
+  Clock,
+  Search,
+  ServerCrash,
   X,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
 import Link from "next/link";
+import { useMemo, useState } from "react";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 interface Grade {
   id: string;
@@ -41,14 +41,19 @@ interface CoverageMatrixProps {
   coverageMap: Record<string, Record<string, Doc>>;
 }
 
-export function CoverageMatrix({ cbcStructure, coverageMap }: CoverageMatrixProps) {
-  const [activeLevelId, setActiveLevelId] = useState<string>(cbcStructure[0]?.id || "");
+export function CoverageMatrix({
+  cbcStructure,
+  coverageMap,
+}: CoverageMatrixProps) {
+  const [activeLevelId, setActiveLevelId] = useState<string>(
+    cbcStructure[0]?.id || "",
+  );
   const [openGradeId, setOpenGradeId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
   const activeLevel = useMemo(
     () => cbcStructure.find((l) => l.id === activeLevelId),
-    [cbcStructure, activeLevelId]
+    [cbcStructure, activeLevelId],
   );
 
   // Per-grade coverage stats
@@ -56,7 +61,9 @@ export function CoverageMatrix({ cbcStructure, coverageMap }: CoverageMatrixProp
     if (!activeLevel) return [];
     return activeLevel.grades.map((grade) => {
       const covered = grade.learningAreas.filter(
-        (la) => coverageMap[grade.name]?.[la.learningArea.name]?.status === "completed"
+        (la) =>
+          coverageMap[grade.name]?.[la.learningArea.name]?.status ===
+          "completed",
       ).length;
       return { ...grade, covered, total: grade.learningAreas.length };
     });
@@ -66,7 +73,11 @@ export function CoverageMatrix({ cbcStructure, coverageMap }: CoverageMatrixProp
   const levelStats = useMemo(() => {
     const total = gradeStats.reduce((a, g) => a + g.total, 0);
     const covered = gradeStats.reduce((a, g) => a + g.covered, 0);
-    return { total, covered, percentage: total ? Math.round((covered / total) * 100) : 0 };
+    return {
+      total,
+      covered,
+      percentage: total ? Math.round((covered / total) * 100) : 0,
+    };
   }, [gradeStats]);
 
   // Filter grades by search (grade name OR any learning area name)
@@ -76,7 +87,9 @@ export function CoverageMatrix({ cbcStructure, coverageMap }: CoverageMatrixProp
     return gradeStats.filter(
       (g) =>
         g.name.toLowerCase().includes(q) ||
-        g.learningAreas.some((la) => la.learningArea.name.toLowerCase().includes(q))
+        g.learningAreas.some((la) =>
+          la.learningArea.name.toLowerCase().includes(q),
+        ),
     );
   }, [gradeStats, searchTerm]);
 
@@ -95,30 +108,35 @@ export function CoverageMatrix({ cbcStructure, coverageMap }: CoverageMatrixProp
     if (!openGradeId) return null;
     const grade = filteredGradeStats.find((g) => g.id === openGradeId);
     if (!grade) return null;
-    const gradeNameMatches = grade.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const filteredAreas = searchTerm && !gradeNameMatches
-      ? grade.learningAreas.filter((la) =>
-          la.learningArea.name.toLowerCase().includes(searchTerm.toLowerCase())
-        )
-      : grade.learningAreas;
+    const gradeNameMatches = grade.name
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase());
+    const filteredAreas =
+      searchTerm && !gradeNameMatches
+        ? grade.learningAreas.filter((la) =>
+            la.learningArea.name
+              .toLowerCase()
+              .includes(searchTerm.toLowerCase()),
+          )
+        : grade.learningAreas;
     return { ...grade, filteredAreas };
   }, [openGradeId, filteredGradeStats, searchTerm]);
 
   return (
     <div className="space-y-3 ">
-
       {/* ── Level tabs + search bar ── */}
       <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
         <div className="flex flex-wrap gap-1 p-1 bg-muted/30 border border-border/30 rounded-xl w-fit">
           {cbcStructure.map((level) => (
             <button
               key={level.id}
+              type="button"
               onClick={() => handleLevelChange(level.id)}
               className={cn(
- "px-3.5 py-1.5 rounded-xl text-xs font-semibold   transition-all whitespace-nowrap",
+                "px-3.5 py-1.5 rounded-xl text-xs font-semibold   transition-all whitespace-nowrap",
                 activeLevelId === level.id
                   ? "bg-background text-primary shadow-sm border border-border/40"
-                  : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/50",
               )}
             >
               {level.name}
@@ -136,6 +154,7 @@ export function CoverageMatrix({ cbcStructure, coverageMap }: CoverageMatrixProp
           />
           {searchTerm && (
             <button
+              type="button"
               onClick={() => setSearchTerm("")}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
             >
@@ -150,9 +169,12 @@ export function CoverageMatrix({ cbcStructure, coverageMap }: CoverageMatrixProp
         <div className="flex items-center gap-4 px-4 py-3 rounded-xl bg-primary/5 border border-primary/15">
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-              <span className="text-sm font-semibold text-foreground">{activeLevel.name}</span>
+              <span className="text-sm font-semibold text-foreground">
+                {activeLevel.name}
+              </span>
               <span className="text-xs text-muted-foreground">
-                {levelStats.covered} of {levelStats.total} learning areas have a design
+                {levelStats.covered} of {levelStats.total} learning areas have a
+                design
               </span>
             </div>
             <div className="mt-1.5 h-1 rounded-full bg-muted overflow-hidden">
@@ -179,40 +201,49 @@ export function CoverageMatrix({ cbcStructure, coverageMap }: CoverageMatrixProp
             return (
               <button
                 key={grade.id}
+                type="button"
                 onClick={() => toggleGrade(grade.id)}
                 className={cn(
- "group flex items-center gap-2 pl-3 pr-2.5 py-1.5 rounded-xl border text-left transition-all duration-150 select-none",
+                  "group flex items-center gap-2 pl-3 pr-2.5 py-1.5 rounded-xl border text-left transition-all duration-150 select-none",
                   isOpen
                     ? "bg-primary/10 border-primary/40 shadow-sm"
                     : isComplete
-                    ? "bg-success/10 border-success/20 hover:border-success/40 hover:bg-success/15"
-                    : isPartial
-                    ? "bg-info/5 border-info/20 hover:border-info/35 hover:bg-info/10"
-                    : "bg-background border-border/40 hover:border-border/70 hover:bg-muted/30"
+                      ? "bg-success/10 border-success/20 hover:border-success/40 hover:bg-success/15"
+                      : isPartial
+                        ? "bg-info/5 border-info/20 hover:border-info/35 hover:bg-info/10"
+                        : "bg-background border-border/40 hover:border-border/70 hover:bg-muted/30",
                 )}
               >
-                <span className={cn(
- "text-sm font-semibold whitespace-nowrap leading-none",
-                  isOpen ? "text-primary" : "text-foreground"
-                )}>
+                <span
+                  className={cn(
+                    "text-sm font-semibold whitespace-nowrap leading-none",
+                    isOpen ? "text-primary" : "text-foreground",
+                  )}
+                >
                   {grade.name}
                 </span>
 
-                <span className={cn(
- "text-xs font-semibold px-1.5 py-0.5 rounded-md leading-none tabular-nums",
-                  isComplete
-                    ? "bg-success/20 text-success "
-                    : isPartial
-                    ? "bg-info/15 text-info "
-                    : "bg-muted text-muted-foreground"
-                )}>
+                <span
+                  className={cn(
+                    "text-xs font-semibold px-1.5 py-0.5 rounded-md leading-none tabular-nums",
+                    isComplete
+                      ? "bg-success/20 text-success "
+                      : isPartial
+                        ? "bg-info/15 text-info "
+                        : "bg-muted text-muted-foreground",
+                  )}
+                >
                   {grade.covered}/{grade.total}
                 </span>
 
-                <ChevronDown className={cn(
- "w-3.5 h-3.5 transition-transform duration-200 shrink-0",
-                  isOpen ? "rotate-180 text-primary" : "text-muted-foreground/60 group-hover:text-muted-foreground"
-                )} />
+                <ChevronDown
+                  className={cn(
+                    "w-3.5 h-3.5 transition-transform duration-200 shrink-0",
+                    isOpen
+                      ? "rotate-180 text-primary"
+                      : "text-muted-foreground/60 group-hover:text-muted-foreground",
+                  )}
+                />
               </button>
             );
           })}
@@ -227,21 +258,24 @@ export function CoverageMatrix({ cbcStructure, coverageMap }: CoverageMatrixProp
       {/* ── Accordion panel for the open grade ── */}
       {openGrade && (
         <div className="rounded-xl border border-border/40 bg-card/60 overflow-hidden ">
-
           {/* Accordion header */}
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/30 bg-muted/20">
             <div className="flex items-center gap-3">
-              <span className="text-sm font-semibold text-foreground">{openGrade.name}</span>
+              <span className="text-sm font-semibold text-foreground">
+                {openGrade.name}
+              </span>
               <span className="text-xs text-muted-foreground">
                 {openGrade.covered} of {openGrade.total} have a design
               </span>
               {openGrade.covered > 0 && (
-                <span className={cn(
- "text-xs font-semibold px-2 py-0.5 rounded-full",
-                  openGrade.covered === openGrade.total
-                    ? "bg-success/15 text-success "
-                    : "bg-info/10 text-info "
-                )}>
+                <span
+                  className={cn(
+                    "text-xs font-semibold px-2 py-0.5 rounded-full",
+                    openGrade.covered === openGrade.total
+                      ? "bg-success/15 text-success "
+                      : "bg-info/10 text-info ",
+                  )}
+                >
                   {Math.round((openGrade.covered / openGrade.total) * 100)}%
                 </span>
               )}
@@ -261,36 +295,49 @@ export function CoverageMatrix({ cbcStructure, coverageMap }: CoverageMatrixProp
             {openGrade.filteredAreas.map((la) => {
               const doc = coverageMap[openGrade.name]?.[la.learningArea.name];
               const isCompleted = doc?.status === "completed";
-              const isProcessing = doc?.status === "processing" || doc?.status === "pending";
+              const isProcessing =
+                doc?.status === "processing" || doc?.status === "pending";
               const isError = doc?.status === "error";
 
               return (
                 <div
                   key={la.learningArea.id}
                   className={cn(
- "flex items-center gap-3 px-4 py-2.5 transition-colors",
-                    isCompleted ? "hover:bg-success/5" :
-                    isError ? "hover:bg-destructive/5" :
-                    "hover:bg-muted/20"
+                    "flex items-center gap-3 px-4 py-2.5 transition-colors",
+                    isCompleted
+                      ? "hover:bg-success/5"
+                      : isError
+                        ? "hover:bg-destructive/5"
+                        : "hover:bg-muted/20",
                   )}
                 >
                   {/* Status dot */}
                   <div className="shrink-0">
-                    {isCompleted && <CheckCircle2 className="w-4 h-4 text-success" />}
-                    {isProcessing && <Clock className="w-4 h-4 text-info animate-spin" />}
-                    {isError && <ServerCrash className="w-4 h-4 text-destructive" />}
+                    {isCompleted && (
+                      <CheckCircle2 className="w-4 h-4 text-success" />
+                    )}
+                    {isProcessing && (
+                      <Clock className="w-4 h-4 text-info animate-spin" />
+                    )}
+                    {isError && (
+                      <ServerCrash className="w-4 h-4 text-destructive" />
+                    )}
                     {!doc && (
                       <div className="w-4 h-4 rounded-full border-2 border-dashed border-border/50" />
                     )}
                   </div>
 
                   {/* Name */}
-                  <span className={cn(
- "flex-1 text-sm truncate",
-                    isCompleted ? "font-semibold text-foreground" :
-                    isError ? "font-semibold text-foreground" :
-                    "font-normal text-muted-foreground"
-                  )}>
+                  <span
+                    className={cn(
+                      "flex-1 text-sm truncate",
+                      isCompleted
+                        ? "font-semibold text-foreground"
+                        : isError
+                          ? "font-semibold text-foreground"
+                          : "font-normal text-muted-foreground",
+                    )}
+                  >
                     {la.learningArea.name}
                   </span>
 
@@ -316,7 +363,6 @@ export function CoverageMatrix({ cbcStructure, coverageMap }: CoverageMatrixProp
           </div>
         </div>
       )}
-
     </div>
   );
 }

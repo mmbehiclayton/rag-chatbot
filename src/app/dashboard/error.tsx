@@ -1,8 +1,8 @@
 "use client";
 
+import { Database, RefreshCw } from "lucide-react";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Database, RefreshCw } from "lucide-react";
 
 export default function DashboardError({
   error,
@@ -15,9 +15,10 @@ export default function DashboardError({
     console.error("Dashboard error:", error);
   }, [error]);
 
-  const isConnectivity = /can'?t reach database|connection|timed out|ECONNRESET|ETIMEDOUT|P10(01|02|08|17)/i.test(
-    error?.message ?? ""
-  );
+  const isConnectivity =
+    /can'?t reach database|connection|timed out|ECONNRESET|ETIMEDOUT|P10(01|02|08|17)/i.test(
+      error?.message ?? "",
+    );
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center gap-5 px-6 text-center">
@@ -26,7 +27,9 @@ export default function DashboardError({
       </div>
       <div className="space-y-1.5 max-w-md">
         <h2 className="text-xl font-semibold">
-          {isConnectivity ? "Reconnecting to the server" : "Something went wrong"}
+          {isConnectivity
+            ? "Reconnecting to the server"
+            : "Something went wrong"}
         </h2>
         <p className="text-sm text-muted-foreground">
           {isConnectivity

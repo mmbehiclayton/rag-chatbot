@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import type { GradeOption } from "@/lib/curriculum-options";
 import { ChoiceChips } from "@/components/shared/choice-chips";
 import { Label } from "@/components/ui/label";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
+import type { GradeOption } from "@/lib/curriculum-options";
 
 export type GradeSubject = { grade: string; subject: string };
 
@@ -29,13 +32,16 @@ export function GradeSubjectPicker({
   const ownGrades = myGrades.filter(known);
   const [showAll, setShowAll] = useState(ownGrades.length === 0);
 
-  const subjectsFor = (grade: string) => grades.find((g) => g.name === grade)?.learningAreas ?? [];
+  const subjectsFor = (grade: string) =>
+    grades.find((g) => g.name === grade)?.learningAreas ?? [];
   const gradeSubjects = subjectsFor(value.grade);
   const ownSubjects = mySubjects.filter((s) => gradeSubjects.includes(s));
 
   const pickGrade = (grade: string) => {
     const options = subjectsFor(grade);
-    const keep = options.includes(value.subject) ? value.subject : (mySubjects.find((s) => options.includes(s)) ?? "");
+    const keep = options.includes(value.subject)
+      ? value.subject
+      : (mySubjects.find((s) => options.includes(s)) ?? "");
     onChange({ grade, subject: keep });
   };
 
@@ -44,7 +50,13 @@ export function GradeSubjectPicker({
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="grade">Grade</Label>
-          <NativeSelect id="grade" className="w-full" value={value.grade} onChange={(e) => pickGrade(e.target.value)} required>
+          <NativeSelect
+            id="grade"
+            className="w-full"
+            value={value.grade}
+            onChange={(e) => pickGrade(e.target.value)}
+            required
+          >
             <NativeSelectOption value="" disabled>
               Choose grade
             </NativeSelectOption>
@@ -76,7 +88,11 @@ export function GradeSubjectPicker({
           </NativeSelect>
         </div>
         {ownGrades.length > 0 && (
-          <button type="button" className="text-left text-sm font-medium text-primary hover:underline sm:col-span-2" onClick={() => setShowAll(false)}>
+          <button
+            type="button"
+            className="text-left text-sm font-medium text-primary hover:underline sm:col-span-2"
+            onClick={() => setShowAll(false)}
+          >
             Show only my grades
           </button>
         )}
@@ -88,7 +104,12 @@ export function GradeSubjectPicker({
     <div className="space-y-4">
       <div className="space-y-2">
         <p className="text-sm font-medium">Grade</p>
-        <ChoiceChips label="Grade" options={ownGrades} value={[value.grade]} onChange={([g]) => g && pickGrade(g)} />
+        <ChoiceChips
+          label="Grade"
+          options={ownGrades}
+          value={[value.grade]}
+          onChange={([g]) => g && pickGrade(g)}
+        />
       </div>
       <div className="space-y-2">
         <p className="text-sm font-medium">Learning area</p>
@@ -100,10 +121,16 @@ export function GradeSubjectPicker({
             onChange={([s]) => s && onChange({ ...value, subject: s })}
           />
         ) : (
-          <p className="text-sm text-muted-foreground">None of your learning areas are taught in {value.grade}.</p>
+          <p className="text-sm text-muted-foreground">
+            None of your learning areas are taught in {value.grade}.
+          </p>
         )}
       </div>
-      <button type="button" className="text-sm font-medium text-primary hover:underline" onClick={() => setShowAll(true)}>
+      <button
+        type="button"
+        className="text-sm font-medium text-primary hover:underline"
+        onClick={() => setShowAll(true)}
+      >
         Other grade or learning area…
       </button>
     </div>
@@ -111,7 +138,11 @@ export function GradeSubjectPicker({
 }
 
 /** Starting value: the teacher's first grade and a learning area taught in it. */
-export function defaultGradeSubject(grades: GradeOption[], myGrades: string[], mySubjects: string[]): GradeSubject {
+export function defaultGradeSubject(
+  grades: GradeOption[],
+  myGrades: string[],
+  mySubjects: string[],
+): GradeSubject {
   const grade = myGrades.find((g) => grades.some((o) => o.name === g)) ?? "";
   const options = grades.find((g) => g.name === grade)?.learningAreas ?? [];
   return { grade, subject: mySubjects.find((s) => options.includes(s)) ?? "" };

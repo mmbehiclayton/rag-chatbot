@@ -1,18 +1,21 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Info } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { generateQuickLessonPlan } from "@/lib/actions/generation";
-import type { GradeOption } from "@/lib/curriculum-options";
-import { GradeSubjectPicker, defaultGradeSubject } from "@/components/create/grade-subject-picker";
 import { GenerationProgress } from "@/components/create/generation-progress";
+import {
+  defaultGradeSubject,
+  GradeSubjectPicker,
+} from "@/components/create/grade-subject-picker";
 import { ChoiceChips } from "@/components/shared/choice-chips";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { generateQuickLessonPlan } from "@/lib/actions/generation";
+import type { GradeOption } from "@/lib/curriculum-options";
 
 const DURATIONS = ["30 min", "35 min", "40 min"];
 
@@ -31,7 +34,9 @@ export function QuickLessonForm({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [target, setTarget] = useState(() => defaultGradeSubject(grades, myGrades, mySubjects));
+  const [target, setTarget] = useState(() =>
+    defaultGradeSubject(grades, myGrades, mySubjects),
+  );
   const [topic, setTopic] = useState("");
   const [duration, setDuration] = useState("40 min");
 
@@ -53,13 +58,20 @@ export function QuickLessonForm({
         toast.success("Lesson plan ready");
         router.push(`/dashboard/lessons/${result.id}`);
       } catch {
-        toast.error("We couldn't reach Elimu. Check your connection and try again.");
+        toast.error(
+          "We couldn't reach Elimu. Check your connection and try again.",
+        );
       }
     });
   };
 
   if (isPending) {
-    return <GenerationProgress title="Writing your lesson plan" detail={`${target.grade} ${target.subject} · ${topic.trim()}`} />;
+    return (
+      <GenerationProgress
+        title="Writing your lesson plan"
+        detail={`${target.grade} ${target.subject} · ${topic.trim()}`}
+      />
+    );
   }
 
   return (
@@ -72,12 +84,22 @@ export function QuickLessonForm({
     >
       <Card>
         <CardContent className="space-y-5">
-          <GradeSubjectPicker grades={grades} myGrades={myGrades} mySubjects={mySubjects} value={target} onChange={setTarget} />
+          <GradeSubjectPicker
+            grades={grades}
+            myGrades={myGrades}
+            mySubjects={mySubjects}
+            value={target}
+            onChange={setTarget}
+          />
 
           {target.grade && target.subject && !hasCurriculum && (
             <p className="flex gap-2 rounded-md bg-warning/10 p-3 text-sm text-foreground">
-              <Info className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
-              The curriculum design for {target.grade} {target.subject} isn't in Elimu yet, so check strands and outcomes carefully.
+              <Info
+                className="mt-0.5 size-4 shrink-0 text-warning"
+                aria-hidden
+              />
+              The curriculum design for {target.grade} {target.subject} isn't in
+              Elimu yet, so check strands and outcomes carefully.
             </p>
           )}
 
@@ -94,7 +116,9 @@ export function QuickLessonForm({
             />
             {suggestions.length > 0 && (
               <div className="space-y-1.5 pt-1">
-                <p className="text-xs text-muted-foreground">From your schemes of work</p>
+                <p className="text-xs text-muted-foreground">
+                  From your schemes of work
+                </p>
                 <div className="flex flex-wrap gap-1.5">
                   {suggestions.slice(0, 6).map((s) => (
                     <button
@@ -113,7 +137,12 @@ export function QuickLessonForm({
 
           <div className="space-y-2">
             <p className="text-sm font-medium">Lesson length</p>
-            <ChoiceChips label="Lesson length" options={DURATIONS} value={[duration]} onChange={([d]) => d && setDuration(d)} />
+            <ChoiceChips
+              label="Lesson length"
+              options={DURATIONS}
+              value={[duration]}
+              onChange={([d]) => d && setDuration(d)}
+            />
           </div>
         </CardContent>
       </Card>
@@ -121,7 +150,9 @@ export function QuickLessonForm({
       <Button type="submit" size="lg" className="w-full" disabled={!ready}>
         Create lesson plan
       </Button>
-      <p className="text-center text-xs text-muted-foreground">Always review AI-generated content before you teach with it.</p>
+      <p className="text-center text-xs text-muted-foreground">
+        Always review AI-generated content before you teach with it.
+      </p>
     </form>
   );
 }

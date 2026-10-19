@@ -1,15 +1,21 @@
+import {
+  Building2,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  User,
+} from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Building2, ChevronLeft, ChevronRight, Search, User } from "lucide-react";
-import { auth } from "@/lib/auth";
-import { db, withDbRetry } from "@/lib/db";
-import { cn } from "@/lib/utils";
-import { PageHeader } from "@/components/shared/page-header";
-import { EmptyState } from "@/components/shared/empty-state";
 import { AddSchool, EditTenant } from "@/components/admin/tenant-forms";
+import { EmptyState } from "@/components/shared/empty-state";
+import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { auth } from "@/lib/auth";
+import { db, withDbRetry } from "@/lib/db";
+import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 15;
 
@@ -19,7 +25,9 @@ const FILTERS = [
   { value: "INDEPENDENT_TEACHER", label: "Own accounts" },
 ] as const;
 
-type Props = { searchParams: Promise<{ [key: string]: string | string[] | undefined }> };
+type Props = {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+};
 
 /** Every school and teacher account, with this month's AI use against its limit. */
 export default async function SchoolsPage(props: Props) {
@@ -29,10 +37,15 @@ export default async function SchoolsPage(props: Props) {
   const params = await props.searchParams;
   const page = Math.max(1, Number(params?.page) || 1);
   const query = typeof params?.query === "string" ? params.query.trim() : "";
-  const type = params?.type === "SCHOOL" || params?.type === "INDEPENDENT_TEACHER" ? params.type : "";
+  const type =
+    params?.type === "SCHOOL" || params?.type === "INDEPENDENT_TEACHER"
+      ? params.type
+      : "";
 
   const where = {
-    ...(query ? { name: { contains: query, mode: "insensitive" as const } } : {}),
+    ...(query
+      ? { name: { contains: query, mode: "insensitive" as const } }
+      : {}),
     ...(type ? { type } : {}),
   };
 
@@ -47,24 +60,35 @@ export default async function SchoolsPage(props: Props) {
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
-        select: { id: true, name: true, type: true, tokenQuota: true, createdAt: true, _count: { select: { users: true } } },
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          tokenQuota: true,
+          createdAt: true,
+          _count: { select: { users: true } },
+        },
       }),
       db.tenant.count({ where }),
       db.tenant.count({ where: { type: "SCHOOL" } }),
       db.tenant.count({ where: { type: "INDEPENDENT_TEACHER" } }),
-    ])
+    ]),
   );
 
   const usage = tenants.length
     ? await withDbRetry(() =>
         db.generationLog.groupBy({
           by: ["tenantId"],
-          where: { tenantId: { in: tenants.map((t) => t.id) }, createdAt: { gte: monthStart } },
+          where: {
+            tenantId: { in: tenants.map((t) => t.id) },
+            createdAt: { gte: monthStart },
+          },
           _sum: { totalTokens: true },
-        })
+        }),
       )
     : [];
-  const used = (id: string) => usage.find((u) => u.tenantId === id)?._sum.totalTokens ?? 0;
+  const used = (id: string) =>
+    usage.find((u) => u.tenantId === id)?._sum.totalTokens ?? 0;
 
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const href = (p: Partial<{ page: number; type: string }>) => {
@@ -87,10 +111,20 @@ export default async function SchoolsPage(props: Props) {
       />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <form method="GET" action="/dashboard/tenants" className="relative w-full sm:max-w-xs">
+        <form
+          method="GET"
+          action="/dashboard/tenants"
+          className="relative w-full sm:max-w-xs"
+        >
           <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           {type && <input type="hidden" name="type" value={type} />}
-          <Input name="query" defaultValue={query} placeholder="Search by name" aria-label="Search by name" className="h-11 pl-9" />
+          <Input
+            name="query"
+            defaultValue={query}
+            placeholder="Search by name"
+            aria-label="Search by name"
+            className="h-11 pl-9"
+          />
         </form>
         <div className="flex gap-2" role="tablist" aria-label="Filter">
           {FILTERS.map((f) => (
@@ -112,33 +146,66 @@ export default async function SchoolsPage(props: Props) {
         <EmptyState
           icon={Search}
           title="Nothing found"
-          description={query ? `No school or account matches "${query}".` : "No schools or accounts yet."}
+          description={
+            query
+              ? `No school or account matches "${query}".`
+              : "No schools or accounts yet."
+          }
         />
       ) : (
         <ul className="divide-y rounded-xl border bg-card">
           {tenants.map((t) => {
             const spent = used(t.id);
-            const pct = Math.min(100, Math.round((spent / Math.max(1, t.tokenQuota)) * 100));
+            const pct = Math.min(
+              100,
+              Math.round((spent / Math.max(1, t.tokenQuota)) * 100),
+            );
             const Icon = t.type === "SCHOOL" ? Building2 : User;
             return (
               <li key={t.id} className="space-y-2 p-4">
                 <div className="flex flex-wrap items-start gap-3">
-                  <Icon className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden />
+                  <Icon
+                    className="mt-0.5 size-5 shrink-0 text-muted-foreground"
+                    aria-hidden
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="truncate font-medium">{t.name}</p>
-                      <Badge variant={t.type === "SCHOOL" ? "info" : "secondary"}>{t.type === "SCHOOL" ? "School" : "Own account"}</Badge>
+                      <Badge
+                        variant={t.type === "SCHOOL" ? "info" : "secondary"}
+                      >
+                        {t.type === "SCHOOL" ? "School" : "Own account"}
+                      </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {t._count.users} {t._count.users === 1 ? "person" : "people"} · added{" "}
-                      {t.createdAt.toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" })}
+                      {t._count.users}{" "}
+                      {t._count.users === 1 ? "person" : "people"} · added{" "}
+                      {t.createdAt.toLocaleDateString("en-KE", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
                     </p>
                     <div className="mt-2 space-y-1">
-                      <div className="h-1.5 overflow-hidden rounded-md bg-muted" aria-hidden>
-                        <div className={cn("h-full", pct >= 90 ? "bg-destructive" : pct >= 70 ? "bg-warning" : "bg-primary")} style={{ width: `${pct}%` }} />
+                      <div
+                        className="h-1.5 overflow-hidden rounded-md bg-muted"
+                        aria-hidden
+                      >
+                        <div
+                          className={cn(
+                            "h-full",
+                            pct >= 90
+                              ? "bg-destructive"
+                              : pct >= 70
+                                ? "bg-warning"
+                                : "bg-primary",
+                          )}
+                          style={{ width: `${pct}%` }}
+                        />
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {num(spent)} of {num(t.tokenQuota)} tokens used this month ({pct}%)
+                        {num(spent)} of {num(t.tokenQuota)} tokens used this
+                        month ({pct}%)
                       </p>
                     </div>
                   </div>
@@ -151,14 +218,35 @@ export default async function SchoolsPage(props: Props) {
       )}
 
       {total > PAGE_SIZE && (
-        <nav className="flex items-center justify-between gap-3" aria-label="Pages">
-          <Button variant="outline" size="icon-lg" aria-label="Previous page" disabled={page <= 1} render={page > 1 ? <Link href={href({ page: page - 1 })} /> : undefined}>
+        <nav
+          className="flex items-center justify-between gap-3"
+          aria-label="Pages"
+        >
+          <Button
+            variant="outline"
+            size="icon-lg"
+            aria-label="Previous page"
+            disabled={page <= 1}
+            render={
+              page > 1 ? <Link href={href({ page: page - 1 })} /> : undefined
+            }
+          >
             <ChevronLeft />
           </Button>
           <p className="text-sm text-muted-foreground">
             Page {page} of {pages}
           </p>
-          <Button variant="outline" size="icon-lg" aria-label="Next page" disabled={page >= pages} render={page < pages ? <Link href={href({ page: page + 1 })} /> : undefined}>
+          <Button
+            variant="outline"
+            size="icon-lg"
+            aria-label="Next page"
+            disabled={page >= pages}
+            render={
+              page < pages ? (
+                <Link href={href({ page: page + 1 })} />
+              ) : undefined
+            }
+          >
             <ChevronRight />
           </Button>
         </nav>

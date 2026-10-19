@@ -1,5 +1,5 @@
-import fs from "fs/promises";
-import path from "path";
+import fs from "node:fs/promises";
+import path from "node:path";
 
 /**
  * Where curriculum design PDFs live. New uploads go to UploadThing (fileUrl is an https URL).
@@ -14,27 +14,42 @@ const UPLOAD_HOSTS = [/\.ufs\.sh$/, /^utfs\.io$/, /\.utfs\.io$/];
 export function isStoredUploadUrl(url: string) {
   try {
     const u = new URL(url);
-    return u.protocol === "https:" && UPLOAD_HOSTS.some((h) => h.test(u.hostname));
+    return (
+      u.protocol === "https:" && UPLOAD_HOSTS.some((h) => h.test(u.hostname))
+    );
   } catch {
     return false;
   }
 }
 
 /** The PDF's bytes, or null when the file can't be found. */
-export async function readCurriculumFile(fileUrl: string): Promise<Buffer | null> {
+export async function readCurriculumFile(
+  fileUrl: string,
+): Promise<Buffer | null> {
   if (/^https?:\/\//.test(fileUrl)) {
     if (!isStoredUploadUrl(fileUrl)) return null;
     const res = await fetch(fileUrl, { cache: "no-store" });
     if (!res.ok) return null;
     return Buffer.from(await res.arrayBuffer());
   }
-  const local = path.resolve(process.cwd(), "public", fileUrl.replace(/^\//, ""));
+  const local = path.resolve(
+    process.cwd(),
+    "public",
+    fileUrl.replace(/^\//, ""),
+  );
   return fs.readFile(local).catch(() => null);
 }
 
 /** Cheap check before starting a re-index, so a missing file fails straight away. */
 export async function curriculumFileExists(fileUrl: string) {
   if (/^https?:\/\//.test(fileUrl)) return isStoredUploadUrl(fileUrl);
-  const local = path.resolve(process.cwd(), "public", fileUrl.replace(/^\//, ""));
-  return fs.access(local).then(() => true, () => false);
+  const local = path.resolve(
+    process.cwd(),
+    "public",
+    fileUrl.replace(/^\//, ""),
+  );
+  return fs.access(local).then(
+    () => true,
+    () => false,
+  );
 }

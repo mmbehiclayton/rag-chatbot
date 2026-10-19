@@ -1,16 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 export type Slide = { heading: string; lead?: string; points: string[] };
 
 /** Full-screen, light slides for projecting or reading from a phone in class. */
-export function LessonPresent({ lessonId, slides }: { lessonId: string; slides: Slide[] }) {
+export function LessonPresent({
+  lessonId,
+  slides,
+}: {
+  lessonId: string;
+  slides: Slide[];
+}) {
   const [i, setI] = useState(0);
-  const go = useCallback((d: number) => setI((n) => Math.min(Math.max(n + d, 0), slides.length - 1)), [slides.length]);
+  const go = useCallback(
+    (d: number) => setI((n) => Math.min(Math.max(n + d, 0), slides.length - 1)),
+    [slides.length],
+  );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -29,19 +38,30 @@ export function LessonPresent({ lessonId, slides }: { lessonId: string; slides: 
         <span className="text-sm text-muted-foreground">
           {i + 1} / {slides.length}
         </span>
-        <Button variant="ghost" size="icon" aria-label="Close presentation" render={<Link href={`/dashboard/lessons/${lessonId}`} />}>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Close presentation"
+          render={<Link href={`/dashboard/lessons/${lessonId}`} />}
+        >
           <X />
         </Button>
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-8 sm:px-12">
         <div className="mx-auto max-w-4xl space-y-6">
-          <h1 className="text-2xl font-semibold sm:text-4xl">{slide.heading}</h1>
-          {slide.lead && <p className="text-lg text-muted-foreground sm:text-2xl">{slide.lead}</p>}
+          <h1 className="text-2xl font-semibold sm:text-4xl">
+            {slide.heading}
+          </h1>
+          {slide.lead && (
+            <p className="text-lg text-muted-foreground sm:text-2xl">
+              {slide.lead}
+            </p>
+          )}
           {slide.points.length > 0 && (
             <ul className="list-disc space-y-3 pl-6 text-lg sm:text-2xl">
-              {slide.points.map((p, n) => (
-                <li key={n}>{p}</li>
+              {slide.points.map((p) => (
+                <li key={p}>{p}</li>
               ))}
             </ul>
           )}
@@ -49,10 +69,21 @@ export function LessonPresent({ lessonId, slides }: { lessonId: string; slides: 
       </div>
 
       <div className="flex gap-2 border-t p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        <Button variant="outline" size="lg" className="flex-1" disabled={i === 0} onClick={() => go(-1)}>
+        <Button
+          variant="outline"
+          size="lg"
+          className="flex-1"
+          disabled={i === 0}
+          onClick={() => go(-1)}
+        >
           <ChevronLeft /> Back
         </Button>
-        <Button size="lg" className="flex-1" disabled={i === slides.length - 1} onClick={() => go(1)}>
+        <Button
+          size="lg"
+          className="flex-1"
+          disabled={i === slides.length - 1}
+          onClick={() => go(1)}
+        >
           Next <ChevronRight />
         </Button>
       </div>

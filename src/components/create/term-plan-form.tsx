@@ -1,20 +1,26 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { CalendarDays, Info } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Info } from "lucide-react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { generateAssessment, generateSchemeOfWork } from "@/lib/actions/generation";
-import type { GradeOption } from "@/lib/curriculum-options";
-import { GradeSubjectPicker, defaultGradeSubject } from "@/components/create/grade-subject-picker";
 import { GenerationProgress } from "@/components/create/generation-progress";
+import {
+  defaultGradeSubject,
+  GradeSubjectPicker,
+} from "@/components/create/grade-subject-picker";
 import { ChoiceChips } from "@/components/shared/choice-chips";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  generateAssessment,
+  generateSchemeOfWork,
+} from "@/lib/actions/generation";
+import type { GradeOption } from "@/lib/curriculum-options";
 
 const TERMS = ["Term 1", "Term 2", "Term 3"];
 const ASSESSMENT_TYPES = ["Opener", "Mid-term", "End of term"];
@@ -58,7 +64,14 @@ function NumberField({
 /** The teacher's saved terms, keyed "Term 1"…"Term 3": teaching weeks and timetabled lessons per class ("grade|subject"). */
 export type TermCalendar = Record<
   string,
-  { year: number; label: string; weeks: number; opensOn: string; lessons: Record<string, number>; perWeek: Record<string, number> }
+  {
+    year: number;
+    label: string;
+    weeks: number;
+    opensOn: string;
+    lessons: Record<string, number>;
+    perWeek: Record<string, number>;
+  }
 >;
 
 /** Form for the curriculum-grounded generators: scheme of work and assessment. */
@@ -81,7 +94,9 @@ export function TermPlanForm({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [target, setTarget] = useState(() => defaultGradeSubject(grades, myGrades, mySubjects));
+  const [target, setTarget] = useState(() =>
+    defaultGradeSubject(grades, myGrades, mySubjects),
+  );
   const [term, setTerm] = useState(initialTerm ?? "Term 1");
   const [weeks, setWeeks] = useState(12);
   const [breakWeeks, setBreakWeeks] = useState(1);
@@ -95,12 +110,21 @@ export function TermPlanForm({
   const termDates = calendar[term];
   const classKey = `${target.grade}|${target.subject}`;
   // With saved term dates and a timetable for this class, the lesson count comes from real dates.
-  const fromCalendar = kind === "scheme" && termDates && termDates.lessons[classKey] > 0 ? termDates : null;
+  const fromCalendar =
+    kind === "scheme" && termDates && termDates.lessons[classKey] > 0
+      ? termDates
+      : null;
   const numbersValid =
     kind === "assessment" ||
     !!fromCalendar ||
-    (weeks >= 4 && weeks <= 16 && breakWeeks >= 0 && breakWeeks < weeks && lessonsPerWeek >= 1 && lessonsPerWeek <= 10);
-  const ready = !!target.grade && !!target.subject && hasCurriculum && numbersValid;
+    (weeks >= 4 &&
+      weeks <= 16 &&
+      breakWeeks >= 0 &&
+      breakWeeks < weeks &&
+      lessonsPerWeek >= 1 &&
+      lessonsPerWeek <= 10);
+  const ready =
+    !!target.grade && !!target.subject && hasCurriculum && numbersValid;
   const durationMinutes = Number.parseInt(duration, 10);
 
   const submit = () => {
@@ -139,7 +163,9 @@ export function TermPlanForm({
         }
       } catch {
         // Only reached when the request itself fails, e.g. the connection dropped.
-        toast.error("We couldn't reach Elimu. Check your connection and try again.");
+        toast.error(
+          "We couldn't reach Elimu. Check your connection and try again.",
+        );
       }
     });
   };
@@ -147,7 +173,11 @@ export function TermPlanForm({
   if (isPending) {
     return (
       <GenerationProgress
-        title={kind === "scheme" ? "Writing your scheme of work" : "Writing your assessment"}
+        title={
+          kind === "scheme"
+            ? "Writing your scheme of work"
+            : "Writing your assessment"
+        }
         detail={`${target.grade} ${target.subject} · ${term}`}
         estimate={
           kind === "scheme"
@@ -168,67 +198,120 @@ export function TermPlanForm({
     >
       <Card>
         <CardContent className="space-y-5">
-          <GradeSubjectPicker grades={grades} myGrades={myGrades} mySubjects={mySubjects} value={target} onChange={setTarget} />
+          <GradeSubjectPicker
+            grades={grades}
+            myGrades={myGrades}
+            mySubjects={mySubjects}
+            value={target}
+            onChange={setTarget}
+          />
 
           {target.grade && target.subject && !hasCurriculum && (
             <p className="flex gap-2 rounded-md bg-warning/10 p-3 text-sm text-foreground">
-              <Info className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
-              The curriculum design for {target.grade} {target.subject} isn't in Elimu yet, so this can't be created. Try another learning area, or
+              <Info
+                className="mt-0.5 size-4 shrink-0 text-warning"
+                aria-hidden
+              />
+              The curriculum design for {target.grade} {target.subject} isn't in
+              Elimu yet, so this can't be created. Try another learning area, or
               ask your school admin to add it.
             </p>
           )}
 
           <div className="space-y-2">
             <p className="text-sm font-medium">Term</p>
-            <ChoiceChips label="Term" options={TERMS} value={[term]} onChange={([t]) => t && setTerm(t)} />
+            <ChoiceChips
+              label="Term"
+              options={TERMS}
+              value={[term]}
+              onChange={([t]) => t && setTerm(t)}
+            />
           </div>
 
           {kind === "scheme" ? (
             <>
               {fromCalendar ? (
                 <div className="flex gap-3 rounded-md bg-muted p-3 text-sm">
-                  <CalendarDays className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+                  <CalendarDays
+                    className="mt-0.5 size-4 shrink-0 text-primary"
+                    aria-hidden
+                  />
                   <p>
-                    From your {fromCalendar.label} dates and timetable: {fromCalendar.weeks} teaching weeks,{" "}
+                    From your {fromCalendar.label} dates and timetable:{" "}
+                    {fromCalendar.weeks} teaching weeks,{" "}
                     {fromCalendar.lessons[classKey]} lessons.{" "}
-                    <Link href="/dashboard/profile/term" className="font-medium text-primary hover:underline">
+                    <Link
+                      href="/dashboard/profile/term"
+                      className="font-medium text-primary hover:underline"
+                    >
                       Change
                     </Link>
                   </p>
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  <Link href="/dashboard/profile/term" className="font-medium text-primary hover:underline">
+                  <Link
+                    href="/dashboard/profile/term"
+                    className="font-medium text-primary hover:underline"
+                  >
                     Add your term dates and timetable
                   </Link>{" "}
                   so the scheme follows your real weeks and lessons.
                 </p>
               )}
               {!fromCalendar && (
-              <div className="grid gap-4 sm:grid-cols-3">
-                <NumberField id="weeks" label="Weeks in the term" value={weeks} onChange={setWeeks} min={4} max={16} />
-                <NumberField
-                  id="break"
-                  label="Break weeks"
-                  hint="Half-term and exam weeks"
-                  value={breakWeeks}
-                  onChange={setBreakWeeks}
-                  min={0}
-                  max={4}
-                />
-                <NumberField id="lessons" label="Lessons per week" value={lessonsPerWeek} onChange={setLessonsPerWeek} min={1} max={10} />
-              </div>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <NumberField
+                    id="weeks"
+                    label="Weeks in the term"
+                    value={weeks}
+                    onChange={setWeeks}
+                    min={4}
+                    max={16}
+                  />
+                  <NumberField
+                    id="break"
+                    label="Break weeks"
+                    hint="Half-term and exam weeks"
+                    value={breakWeeks}
+                    onChange={setBreakWeeks}
+                    min={0}
+                    max={4}
+                  />
+                  <NumberField
+                    id="lessons"
+                    label="Lessons per week"
+                    value={lessonsPerWeek}
+                    onChange={setLessonsPerWeek}
+                    min={1}
+                    max={10}
+                  />
+                </div>
               )}
               <div className="space-y-2">
                 <p className="text-sm font-medium">Lesson length</p>
-                <ChoiceChips label="Lesson length" options={["30 min", "35 min", "40 min"]} value={[duration]} onChange={([d]) => d && setDuration(d)} />
+                <ChoiceChips
+                  label="Lesson length"
+                  options={["30 min", "35 min", "40 min"]}
+                  value={[duration]}
+                  onChange={([d]) => d && setDuration(d)}
+                />
               </div>
-              <label className="flex min-h-11 items-start gap-3 text-sm">
-                <Checkbox checked={forceFresh} onCheckedChange={(checked) => setForceFresh(checked === true)} className="mt-0.5" />
+              <label
+                htmlFor="force-fresh"
+                className="flex min-h-11 items-start gap-3 text-sm"
+              >
+                <Checkbox
+                  id="force-fresh"
+                  checked={forceFresh}
+                  onCheckedChange={(checked) => setForceFresh(checked === true)}
+                  className="mt-0.5"
+                />
                 <span>
                   Write a new version
                   <span className="block text-xs text-muted-foreground">
-                    By default Elimu reuses a reviewed scheme for the same class and term, which is instant and saves your monthly allowance.
+                    By default Elimu reuses a reviewed scheme for the same class
+                    and term, which is instant and saves your monthly allowance.
                   </span>
                 </span>
               </label>
@@ -237,11 +320,21 @@ export function TermPlanForm({
             <>
               <div className="space-y-2">
                 <p className="text-sm font-medium">Type</p>
-                <ChoiceChips label="Assessment type" options={ASSESSMENT_TYPES} value={[assessmentType]} onChange={([t]) => t && setAssessmentType(t)} />
+                <ChoiceChips
+                  label="Assessment type"
+                  options={ASSESSMENT_TYPES}
+                  value={[assessmentType]}
+                  onChange={([t]) => t && setAssessmentType(t)}
+                />
               </div>
               <div className="space-y-2">
                 <p className="text-sm font-medium">Total marks</p>
-                <ChoiceChips label="Total marks" options={MARKS} value={[marks]} onChange={([m]) => m && setMarks(m)} />
+                <ChoiceChips
+                  label="Total marks"
+                  options={MARKS}
+                  value={[marks]}
+                  onChange={([m]) => m && setMarks(m)}
+                />
               </div>
             </>
           )}
@@ -251,7 +344,9 @@ export function TermPlanForm({
       <Button type="submit" size="lg" className="w-full" disabled={!ready}>
         {kind === "scheme" ? "Create scheme of work" : "Create assessment"}
       </Button>
-      <p className="text-center text-xs text-muted-foreground">Always review AI-generated content before you use it.</p>
+      <p className="text-center text-xs text-muted-foreground">
+        Always review AI-generated content before you use it.
+      </p>
     </form>
   );
 }

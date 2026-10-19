@@ -1,7 +1,11 @@
-import { db, withDbRetry } from "@/lib/db";
 import { getPublishedMapKeys } from "@/lib/curriculum-map";
+import { db, withDbRetry } from "@/lib/db";
 
-export type GradeOption = { name: string; level: string; learningAreas: string[] };
+export type GradeOption = {
+  name: string;
+  level: string;
+  learningAreas: string[];
+};
 
 /** Grades in curriculum order, each with the learning areas taught in it. */
 export async function getGradeOptions(): Promise<GradeOption[]> {
@@ -14,11 +18,13 @@ export async function getGradeOptions(): Promise<GradeOption[]> {
           orderBy: { order: "asc" },
           select: {
             name: true,
-            learningAreas: { select: { learningArea: { select: { name: true, order: true } } } },
+            learningAreas: {
+              select: { learningArea: { select: { name: true, order: true } } },
+            },
           },
         },
       },
-    })
+    }),
   );
 
   return levels.flatMap((level) =>
@@ -29,7 +35,7 @@ export async function getGradeOptions(): Promise<GradeOption[]> {
         .map((la) => la.learningArea)
         .sort((a, b) => a.order - b.order)
         .map((la) => la.name),
-    }))
+    })),
   );
 }
 
@@ -38,8 +44,14 @@ export async function getTeachingProfile(userId: string) {
   return withDbRetry(() =>
     db.user.findUnique({
       where: { id: userId },
-      select: { name: true, schoolName: true, gradesTaught: true, subjectsTaught: true, onboardedAt: true },
-    })
+      select: {
+        name: true,
+        schoolName: true,
+        gradesTaught: true,
+        subjectsTaught: true,
+        onboardedAt: true,
+      },
+    }),
   );
 }
 
@@ -47,16 +59,24 @@ export async function getTeachingProfile(userId: string) {
 export async function getIndexedCurricula(tenantId?: string | null) {
   const docs = await withDbRetry(() =>
     db.curriculumDocument.findMany({
-      where: { status: "completed", OR: [{ tenantId: tenantId ?? null }, { tenantId: null }] },
+      where: {
+        status: "completed",
+        OR: [{ tenantId: tenantId ?? null }, { tenantId: null }],
+      },
       select: { gradeLevel: true, subject: true },
-    })
+    }),
   );
   const maps = await getPublishedMapKeys();
-  return [...new Set([...docs.map((d) => `${d.gradeLevel}|${d.subject}`), ...maps])];
+  return [
+    ...new Set([...docs.map((d) => `${d.gradeLevel}|${d.subject}`), ...maps]),
+  ];
 }
 
 /** Puts a class passed in the URL (?grade=&subject=) ahead of the teacher's own choices so the form opens on it. */
-export function preferClass(list: string[] | undefined, value: string | string[] | undefined) {
+export function preferClass(
+  list: string[] | undefined,
+  value: string | string[] | undefined,
+) {
   const v = Array.isArray(value) ? value[0] : value;
   const items = list ?? [];
   return v ? [v, ...items.filter((i) => i !== v)] : items;

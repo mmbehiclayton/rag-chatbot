@@ -15,12 +15,16 @@ export function explainAIError(label: string, e: unknown): string {
   }
   if (APICallError.isInstance(cause)) {
     if (cause.statusCode === 401 || cause.statusCode === 403) {
-      console.error("[ai] OpenAI rejected the API key. Check OPENAI_API_KEY in this environment.");
+      console.error(
+        "[ai] OpenAI rejected the API key. Check OPENAI_API_KEY in this environment.",
+      );
       return "Elimu's writing service isn't working right now. We've been alerted. Please try again later.";
     }
     if (cause.statusCode === 429) {
       if (/quota|billing/i.test(cause.responseBody ?? cause.message)) {
-        console.error("[ai] OpenAI quota or billing limit reached for this API key.");
+        console.error(
+          "[ai] OpenAI quota or billing limit reached for this API key.",
+        );
         return "Elimu's writing service isn't working right now. We've been alerted. Please try again later.";
       }
       return "Elimu is busy right now. Wait a minute and try again.";

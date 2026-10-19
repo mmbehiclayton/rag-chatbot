@@ -1,8 +1,12 @@
-import { generateObject } from "ai";
 import { openai } from "@ai-sdk/openai";
+import { generateObject } from "ai";
 import { z } from "zod";
+import {
+  MAP_STATUS,
+  type MapStrand,
+  writeMapDraft,
+} from "@/lib/curriculum-map";
 import { db, withDbRetry } from "@/lib/db";
-import { MAP_STATUS, writeMapDraft, type MapStrand } from "@/lib/curriculum-map";
 
 // About 15k tokens of design text per call, so each part fits easily and the reply stays short.
 const WINDOW = 60_000;
@@ -11,17 +15,35 @@ const WINDOW_OVERLAP = 2_000;
 const DraftSchema = z.object({
   strands: z.array(
     z.object({
-      name: z.string().describe("Strand name exactly as written, without its number"),
+      name: z
+        .string()
+        .describe("Strand name exactly as written, without its number"),
       subStrands: z.array(
         z.object({
-          name: z.string().describe("Sub-strand name exactly as written, without its number"),
-          lessons: z.number().int().nullable().describe("Number of lessons given for the sub-strand, or null if not stated in this text"),
-          outcomes: z.array(z.string()).describe("Specific learning outcomes, word for word, without the 'By the end of the sub-strand' lead-in or list letters"),
-          inquiryQuestions: z.array(z.string()).describe("Suggested key inquiry questions, word for word"),
-          learningExperiences: z.array(z.string()).describe("Suggested learning experiences, word for word"),
-        })
+          name: z
+            .string()
+            .describe("Sub-strand name exactly as written, without its number"),
+          lessons: z
+            .number()
+            .int()
+            .nullable()
+            .describe(
+              "Number of lessons given for the sub-strand, or null if not stated in this text",
+            ),
+          outcomes: z
+            .array(z.string())
+            .describe(
+              "Specific learning outcomes, word for word, without the 'By the end of the sub-strand' lead-in or list letters",
+            ),
+          inquiryQuestions: z
+            .array(z.string())
+            .describe("Suggested key inquiry questions, word for word"),
+          learningExperiences: z
+            .array(z.string())
+            .describe("Suggested learning experiences, word for word"),
+        }),
       ),
-    })
+    }),
   ),
 });
 
@@ -59,7 +81,12 @@ function windows(text: string) {
   return out;
 }
 
-const key = (v: string) => v.toLowerCase().replace(/^[\d.\s]+/, "").replace(/[^a-z0-9]+/g, " ").trim();
+const key = (v: string) =>
+  v
+    .toLowerCase()
+    .replace(/^[\d.\s]+/, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 
 function addLines(into: string[], lines: string[]) {
   const seen = new Set(into.map(key));
@@ -77,7 +104,10 @@ function merge(parts: z.infer<typeof DraftSchema>[]): MapStrand[] {
   const strands: MapStrand[] = [];
   for (const part of parts) {
     for (const s of part.strands) {
-      const name = s.name.replace(/^[\d.\s]+/, "").trim().slice(0, 200);
+      const name = s.name
+        .replace(/^[\d.\s]+/, "")
+        .trim()
+        .slice(0, 200);
       if (!name) continue;
       let strand = strands.find((x) => key(x.name) === key(name));
       if (!strand) {
@@ -86,15 +116,26 @@ function merge(parts: z.infer<typeof DraftSchema>[]): MapStrand[] {
         strands.push(strand);
       }
       for (const u of s.subStrands) {
-        const subName = u.name.replace(/^[\d.\s]+/, "").trim().slice(0, 200);
+        const subName = u.name
+          .replace(/^[\d.\s]+/, "")
+          .trim()
+          .slice(0, 200);
         if (!subName) continue;
         let sub = strand.subStrands.find((x) => key(x.name) === key(subName));
         if (!sub) {
           if (strand.subStrands.length >= 40) continue;
-          sub = { name: subName, lessons: 0, term: null, outcomes: [], inquiryQuestions: [], learningExperiences: [] };
+          sub = {
+            name: subName,
+            lessons: 0,
+            term: null,
+            outcomes: [],
+            inquiryQuestions: [],
+            learningExperiences: [],
+          };
           strand.subStrands.push(sub);
         }
-        if (u.lessons && u.lessons > 0) sub.lessons = Math.max(sub.lessons, Math.min(u.lessons, 60));
+        if (u.lessons && u.lessons > 0)
+          sub.lessons = Math.max(sub.lessons, Math.min(u.lessons, 60));
         addLines(sub.outcomes, u.outcomes);
         addLines(sub.inquiryQuestions, u.inquiryQuestions);
         addLines(sub.learningExperiences, u.learningExperiences);
@@ -106,7 +147,11 @@ function merge(parts: z.infer<typeof DraftSchema>[]): MapStrand[] {
 }
 
 /** Reads a design's text in parts and returns its strands in design order. */
-export async function extractStrands(grade: string, subject: string, text: string) {
+export async function extractStrands(
+  grade: string,
+  subject: string,
+  text: string,
+) {
   const parts = await Promise.all(
     windows(text).map(async (part, i, all) => {
       const { object } = await generateObject({
@@ -118,7 +163,7 @@ export async function extractStrands(grade: string, subject: string, text: strin
         maxOutputTokens: 16_000,
       });
       return object;
-    })
+    }),
   );
   return merge(parts);
 }
@@ -127,10 +172,15 @@ export async function extractStrands(grade: string, subject: string, text: strin
 export async function findDesign(grade: string, subject: string) {
   return withDbRetry(() =>
     db.curriculumDocument.findFirst({
-      where: { gradeLevel: grade, subject, status: "completed", tenantId: null },
+      where: {
+        gradeLevel: grade,
+        subject,
+        status: "completed",
+        tenantId: null,
+      },
       orderBy: { uploadDate: "desc" },
       select: { id: true, title: true },
-    })
+    }),
   );
 }
 
@@ -138,9 +188,16 @@ export async function findDesign(grade: string, subject: string) {
  * Reads a class's curriculum design and saves its strands, sub-strands and outcomes as a draft map.
  * The draft counts as `editorId`'s edit, so a different curator still has to check it.
  */
-export async function draftMapFromDesign(grade: string, subject: string, editorId: string | null) {
+export async function draftMapFromDesign(
+  grade: string,
+  subject: string,
+  editorId: string | null,
+) {
   const design = await findDesign(grade, subject);
-  if (!design) throw new Error(`No curriculum design is uploaded for ${grade} ${subject}.`);
+  if (!design)
+    throw new Error(
+      `No curriculum design is uploaded for ${grade} ${subject}.`,
+    );
 
   const chunks = await db.curriculumChunk.findMany({
     where: { curriculumId: design.id },
@@ -151,29 +208,52 @@ export async function draftMapFromDesign(grade: string, subject: string, editorI
   if (!text.trim()) throw new Error("The design has no readable text.");
 
   const strands = await extractStrands(grade, subject, text);
-  if (strands.length === 0) throw new Error("Elimu couldn't find any strands in the design.");
+  if (strands.length === 0)
+    throw new Error("Elimu couldn't find any strands in the design.");
 
-  const date = new Date().toLocaleDateString("en-KE", { day: "numeric", month: "long", year: "numeric" });
+  const date = new Date().toLocaleDateString("en-KE", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
   await writeMapDraft(grade, subject, editorId, {
     sourceNote: `Drafted by Elimu from "${design.title}" on ${date}. Check every strand, sub-strand and outcome against the design before sending it for checking.`,
     strands,
   });
-  return { strands: strands.length, subStrands: strands.reduce((n, s) => n + s.subStrands.length, 0) };
+  return {
+    strands: strands.length,
+    subStrands: strands.reduce((n, s) => n + s.subStrands.length, 0),
+  };
 }
 
 /** After a design is indexed, draft its map unless curators have already started one. */
 export async function draftMapAfterUpload(documentId: string) {
   const doc = await db.curriculumDocument.findUnique({
     where: { id: documentId },
-    select: { gradeLevel: true, subject: true, uploadedBy: true, tenantId: true },
+    select: {
+      gradeLevel: true,
+      subject: true,
+      uploadedBy: true,
+      tenantId: true,
+    },
   });
   if (!doc || doc.tenantId) return;
   const existing = await db.curriculumMap.findUnique({
     where: { grade_subject: { grade: doc.gradeLevel, subject: doc.subject } },
     select: { status: true, _count: { select: { strands: true } } },
   });
-  if (existing && (existing.status !== MAP_STATUS.DRAFT || existing._count.strands > 0)) return;
+  if (
+    existing &&
+    (existing.status !== MAP_STATUS.DRAFT || existing._count.strands > 0)
+  )
+    return;
 
-  const result = await draftMapFromDesign(doc.gradeLevel, doc.subject, doc.uploadedBy);
-  console.log(`[map draft] ${doc.gradeLevel} ${doc.subject}: ${result.strands} strands, ${result.subStrands} sub-strands`);
+  const result = await draftMapFromDesign(
+    doc.gradeLevel,
+    doc.subject,
+    doc.uploadedBy,
+  );
+  console.log(
+    `[map draft] ${doc.gradeLevel} ${doc.subject}: ${result.strands} strands, ${result.subStrands} sub-strands`,
+  );
 }

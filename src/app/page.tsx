@@ -1,20 +1,51 @@
+import {
+  BookOpen,
+  Check,
+  ClipboardCheck,
+  FileText,
+  NotebookPen,
+} from "lucide-react";
 import Link from "next/link";
-import { BookOpen, Check, ClipboardCheck, FileText, NotebookPen } from "lucide-react";
-import { auth } from "@/lib/auth";
 import { Logo } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
+import { auth } from "@/lib/auth";
 
 const DOCUMENTS = [
-  { icon: BookOpen, title: "Scheme of work", body: "The whole term, week by week, fitted to the weeks you actually have." },
-  { icon: FileText, title: "Lesson plans", body: "Made from your scheme, a week at a time, or one quick plan for tomorrow." },
-  { icon: NotebookPen, title: "Lesson notes", body: "Worked examples, questions to ask and common mistakes learners make." },
-  { icon: ClipboardCheck, title: "Assessments", body: "Opener, mid-term and end-of-term papers with a marking guide." },
+  {
+    icon: BookOpen,
+    title: "Scheme of work",
+    body: "The whole term, week by week, fitted to the weeks you actually have.",
+  },
+  {
+    icon: FileText,
+    title: "Lesson plans",
+    body: "Made from your scheme, a week at a time, or one quick plan for tomorrow.",
+  },
+  {
+    icon: NotebookPen,
+    title: "Lesson notes",
+    body: "Worked examples, questions to ask and common mistakes learners make.",
+  },
+  {
+    icon: ClipboardCheck,
+    title: "Assessments",
+    body: "Opener, mid-term and end-of-term papers with a marking guide.",
+  },
 ];
 
 const STEPS = [
-  { title: "Add your classes", body: "Choose the grades and learning areas you teach. Each class gets its own page." },
-  { title: "Plan the term", body: "Enter the term dates and Elimu drafts the scheme of work from the curriculum design." },
-  { title: "Prepare each week", body: "Turn the scheme into lesson plans, edit anything you like, then print or save as PDF." },
+  {
+    title: "Add your classes",
+    body: "Choose the grades and learning areas you teach. Each class gets its own page.",
+  },
+  {
+    title: "Plan the term",
+    body: "Enter the term dates and Elimu drafts the scheme of work from the curriculum design.",
+  },
+  {
+    title: "Prepare each week",
+    body: "Turn the scheme into lesson plans, edit anything you like, then print or save as PDF.",
+  },
 ];
 
 const FAQ = [
@@ -39,7 +70,9 @@ const FAQ = [
 export default async function Home() {
   const session = await auth();
   const signedIn = !!session?.userId;
-  const primary = signedIn ? { href: "/dashboard", label: "Open Elimu" } : { href: "/register", label: "Create free account" };
+  const primary = signedIn
+    ? { href: "/dashboard", label: "Open Elimu" }
+    : { href: "/register", label: "Create free account" };
 
   return (
     <div className="min-h-dvh bg-background">
@@ -59,39 +92,59 @@ export default async function Home() {
       <main>
         <section className="mx-auto max-w-4xl px-4 py-12 sm:py-16">
           <div className="max-w-2xl space-y-5">
-            <h1 className="text-2xl font-semibold leading-tight">Your term's schemes and lesson plans, ready in an evening</h1>
+            <h1 className="text-2xl font-semibold leading-tight">
+              Your term's schemes and lesson plans, ready in an evening
+            </h1>
             <p className="text-lg text-muted-foreground">
-              Elimu drafts your scheme of work, lesson plans, notes and assessments from the KICD curriculum designs. You review them, print
-              them, and get back to teaching.
+              Elimu drafts your scheme of work, lesson plans, notes and
+              assessments from the KICD curriculum designs. You review them,
+              print them, and get back to teaching.
             </p>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button size="lg" render={<Link href={primary.href} />}>
                 {primary.label}
               </Button>
               {!signedIn && (
-                <Button size="lg" variant="outline" render={<Link href="/login" />}>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  render={<Link href="/login" />}
+                >
                   I already have an account
                 </Button>
               )}
             </div>
-            <p className="text-sm text-muted-foreground">Free to start. Made for Junior School teachers, Grades 7 to 9.</p>
+            <p className="text-sm text-muted-foreground">
+              Free to start. Made for Junior School teachers, Grades 7 to 9.
+            </p>
           </div>
         </section>
 
         <section className="border-y bg-card">
           <div className="mx-auto max-w-4xl px-4 py-12">
-            <h2 className="text-xl font-semibold">Less time writing, more time teaching</h2>
+            <h2 className="text-xl font-semibold">
+              Less time writing, more time teaching
+            </h2>
             <p className="mt-2 max-w-2xl text-muted-foreground">
-              Every term you write a scheme for each class, then a plan for every lesson, and they must be ready when they are checked.
-              Elimu writes the first draft of each one.
+              Every term you write a scheme for each class, then a plan for
+              every lesson, and they must be ready when they are checked. Elimu
+              writes the first draft of each one.
             </p>
             <ul className="mt-6 grid gap-4 sm:grid-cols-2">
               {DOCUMENTS.map((d) => (
-                <li key={d.title} className="flex gap-3 rounded-xl border bg-background p-4">
-                  <d.icon className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
+                <li
+                  key={d.title}
+                  className="flex gap-3 rounded-xl border bg-background p-4"
+                >
+                  <d.icon
+                    className="mt-0.5 size-5 shrink-0 text-primary"
+                    aria-hidden
+                  />
                   <div>
                     <h3 className="font-medium">{d.title}</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">{d.body}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {d.body}
+                    </p>
                   </div>
                 </li>
               ))}
@@ -122,10 +175,16 @@ export default async function Home() {
                 <details key={f.q} className="group px-4">
                   <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 font-medium">
                     {f.q}
-                    <span className="text-muted-foreground group-open:hidden" aria-hidden>
+                    <span
+                      className="text-muted-foreground group-open:hidden"
+                      aria-hidden
+                    >
                       +
                     </span>
-                    <span className="hidden text-muted-foreground group-open:inline" aria-hidden>
+                    <span
+                      className="hidden text-muted-foreground group-open:inline"
+                      aria-hidden
+                    >
                       −
                     </span>
                   </summary>
@@ -140,9 +199,14 @@ export default async function Home() {
           <div className="space-y-4 rounded-xl border bg-card p-6">
             <h2 className="text-xl font-semibold">Start with one class</h2>
             <ul className="space-y-2 text-sm">
-              {["Free account, no card needed", "Your documents stay in your account", "Print or save every document as PDF"].map((t) => (
+              {[
+                "Free account, no card needed",
+                "Your documents stay in your account",
+                "Print or save every document as PDF",
+              ].map((t) => (
                 <li key={t} className="flex items-center gap-2">
-                  <Check className="size-4 shrink-0 text-primary" aria-hidden /> {t}
+                  <Check className="size-4 shrink-0 text-primary" aria-hidden />{" "}
+                  {t}
                 </li>
               ))}
             </ul>
@@ -156,7 +220,10 @@ export default async function Home() {
       <footer className="border-t">
         <div className="mx-auto flex max-w-4xl flex-col gap-2 px-4 py-6 text-sm text-muted-foreground sm:flex-row sm:justify-between">
           <span>© {new Date().getFullYear()} Elimu</span>
-          <span>Drafts are based on KICD curriculum designs. Always review before you teach.</span>
+          <span>
+            Drafts are based on KICD curriculum designs. Always review before
+            you teach.
+          </span>
         </div>
       </footer>
     </div>

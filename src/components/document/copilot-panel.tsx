@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { RotateCw, Send } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -19,13 +19,16 @@ export function CopilotPanel({ lessonId }: { lessonId: string }) {
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const { messages, sendMessage, status, error, regenerate } = useChat({
-    transport: new DefaultChatTransport({ api: "/api/chat/copilot", body: { lessonId } }),
+    transport: new DefaultChatTransport({
+      api: "/api/chat/copilot",
+      body: { lessonId },
+    }),
   });
   const busy = status === "submitted" || status === "streaming";
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [messages, status]);
+  }, []);
 
   const send = (text: string) => {
     const t = text.trim();
@@ -36,13 +39,24 @@ export function CopilotPanel({ lessonId }: { lessonId: string }) {
 
   return (
     <>
-      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4" aria-live="polite">
+      <div
+        ref={scrollRef}
+        className="flex-1 space-y-3 overflow-y-auto p-4"
+        aria-live="polite"
+      >
         {messages.length === 0 && (
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">Ask for changes or ideas for this lesson. For example:</p>
+            <p className="text-sm text-muted-foreground">
+              Ask for changes or ideas for this lesson. For example:
+            </p>
             <div className="flex flex-col gap-2">
               {SUGGESTIONS.map((s) => (
-                <Button key={s} variant="outline" className="h-auto min-h-10 justify-start whitespace-normal py-2 text-left" onClick={() => send(s)}>
+                <Button
+                  key={s}
+                  variant="outline"
+                  className="h-auto min-h-10 justify-start whitespace-normal py-2 text-left"
+                  onClick={() => send(s)}
+                >
                   {s}
                 </Button>
               ))}
@@ -54,13 +68,21 @@ export function CopilotPanel({ lessonId }: { lessonId: string }) {
             key={m.id}
             className={cn(
               "max-w-[90%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm leading-relaxed",
-              m.role === "user" ? "ml-auto bg-primary text-primary-foreground" : "bg-muted"
+              m.role === "user"
+                ? "ml-auto bg-primary text-primary-foreground"
+                : "bg-muted",
             )}
           >
-            {m.parts.map((p, i) => (p.type === "text" ? <span key={i}>{p.text}</span> : null))}
+            {m.parts.map((p) =>
+              p.type === "text" ? (
+                <span key={`${m.id}-${p.text}`}>{p.text}</span>
+              ) : null,
+            )}
           </div>
         ))}
-        {status === "submitted" && <p className="text-sm text-muted-foreground">Thinking…</p>}
+        {status === "submitted" && (
+          <p className="text-sm text-muted-foreground">Thinking…</p>
+        )}
         {error && (
           <div className="flex items-center gap-2 text-sm text-destructive">
             Something went wrong.
@@ -91,7 +113,13 @@ export function CopilotPanel({ lessonId }: { lessonId: string }) {
           rows={1}
           className="max-h-32 min-h-11 resize-none"
         />
-        <Button type="submit" size="icon" className="size-11 shrink-0" disabled={!input.trim() || busy} aria-label="Send">
+        <Button
+          type="submit"
+          size="icon"
+          className="size-11 shrink-0"
+          disabled={!input.trim() || busy}
+          aria-label="Send"
+        >
           <Send />
         </Button>
       </form>

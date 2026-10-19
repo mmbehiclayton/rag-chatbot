@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { INVITE_COOKIE, findInviter } from "@/lib/invites";
+import { findInviter, INVITE_COOKIE } from "@/lib/invites";
 import { RegisterForm } from "./register-form";
 
 export default async function RegisterPage() {

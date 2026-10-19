@@ -1,13 +1,14 @@
+import { randomUUID } from "node:crypto";
+import type { User } from "@prisma/client";
 import { jwtVerify, SignJWT } from "jose";
 import { cookies } from "next/headers";
 import { db } from "./db";
-import { User, Tenant } from "@prisma/client";
-import { randomUUID } from "node:crypto";
 
-const secretKey = process.env.JWT_SECRET_KEY || "development_secret_do_not_use_in_prod";
+const secretKey =
+  process.env.JWT_SECRET_KEY || "development_secret_do_not_use_in_prod";
 const key = new TextEncoder().encode(secretKey);
 
-export async function encrypt(payload: any) {
+export async function encrypt(payload: Record<string, unknown>) {
   return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -15,14 +16,14 @@ export async function encrypt(payload: any) {
     .sign(key);
 }
 
-export async function decrypt(input: string): Promise<any> {
+export async function decrypt(input: string): Promise<Record<string, unknown>> {
   const { payload } = await jwtVerify(input, key, { algorithms: ["HS256"] });
-  return payload;
+  return payload as Record<string, unknown>;
 }
 
 export async function createSession(user: User) {
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-  
+
   // Create DB session
   const session = await db.session.create({
     data: {
@@ -33,12 +34,12 @@ export async function createSession(user: User) {
   });
 
   // Encrypt JWT
-  const sessionPayload = { 
-    sessionId: session.id, 
-    userId: user.id, 
+  const sessionPayload = {
+    sessionId: session.id,
+    userId: user.id,
     role: user.role,
     tenantId: user.tenantId,
-    email: user.email
+    email: user.email,
   };
   const token = await encrypt(sessionPayload);
 
@@ -61,10 +62,12 @@ export async function verifySession() {
   try {
     const payload = await decrypt(token);
     if (!payload?.sessionId) return null;
-    
+
     const validSession = await db.session.findUnique({
       where: { id: payload.sessionId as string },
-      include: { user: { select: { role: true, tenantId: true, email: true } } },
+      include: {
+        user: { select: { role: true, tenantId: true, email: true } },
+      },
     });
 
     if (!validSession || validSession.expiresAt < new Date()) return null;
@@ -76,7 +79,7 @@ export async function verifySession() {
       tenantId: validSession.user.tenantId,
       email: validSession.user.email,
     };
-  } catch (error) {
+  } catch (_error) {
     return null;
   }
 }
@@ -84,29 +87,31 @@ export async function verifySession() {
 export async function destroySession() {
   const cookieStore = await cookies();
   const token = cookieStore.get("session")?.value;
-  
+
   if (token) {
     try {
       const payload = await decrypt(token);
       if (payload?.sessionId) {
-        await db.session.delete({ where: { id: payload.sessionId } }).catch(() => {});
+        await db.session
+          .delete({ where: { id: payload.sessionId } })
+          .catch(() => {});
       }
-    } catch (e) {}
+    } catch (_error) {}
   }
-  
+
   cookieStore.delete("session");
 }
 
-/** 
+/**
  * Drop-in replacement for Clerk's auth() method.
  * Makes refactoring much easier across the codebase.
  */
 export async function auth() {
   const session = await verifySession();
-  return { 
+  return {
     userId: session?.userId || null,
     role: session?.role || null,
     tenantId: session?.tenantId || null,
-    email: session?.email || null
+    email: session?.email || null,
   };
 }
