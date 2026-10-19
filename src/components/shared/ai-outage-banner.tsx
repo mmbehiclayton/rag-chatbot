@@ -7,6 +7,9 @@ import { outageText } from "@/lib/ai-health";
  * Shown on every dashboard page while OpenAI isn't working. Teachers learn their saved work is
  * safe; Elimu staff see what to fix. With the Claude backup on, only staff see it.
  */
+/** Anthropic's own words when the account has no money left, as opposed to a key problem. */
+const NO_CREDIT = /credit balance|credits|billing|quota/i;
+
 export function AIOutageBanner({
   staff,
   problem,
@@ -38,14 +41,24 @@ export function AIOutageBanner({
           {outageText(problem)}{" "}
           {backup && backupError && (
             <>
-              The Claude backup is failing too: "{backupError}" Fix it on{" "}
-              <Link
-                href="/dashboard/ai-keys"
-                className="font-medium text-primary underline-offset-4 hover:underline"
-              >
-                AI keys
-              </Link>
-              .{" "}
+              The Claude backup is failing too: "{backupError}"{" "}
+              {NO_CREDIT.test(backupError) ? (
+                <>
+                  Add credit in Anthropic billing (console.anthropic.com, Plans
+                  &amp; Billing).{" "}
+                </>
+              ) : (
+                <>
+                  Fix it on{" "}
+                  <Link
+                    href="/dashboard/ai-keys"
+                    className="font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    AI keys
+                  </Link>
+                  .{" "}
+                </>
+              )}
             </>
           )}
           This clears by itself once a lesson plan or answer works again. Then{" "}
