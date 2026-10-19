@@ -70,6 +70,11 @@ export default async function AssessmentDetailPage({
     <div className="mx-auto max-w-3xl space-y-4">
       <DocHeader
         kind="assessment"
+        check={{
+          kind: "assessment",
+          id: assessment.id,
+          checkedAt: assessment.checkedAt,
+        }}
         backHref={classHref(assessment.grade, assessment.subject)}
         backLabel={`${assessment.grade} ${assessment.subject}`}
         title={title}

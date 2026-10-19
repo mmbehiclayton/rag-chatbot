@@ -122,6 +122,7 @@ export default async function LessonDetailPage({
     <div className="mx-auto max-w-3xl space-y-4 pb-6">
       <DocHeader
         kind="lesson"
+        check={{ kind: "lesson", id: lesson.id, checkedAt: lesson.checkedAt }}
         backHref={
           lesson.scheme
             ? `/dashboard/schemes/${lesson.scheme.id}`

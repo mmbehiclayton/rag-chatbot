@@ -191,8 +191,9 @@ model SchemeOfWork {
   curriculumId String?
   curriculum   CurriculumDocument? @relation(fields: [curriculumId], references: [id], onDelete: SetNull)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  checkedAt DateTime? // The teacher read it through; printouts drop the draft mark
 
   lessonPlans   LessonPlan[]
   lessonRecords LessonRecord[]
@@ -226,8 +227,9 @@ model LessonPlan {
   teacherId String
   teacher   User   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  checkedAt DateTime? // The teacher read it through; printouts drop the draft mark
 
   lessonNotes LessonNote[]
 
@@ -246,8 +248,9 @@ model LessonNote {
   teacherId String
   teacher   User   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  checkedAt DateTime? // The teacher read it through; printouts drop the draft mark
 }
 
 model GenerationRule {
@@ -298,8 +301,9 @@ model Assessment {
   teacherId String
   teacher   User   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  checkedAt DateTime? // The teacher read it through; printouts drop the draft mark
 
   @@index([teacherId])
   @@index([schemeId])

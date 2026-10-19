@@ -13,6 +13,9 @@ export const DOC_LABELS = {
 
 export type DocKind = keyof typeof DOC_LABELS;
 
+/** Documents Elimu drafts, which the teacher marks as checked once read through. */
+export type CheckableKind = "scheme" | "lesson" | "notes" | "assessment";
+
 /** The flag the checking pass adds to a title the teacher should look at. */
 export const NEEDS_REVIEW = /^\[Needs Review\]\s*/i;
 

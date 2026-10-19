@@ -1,8 +1,14 @@
 import { ArrowLeft, Download } from "lucide-react";
 import Link from "next/link";
+import { CheckButton } from "@/components/document/check-button";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
-import { DOC_LABELS, type DocKind, NEEDS_REVIEW } from "@/lib/documents";
+import {
+  type CheckableKind,
+  DOC_LABELS,
+  type DocKind,
+  NEEDS_REVIEW,
+} from "@/lib/documents";
 import { cn } from "@/lib/utils";
 
 /** Splits the "[Needs Review]" flag the verification pass adds off a title. */
@@ -25,6 +31,7 @@ export function DocHeader({
   title,
   meta,
   needsReview,
+  check,
   actions,
 }: {
   kind?: DocKind;
@@ -33,6 +40,8 @@ export function DocHeader({
   title: string;
   meta: string;
   needsReview?: boolean;
+  /** The saved document, so the teacher can mark it as checked. */
+  check?: { kind: CheckableKind; id: string; checkedAt: Date | null };
   actions?: React.ReactNode;
 }) {
   return (
@@ -50,8 +59,18 @@ export function DocHeader({
         <h1 className="text-xl font-semibold sm:text-2xl">{title}</h1>
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <span>{meta}</span>
-          <StatusBadge status={needsReview ? "needsReview" : "draft"} />
+          {!check && (
+            <StatusBadge status={needsReview ? "needsReview" : "draft"} />
+          )}
         </div>
+        {check && (
+          <CheckButton
+            kind={check.kind}
+            id={check.id}
+            checkedAt={check.checkedAt?.toISOString() ?? null}
+            needsReview={!!needsReview}
+          />
+        )}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
     </div>

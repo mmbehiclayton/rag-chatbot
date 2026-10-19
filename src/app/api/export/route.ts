@@ -198,6 +198,8 @@ const baseCSS = `
   .print-btn { position: fixed; top: 16px; right: 16px; background: #111; color: #fff; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold; z-index: 50; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
   .page-break { page-break-before: always; break-before: page; }
   .doc-detail { font-size: 15px; margin: 8px 0 0; }
+  .draft { text-align: right; font-size: 11px; margin: 0 0 6px; }
+  .draft span { border: 1px solid #111; padding: 2px 8px; }
   table.head th { width: 18%; text-align: left; }
   table.head td { width: 32%; height: 26px; }
 
@@ -244,6 +246,13 @@ function wrap(title: string, body: string, landscape = false) {
  * then School, Teacher, Grade, Learning area, Term and Year from the profile.
  * `extra` cells are already-escaped HTML, for the document's own fields.
  */
+/** Marks a document the teacher hasn't checked yet, above its header. */
+function draftMark(doc: { checkedAt?: Date | null }) {
+  return doc.checkedAt
+    ? ""
+    : `<p class="draft"><span>Draft – check before use</span></p>`;
+}
+
 function docHead(
   kind: DocKind,
   ctx: DocContext,
@@ -296,6 +305,7 @@ type SchemeExport = {
   year?: number | null;
   content?: unknown;
   teacher?: TeacherInfo;
+  checkedAt?: Date | null;
 };
 
 function schemeBody(scheme: SchemeExport, weekDates?: Map<number, string>) {
@@ -340,7 +350,7 @@ function schemeBody(scheme: SchemeExport, weekDates?: Map<number, string>) {
     .join("");
 
   const body = `
-    ${docHead(
+    ${draftMark(scheme)}${docHead(
       "scheme",
       {
         ...teacherContext(scheme.teacher),
@@ -373,6 +383,7 @@ function schemeBody(scheme: SchemeExport, weekDates?: Map<number, string>) {
 
 type RecordScheme = {
   teacher?: TeacherInfo;
+  checkedAt?: Date | null;
   grade: string;
   subject?: string;
   term?: string;
@@ -535,6 +546,7 @@ type LessonExport = {
     year?: number | null;
   } | null;
   teacher?: TeacherInfo;
+  checkedAt?: Date | null;
 };
 
 /** The teacher's name and school, for document headers. */
@@ -617,7 +629,7 @@ function lessonBody(lesson: LessonExport) {
       .blank { border-bottom: 1px solid #999; height: 26px; }
       .signline { margin-top: 28px; font-size: 12px; }
     </style>
-    ${docHead(
+    ${draftMark(lesson)}${docHead(
       "lesson",
       {
         ...teacherContext(lesson.teacher),
@@ -794,6 +806,7 @@ type AssessmentExport = {
   year?: number | null;
   content?: unknown;
   teacher?: TeacherInfo;
+  checkedAt?: Date | null;
 };
 
 /** The learners' paper first, then the teacher's marking scheme on a new page. */
@@ -864,7 +877,7 @@ function assessmentBody(assessment: AssessmentExport) {
     <style>
       table.paper td { border: none; border-bottom: 1px solid #eee; }
     </style>
-    ${docHead(
+    ${draftMark(assessment)}${docHead(
       "assessment",
       {
         ...teacherContext(assessment.teacher),
@@ -926,6 +939,7 @@ type NotesExport = {
     } | null;
   };
   teacher?: TeacherInfo;
+  checkedAt?: Date | null;
 };
 
 function buildNotesHTML(note: NotesExport) {
@@ -1001,7 +1015,7 @@ function notesBody(note: NotesExport) {
     .join("");
 
   const body = `
-    ${docHead(
+    ${draftMark(note)}${docHead(
       "notes",
       {
         ...teacherContext(note.teacher),
@@ -1194,17 +1208,19 @@ async function buildTermFileHTML(
     label.replace(/\s+\d{4}$/, ""),
     label.match(/\d{4}$/)?.[0],
   ];
-  const parts: Array<[string, number]> = [
-    [DOC_LABELS.scheme, schemeSheets.length],
-    [DOC_LABELS.record, recordSheets.length],
-    ["Lesson plans", termLessons.length],
-    [DOC_LABELS.notes, termNotes.length],
-    ["Assessments", termAssessments.length],
+  const checked = (docs: { checkedAt: Date | null }[]) =>
+    docs.filter((d) => d.checkedAt).length;
+  const parts: Array<[string, number, number | null]> = [
+    [DOC_LABELS.scheme, termSchemes.length, checked(termSchemes)],
+    [DOC_LABELS.record, recordSheets.length, null],
+    ["Lesson plans", termLessons.length, checked(termLessons)],
+    [DOC_LABELS.notes, termNotes.length, checked(termNotes)],
+    ["Assessments", termAssessments.length, checked(termAssessments)],
   ];
   const contents = parts
     .map(
-      ([name, n]) =>
-        `<tr><td>${esc(name)}</td><td class="center">${n || "None"}</td></tr>`,
+      ([name, n, done]) =>
+        `<tr><td>${esc(name)}</td><td class="center">${n || "None"}</td><td class="center">${n && done !== null ? `${done} of ${n}` : ""}</td></tr>`,
     )
     .join("");
   const sign = (role: string) => `<tr><th>${role}</th><td></td><td></td></tr>`;
@@ -1212,9 +1228,10 @@ async function buildTermFileHTML(
     ${docHead("term", { ...teacherContext(teacher), grade, subject, term: termName, year })}
     <h2>Contents</h2>
     <table>
-      <thead><tr><th>Document</th><th style="width:25%">Number</th></tr></thead>
+      <thead><tr><th>Document</th><th style="width:20%">Number</th><th style="width:30%">Checked by the teacher</th></tr></thead>
       <tbody>${contents}</tbody>
     </table>
+    <p><small>Elimu drafts these documents. Ones the teacher has not marked as checked say "Draft – check before use".</small></p>
     ${termSchemes.length && !recordSheets.length ? "<p><small>The record of work is missing because the term dates or timetable for this class are not set in Elimu.</small></p>" : ""}
     <h2>Checked by</h2>
     <table>

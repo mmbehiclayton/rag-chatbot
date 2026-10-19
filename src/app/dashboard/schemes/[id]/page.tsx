@@ -117,6 +117,7 @@ export default async function SchemeDetailPage({
     <div className="mx-auto max-w-4xl space-y-4">
       <DocHeader
         kind="scheme"
+        check={{ kind: "scheme", id: scheme.id, checkedAt: scheme.checkedAt }}
         backHref={classHref(scheme.grade, scheme.subject)}
         backLabel={`${scheme.grade} ${scheme.subject}`}
         title={title}

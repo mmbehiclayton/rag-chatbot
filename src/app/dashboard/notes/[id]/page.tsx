@@ -106,6 +106,7 @@ export default async function NoteDetailPage({
     <div className="mx-auto max-w-3xl space-y-4">
       <DocHeader
         kind="notes"
+        check={{ kind: "notes", id: note.id, checkedAt: note.checkedAt }}
         backHref={`/dashboard/lessons/${plan.id}`}
         backLabel="Lesson plan"
         title={plan.topic}
