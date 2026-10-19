@@ -20,9 +20,10 @@ import {
 import { TodayLessons } from "@/components/term-pack/today-lessons";
 import { Button } from "@/components/ui/button";
 import {
-  classHref,
-  classSummary,
   getTeacherClasses,
+  gradeHref,
+  gradeSummary,
+  groupByGrade,
   type NextLesson,
   nextLessonInScheme,
 } from "@/lib/classes";
@@ -259,10 +260,10 @@ export async function TeacherOverview({
           action={
             classes.length > 0 && (
               <Link
-                href="/dashboard/classes"
+                href="/onboarding?from=profile"
                 className="inline-flex min-h-10 items-center text-sm font-medium text-primary hover:underline"
               >
-                See all
+                Change
               </Link>
             )
           }
@@ -280,10 +281,10 @@ export async function TeacherOverview({
           />
         ) : (
           <LinkList
-            items={classes.slice(0, 4).map((c) => ({
-              href: classHref(c.grade, c.subject),
-              title: `${c.grade} · ${c.subject}`,
-              meta: classSummary(c),
+            items={groupByGrade(classes).map((g) => ({
+              href: gradeHref(g.grade),
+              title: g.grade,
+              meta: gradeSummary(g.classes),
               icon: GraduationCap,
             }))}
           />

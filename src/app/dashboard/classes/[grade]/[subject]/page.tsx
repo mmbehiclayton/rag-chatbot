@@ -21,6 +21,7 @@ import {
   classLessonWhere,
   createHref,
   designHref,
+  gradeHref,
   nextLessonInScheme,
 } from "@/lib/classes";
 import { getPublishedMapKeys } from "@/lib/curriculum-map";
@@ -137,10 +138,10 @@ export default async function ClassPage({
     <div className="mx-auto max-w-2xl space-y-6">
       <div className="space-y-3">
         <Link
-          href="/dashboard/classes"
+          href={gradeHref(grade)}
           className="inline-flex min-h-10 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
         >
-          <ArrowLeft className="size-4" /> My classes
+          <ArrowLeft className="size-4" /> {grade}
         </Link>
         <div>
           <h1 className="text-xl font-semibold sm:text-2xl">

@@ -12,6 +12,11 @@ export type TeacherClass = {
   updatedAt: Date | null;
 };
 
+/** One grade's page: the learning areas the teacher teaches in it. */
+export function gradeHref(grade: string) {
+  return `/dashboard/classes/${encodeURIComponent(grade)}`;
+}
+
 export function classHref(grade: string, subject: string) {
   return `/dashboard/classes/${encodeURIComponent(grade)}/${encodeURIComponent(subject)}`;
 }
@@ -61,6 +66,35 @@ export function classSummary(c: TeacherClass) {
     ...parts,
     c.updatedAt &&
       `updated ${formatDistanceToNow(c.updatedAt, { addSuffix: true })}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/** One line for a whole grade, e.g. "3 learning areas · 2 schemes · 5 lesson plans". */
+export function gradeSummary(classes: TeacherClass[]) {
+  const sum = (pick: (c: TeacherClass) => number) =>
+    classes.reduce((n, c) => n + pick(c), 0);
+  return [
+    plural(classes.length, "learning area", "learning areas"),
+    sum((c) => c.schemes) > 0 &&
+      plural(
+        sum((c) => c.schemes),
+        "scheme",
+        "schemes",
+      ),
+    sum((c) => c.lessons) > 0 &&
+      plural(
+        sum((c) => c.lessons),
+        "lesson plan",
+        "lesson plans",
+      ),
+    sum((c) => c.assessments) > 0 &&
+      plural(
+        sum((c) => c.assessments),
+        "assessment",
+        "assessments",
+      ),
   ]
     .filter(Boolean)
     .join(" · ");
@@ -159,7 +193,21 @@ export async function getTeacherClasses(
     touch(c, a._max.updatedAt);
   }
 
-  return [...classes.values()];
+  // Grades in curriculum order (Grade 1 before Grade 2), learning areas in the order chosen.
+  const order = new Map(grades.map((g, i) => [g.name, i]));
+  return [...classes.values()].sort(
+    (a, b) =>
+      (order.get(a.grade) ?? Number.MAX_SAFE_INTEGER) -
+      (order.get(b.grade) ?? Number.MAX_SAFE_INTEGER),
+  );
+}
+
+/** The teacher's classes grouped by grade, keeping the order above. */
+export function groupByGrade(classes: TeacherClass[]) {
+  const groups = new Map<string, TeacherClass[]>();
+  for (const c of classes)
+    groups.set(c.grade, [...(groups.get(c.grade) ?? []), c]);
+  return [...groups].map(([grade, items]) => ({ grade, classes: items }));
 }
 
 type SchemeContent = {

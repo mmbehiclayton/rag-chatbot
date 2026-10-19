@@ -6,19 +6,25 @@ import { LinkList } from "@/components/shared/link-list";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
-import { classHref, classSummary, getTeacherClasses } from "@/lib/classes";
+import {
+  getTeacherClasses,
+  gradeHref,
+  gradeSummary,
+  groupByGrade,
+} from "@/lib/classes";
 
 export default async function ClassesPage() {
   const session = await auth();
   if (!session?.userId) redirect("/login");
 
   const classes = await getTeacherClasses(session.userId);
+  const grades = groupByGrade(classes);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <PageHeader
         title="My classes"
-        description="Schemes, lesson plans and assessments for each class you teach."
+        description="Choose a grade to see your learning areas and what you have prepared for each."
         action={
           <Button
             variant="outline"
@@ -42,10 +48,10 @@ export default async function ClassesPage() {
         />
       ) : (
         <LinkList
-          items={classes.map((c) => ({
-            href: classHref(c.grade, c.subject),
-            title: `${c.grade} · ${c.subject}`,
-            meta: classSummary(c),
+          items={grades.map((g) => ({
+            href: gradeHref(g.grade),
+            title: g.grade,
+            meta: gradeSummary(g.classes),
             icon: GraduationCap,
           }))}
         />
