@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { parseTitle } from "@/components/document/doc-parts";
+import { ExportButton, parseTitle } from "@/components/document/doc-parts";
 import { LinkList, SectionTitle } from "@/components/shared/link-list";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
@@ -226,6 +226,20 @@ export default async function ClassPage({
               ))}
             </div>
           </nav>
+        )}
+        {(termSchemes.length > 0 ||
+          termLessons.length > 0 ||
+          termAssessments.length > 0) && (
+          <div className="space-y-1">
+            <ExportButton
+              href={`/api/export?${new URLSearchParams({ type: "term", grade, subject, term: selected })}`}
+              label="Download term file"
+            />
+            <p className="text-xs text-muted-foreground">
+              Your scheme, record of work, lesson plans, notes and assessments
+              for {selected} in one PDF, for when the head teacher asks.
+            </p>
+          </div>
         )}
         {designs.includes(`${grade}|${subject}`) && (
           <Button

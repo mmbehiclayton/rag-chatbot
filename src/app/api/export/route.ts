@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { classLessonWhere } from "@/lib/classes";
 import { db } from "@/lib/db";
 import {
   cleanTitle,
@@ -10,6 +11,7 @@ import {
   docName,
   teacherContext,
 } from "@/lib/documents";
+import { filingLabel, filingOf } from "@/lib/filing";
 import {
   type ClassRef,
   coversClass,
@@ -23,17 +25,18 @@ import {
   streamLabel,
   termLabel,
 } from "@/lib/term-pack";
-import { getSchemeSchedule } from "@/lib/term-pack-data";
+import { getSchemeSchedule, getTeacherTerms } from "@/lib/term-pack-data";
 
 // Returns a print-ready HTML document for a scheme, lesson plan, or assessment.
 // Usage: GET /api/export?type=scheme&id=<id>
+// A term file: GET /api/export?type=term&grade=Grade 7&subject=English&term=Term 2 2026
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.userId)
     return new NextResponse("Unauthorized", { status: 401 });
 
   const { searchParams } = req.nextUrl;
-  const type = searchParams.get("type"); // scheme | lesson | assessment | notes | record
+  const type = searchParams.get("type"); // scheme | lesson | assessment | notes | record | term
   const id = searchParams.get("id");
   const grade = searchParams.get("grade");
   const subject = searchParams.get("subject");
@@ -45,6 +48,24 @@ export async function GET(req: NextRequest) {
   let cls: ClassRef | null = null;
 
   try {
+    if (type === "term") {
+      const term = searchParams.get("term");
+      if (!grade || !subject || !term)
+        return new NextResponse("Missing params", { status: 400 });
+      const denied = await accessDenied(session.userId, { grade, subject });
+      if (denied) return denied;
+      const file = await buildTermFileHTML(
+        session.userId,
+        grade,
+        subject,
+        term,
+      );
+      if (!file) return new NextResponse("Not found", { status: 404 });
+      return new NextResponse(file, {
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    }
+
     // Combined export: every record for a learning area (grade + subject), no id.
     if (!id && grade && subject) {
       cls = { grade, subject };
@@ -164,21 +185,8 @@ export async function GET(req: NextRequest) {
       return new NextResponse("Invalid type", { status: 400 });
     }
 
-    if (cls && (await plansOn())) {
-      const access = await getAccess(session.userId);
-      if (!coversClass(access, cls)) {
-        return new NextResponse(
-          wrap(
-            "Term pass needed",
-            `<h1>Term pass needed</h1><p>${esc(freePlanMessage(access))}</p>`,
-          ),
-          {
-            status: 402,
-            headers: { "Content-Type": "text/html; charset=utf-8" },
-          },
-        );
-      }
-    }
+    const denied = cls && (await accessDenied(session.userId, cls));
+    if (denied) return denied;
 
     return new NextResponse(html, {
       headers: { "Content-Type": "text/html; charset=utf-8" },
@@ -187,6 +195,23 @@ export async function GET(req: NextRequest) {
     const message = error instanceof Error ? error.message : "Export failed";
     return new NextResponse(message, { status: 500 });
   }
+}
+
+/** The "term pass needed" page when the teacher's plan doesn't cover the class, else null. */
+async function accessDenied(userId: string, cls: ClassRef) {
+  if (!(await plansOn())) return null;
+  const access = await getAccess(userId);
+  if (coversClass(access, cls)) return null;
+  return new NextResponse(
+    wrap(
+      "Term pass needed",
+      `<h1>Term pass needed</h1><p>${esc(freePlanMessage(access))}</p>`,
+    ),
+    {
+      status: 402,
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    },
+  );
 }
 
 const baseCSS = `
@@ -397,15 +422,28 @@ type RecordScheme = {
   term?: string;
 };
 
-function buildRecordHTML(
-  scheme: RecordScheme,
-  schedule: Awaited<ReturnType<typeof getSchemeSchedule>>,
-) {
+type Schedule = Awaited<ReturnType<typeof getSchemeSchedule>>;
+
+function recordName(scheme: RecordScheme, schedule: Schedule) {
+  return {
+    cls: streamLabel(scheme.grade, schedule.stream),
+    term: schedule.term ? termLabel(schedule.term) : scheme.term,
+  };
+}
+
+function buildRecordHTML(scheme: RecordScheme, schedule: Schedule) {
+  const { cls, term } = recordName(scheme, schedule);
+  return wrap(
+    docName("record", { grade: cls, subject: scheme.subject }, term),
+    recordBody(scheme, schedule),
+  );
+}
+
+function recordBody(scheme: RecordScheme, schedule: Schedule) {
   const taught = schedule.slots.filter(
     (s) => s.status === "TAUGHT" && s.lessonNumber,
   );
-  const cls = streamLabel(scheme.grade, schedule.stream);
-  const term = schedule.term ? termLabel(schedule.term) : scheme.term;
+  const { cls, term } = recordName(scheme, schedule);
   const rows = taught
     .map(
       (s) => `
@@ -449,10 +487,7 @@ function buildRecordHTML(
     </table>
     <div class="signs">${sign("Teacher")}${sign("Head of department")}${sign("Head teacher")}</div>
   `;
-  return wrap(
-    docName("record", { grade: cls, subject: scheme.subject }, term),
-    body,
-  );
+  return body;
 }
 
 function buildSchemeHTML(
@@ -938,6 +973,21 @@ type NotesExport = {
 };
 
 function buildNotesHTML(note: NotesExport) {
+  const plan = note.lessonPlan ?? {};
+  return wrap(
+    docName(
+      "notes",
+      {
+        grade: plan.grade ?? plan.scheme?.grade,
+        subject: plan.subject ?? plan.scheme?.subject,
+      },
+      plan.topic,
+    ),
+    notesBody(note),
+  );
+}
+
+function notesBody(note: NotesExport) {
   const c = (note.resources ?? {}) as Record<string, unknown>;
   const plan = note.lessonPlan ?? {};
   const overview = (c.conceptOverview ?? {}) as Record<string, unknown>;
@@ -1030,7 +1080,7 @@ function buildNotesHTML(note: NotesExport) {
     ${arr(c.boardSummary).length ? `<div class="section"><h2>Board summary</h2>${list(c.boardSummary)}</div>` : ""}
     ${arr(c.references).length ? `<div class="section"><h2>References</h2>${list(c.references)}</div>` : ""}
   `;
-  return wrap(docName("notes", cls, plan.topic), body);
+  return body;
 }
 
 // Combines every record of a learning area (grade + subject) into one document,
@@ -1060,4 +1110,198 @@ function buildCombinedHTML(
     cover +
     items.map((it) => `<div class="page-break"></div>${bodyFn(it)}`).join("");
   return wrap(title, inner, landscape);
+}
+
+type Sheet = { body: string; wide?: boolean };
+
+/** Several documents in one printout, each on its own sheet; schemes print landscape. */
+function wrapSheets(title: string, sheets: Sheet[]) {
+  const paper = `
+    body { background: #525659; padding: 28px 0; }
+    .page { background: #fff; width: 210mm; min-height: 297mm; margin: 0 auto 28px; padding: 16mm; box-shadow: 0 6px 28px rgba(0,0,0,.35); }
+    .page.wide { width: 297mm; min-height: 210mm; padding: 12mm; }
+    @page { size: A4 portrait; margin: 16mm; }
+    @page wide { size: A4 landscape; margin: 12mm; }
+    @media print {
+      body { background: #fff; padding: 0; }
+      .page { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; break-after: page; }
+      .page:last-child { break-after: auto; }
+      .page.wide { page: wide; }
+    }
+  `;
+  const pages = sheets
+    .map((s) => `<div class="page${s.wide ? " wide" : ""}">${s.body}</div>`)
+    .join("");
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)}</title><style>${baseCSS}${paper}</style></head><body>${printScript}${pages}</body></html>`;
+}
+
+const FILING_SCHEME = {
+  select: {
+    grade: true,
+    subject: true,
+    term: true,
+    year: true,
+    createdAt: true,
+  },
+} as const;
+
+/**
+ * Everything a teacher prepared for one class in one term, for when the head teacher asks:
+ * the scheme of work, the record of work, then the lesson plans, notes and assessments.
+ * Documents are picked the same way the class page files them. Null when there is nothing.
+ */
+async function buildTermFileHTML(
+  teacherId: string,
+  grade: string,
+  subject: string,
+  label: string,
+) {
+  const [schemes, lessons, notes, assessments, terms] = await Promise.all([
+    db.schemeOfWork.findMany({
+      where: { teacherId, grade, subject },
+      include: TEACHER_INCLUDE,
+      orderBy: { createdAt: "asc" },
+      take: 50,
+    }),
+    db.lessonPlan.findMany({
+      where: classLessonWhere(teacherId, grade, subject),
+      include: { scheme: FILING_SCHEME, ...TEACHER_INCLUDE },
+      orderBy: { createdAt: "asc" },
+      take: 500,
+    }),
+    db.lessonNote.findMany({
+      where: {
+        teacherId,
+        lessonPlan: classLessonWhere(teacherId, grade, subject),
+      },
+      include: {
+        lessonPlan: {
+          select: {
+            topic: true,
+            grade: true,
+            subject: true,
+            content: true,
+            term: true,
+            year: true,
+            createdAt: true,
+            scheme: FILING_SCHEME,
+          },
+        },
+        ...TEACHER_INCLUDE,
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 500,
+    }),
+    db.assessment.findMany({
+      where: { teacherId, grade, subject },
+      include: TEACHER_INCLUDE,
+      orderBy: { createdAt: "asc" },
+      take: 200,
+    }),
+    getTeacherTerms(teacherId),
+  ]);
+
+  const inTerm = (doc: Parameters<typeof filingOf>[1]) =>
+    filingLabel(filingOf(terms, doc)) === label;
+  const termSchemes = schemes.filter(inTerm);
+  const schemeOrder = new Map(termSchemes.map((s, i) => [s.id, i]));
+  // The scheme's plans in teaching order, then the quick lesson plans by date.
+  const termLessons = lessons.filter(inTerm).sort((a, b) => {
+    const sa = a.schemeId ? (schemeOrder.get(a.schemeId) ?? 0) : Infinity;
+    const sb = b.schemeId ? (schemeOrder.get(b.schemeId) ?? 0) : Infinity;
+    if (sa !== sb) return sa - sb;
+    if (a.schemeId && b.schemeId) return a.lessonNumber - b.lessonNumber;
+    return a.createdAt.getTime() - b.createdAt.getTime();
+  });
+  // The latest notes for each lesson plan, in the same order as the plans.
+  const planOrder = new Map(termLessons.map((l, i) => [l.id, i]));
+  const seen = new Set<string>();
+  const termNotes = notes
+    .filter((n) => {
+      if (!planOrder.has(n.lessonPlanId) || seen.has(n.lessonPlanId))
+        return false;
+      seen.add(n.lessonPlanId);
+      return true;
+    })
+    .sort(
+      (a, b) =>
+        (planOrder.get(a.lessonPlanId) ?? 0) -
+        (planOrder.get(b.lessonPlanId) ?? 0),
+    );
+  const termAssessments = assessments.filter(inTerm);
+
+  if (
+    !termSchemes.length &&
+    !termLessons.length &&
+    !termNotes.length &&
+    !termAssessments.length
+  )
+    return null;
+
+  // A record of work for each stream that has the scheme on its timetable.
+  const schemeSheets: Sheet[] = [];
+  const recordSheets: Sheet[] = [];
+  for (const scheme of termSchemes) {
+    const first = await getSchemeSchedule(scheme);
+    schemeSheets.push({
+      body: schemeBody(
+        scheme,
+        new Map(first.weeks.map((w) => [w.number, formatRange(w.from, w.to)])),
+      ),
+      wide: true,
+    });
+    if (!first.term) continue;
+    const schedules = [first];
+    for (const stream of first.streams.slice(1))
+      schedules.push(await getSchemeSchedule(scheme, stream));
+    for (const schedule of schedules)
+      recordSheets.push({ body: recordBody(scheme, schedule) });
+  }
+
+  const teacher =
+    termSchemes[0]?.teacher ??
+    termLessons[0]?.teacher ??
+    termAssessments[0]?.teacher ??
+    termNotes[0]?.teacher;
+  const [termName, year] = [
+    label.replace(/\s+\d{4}$/, ""),
+    label.match(/\d{4}$/)?.[0],
+  ];
+  const parts: Array<[string, number]> = [
+    [DOC_LABELS.scheme, schemeSheets.length],
+    [DOC_LABELS.record, recordSheets.length],
+    ["Lesson plans", termLessons.length],
+    [DOC_LABELS.notes, termNotes.length],
+    ["Assessments", termAssessments.length],
+  ];
+  const contents = parts
+    .map(
+      ([name, n]) =>
+        `<tr><td>${esc(name)}</td><td class="center">${n || "None"}</td></tr>`,
+    )
+    .join("");
+  const sign = (role: string) => `<tr><th>${role}</th><td></td><td></td></tr>`;
+  const cover = `
+    ${docHead("term", { ...teacherContext(teacher), grade, subject, term: termName, year })}
+    <h2>Contents</h2>
+    <table>
+      <thead><tr><th>Document</th><th style="width:25%">Number</th></tr></thead>
+      <tbody>${contents}</tbody>
+    </table>
+    ${termSchemes.length && !recordSheets.length ? "<p><small>The record of work is missing because the term dates or timetable for this class are not set in Elimu.</small></p>" : ""}
+    <h2>Checked by</h2>
+    <table>
+      <thead><tr><th>Role</th><th>Name and signature</th><th style="width:25%">Date</th></tr></thead>
+      <tbody>${sign("Head of department")}${sign("Head teacher")}</tbody>
+    </table>
+  `;
+
+  return wrapSheets(docName("term", { grade, subject }, label), [
+    { body: cover },
+    ...schemeSheets,
+    ...recordSheets,
+    ...termLessons.map((l) => ({ body: lessonBody(l) })),
+    ...termNotes.map((n) => ({ body: notesBody(n) })),
+    ...termAssessments.map((a) => ({ body: assessmentBody(a) })),
+  ]);
 }

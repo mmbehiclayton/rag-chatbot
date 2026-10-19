@@ -8,6 +8,7 @@ export const DOC_LABELS = {
   notes: "Lesson notes",
   assessment: "Assessment",
   record: "Record of work",
+  term: "Term file",
 } as const;
 
 export type DocKind = keyof typeof DOC_LABELS;
