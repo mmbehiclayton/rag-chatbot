@@ -12,6 +12,7 @@ import {
   Field,
 } from "@/components/document/doc-parts";
 import type { LessonContent } from "@/components/document/lesson-types";
+import { ShareElimu } from "@/components/shared/share-elimu";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
 import { classHref } from "@/lib/classes";
@@ -308,6 +309,15 @@ export default async function LessonDetailPage({
           )}
         </div>
       </details>
+
+      <ShareElimu
+        userId={session.userId}
+        made={
+          grade && subject
+            ? `my ${grade} ${subject} lesson plan`
+            : "a lesson plan"
+        }
+      />
 
       <CopilotButton lessonId={lesson.id} topic={c.topic || lesson.topic} />
     </div>

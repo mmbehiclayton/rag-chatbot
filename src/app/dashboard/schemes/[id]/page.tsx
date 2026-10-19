@@ -17,6 +17,7 @@ import {
   WeekLessons,
 } from "@/components/document/scheme-lessons";
 import { HeadCheck } from "@/components/pilot/head-check";
+import { ShareElimu } from "@/components/shared/share-elimu";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
 import { classHref } from "@/lib/classes";
@@ -277,6 +278,11 @@ export default async function SchemeDetailPage({
           </section>
         </WeekLessons>
       ))}
+
+      <ShareElimu
+        userId={session.userId}
+        made={`my ${scheme.grade} ${scheme.subject} scheme of work`}
+      />
     </div>
   );
 }

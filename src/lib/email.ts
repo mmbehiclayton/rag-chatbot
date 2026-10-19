@@ -1,7 +1,7 @@
 import { Resend } from "resend";
+import { siteUrl } from "@/lib/site-url";
 
 const FROM = process.env.RESEND_FROM_EMAIL ?? "Elimu <noreply@elimu.ai>";
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 function getResend() {
   const key = process.env.RESEND_API_KEY;
@@ -10,7 +10,7 @@ function getResend() {
 }
 
 export async function sendVerificationEmail(email: string, token: string) {
-  const link = `${APP_URL}/verify-email?token=${token}`;
+  const link = `${siteUrl()}/verify-email?token=${token}`;
   const resend = getResend();
 
   if (!resend) {
@@ -38,7 +38,7 @@ export async function sendVerificationEmail(email: string, token: string) {
 }
 
 export async function sendPasswordResetEmail(email: string, token: string) {
-  const link = `${APP_URL}/reset-password?token=${token}`;
+  const link = `${siteUrl()}/reset-password?token=${token}`;
   const resend = getResend();
 
   if (!resend) {
@@ -71,7 +71,7 @@ export async function sendSchoolWelcomeEmail(
   token: string,
   school: string,
 ) {
-  const link = `${APP_URL}/reset-password?token=${token}`;
+  const link = `${siteUrl()}/reset-password?token=${token}`;
   const resend = getResend();
 
   if (!resend) {

@@ -1,6 +1,7 @@
 import { randomInt } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { db, withDbRetry } from "@/lib/db";
+import { siteUrl } from "@/lib/site-url";
 
 export const INVITE_COOKIE = "elimu_invite";
 
@@ -8,8 +9,7 @@ export const INVITE_COOKIE = "elimu_invite";
 const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
 export function inviteUrl(code: string) {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  return `${base.replace(/\/$/, "")}/invite/${code}`;
+  return `${siteUrl()}/invite/${code}`;
 }
 
 /** The teacher's invite code, made the first time they open the invite section. */

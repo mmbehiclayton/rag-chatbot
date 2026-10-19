@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { db, withDbRetry } from "@/lib/db";
+import { siteUrl } from "@/lib/site-url";
 
 /**
  * Term passes paid through Paystack's checkout (M-Pesa or card, in KES).
@@ -19,7 +20,7 @@ function secret() {
 }
 
 export function appUrl(path = "") {
-  return `${(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "")}${path}`;
+  return `${siteUrl()}${path}`;
 }
 
 type PassMeta = { teacherId: string; year: number; term: number };
