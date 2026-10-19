@@ -1,3 +1,5 @@
+import { ChevronRight } from "lucide-react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { type CoverageSummary, PACE_LABELS, type Pace } from "@/lib/coverage";
 import { cn } from "@/lib/utils";
@@ -64,4 +66,100 @@ export function expectedLine(s: CoverageSummary) {
   return s.expected === null
     ? "Add your term dates under Me to see whether you're on track."
     : `By today you'd expect about ${s.expected}%. The line on the bar marks it.`;
+}
+
+/** The big number at the top of a coverage page. */
+export function SummaryCard({
+  title,
+  summary,
+  children,
+}: {
+  title?: string;
+  summary: CoverageSummary;
+  children?: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-3 rounded-xl border bg-card p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          {title && (
+            <h2 className="text-sm font-medium text-muted-foreground">
+              {title}
+            </h2>
+          )}
+          <p className="text-2xl font-semibold">{summary.percent}%</p>
+        </div>
+        <PaceBadge pace={summary.pace} />
+      </div>
+      <CoverageBar
+        percent={summary.percent}
+        expected={summary.expected}
+        label={title ? `Coverage of ${title}` : "Coverage"}
+      />
+      <p className="text-sm">{coverageLine(summary)}</p>
+      <p className="text-xs text-muted-foreground">{expectedLine(summary)}</p>
+      {children}
+    </section>
+  );
+}
+
+export type CoverageRowItem = {
+  href: string;
+  label: string;
+  summary: CoverageSummary;
+  /** False when there is no design or scheme to measure against. */
+  tracked: boolean;
+  /** Extra line under the counts, e.g. "3 of 7 learning areas tracked". */
+  note?: string;
+};
+
+/** Tappable rows with a bar each: classes on the overview, learning areas on a class. */
+export function CoverageList({
+  rows,
+  untracked,
+}: {
+  rows: CoverageRowItem[];
+  untracked: string;
+}) {
+  return (
+    <ul className="divide-y rounded-xl border bg-card">
+      {rows.map((r) => (
+        <li key={r.href}>
+          <Link
+            href={r.href}
+            className="flex min-h-16 items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/60"
+          >
+            <span className="min-w-0 flex-1 space-y-1.5">
+              <span className="flex items-center justify-between gap-2">
+                <span className="truncate text-sm font-medium">{r.label}</span>
+                <span className="shrink-0 text-sm font-semibold">
+                  {r.tracked ? `${r.summary.percent}%` : "–"}
+                </span>
+              </span>
+              {r.tracked && (
+                <CoverageBar
+                  percent={r.summary.percent}
+                  expected={r.summary.expected}
+                  label={`Coverage of ${r.label}`}
+                />
+              )}
+              <span className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                {r.tracked ? coverageLine(r.summary) : untracked}
+                <PaceBadge pace={r.summary.pace} />
+              </span>
+              {r.note && (
+                <span className="block text-xs text-muted-foreground">
+                  {r.note}
+                </span>
+              )}
+            </span>
+            <ChevronRight
+              className="size-4 shrink-0 text-muted-foreground"
+              aria-hidden
+            />
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
 }

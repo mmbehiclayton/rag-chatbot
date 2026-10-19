@@ -23,6 +23,12 @@ export function coverageHref(grade: string, subject: string, stream = "") {
   return stream ? `${base}?${new URLSearchParams({ stream })}` : base;
 }
 
+/** A class's page: every learning area the teacher teaches in one grade (and stream). */
+export function coverageGradeHref(grade: string, stream = "") {
+  const base = `/dashboard/coverage/${encodeURIComponent(grade)}`;
+  return stream ? `${base}?${new URLSearchParams({ stream })}` : base;
+}
+
 export function isCoverageStatus(value: unknown): value is CoverageStatus {
   return COVERAGE_STATUSES.includes(value as CoverageStatus);
 }

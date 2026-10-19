@@ -2,17 +2,16 @@ import { ArrowLeft, BookMarked, CalendarRange, Info } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CoverageControl } from "@/components/coverage/coverage-control";
-import {
-  CoverageBar,
-  coverageLine,
-  expectedLine,
-  PaceBadge,
-} from "@/components/coverage/coverage-parts";
+import { SummaryCard } from "@/components/coverage/coverage-parts";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
 import { classHref, createHref, designHref } from "@/lib/classes";
-import { COVERAGE_LABELS, coverageHref } from "@/lib/coverage";
+import {
+  COVERAGE_LABELS,
+  coverageGradeHref,
+  coverageHref,
+} from "@/lib/coverage";
 import { getCoverage } from "@/lib/coverage-data";
 import { streamLabel } from "@/lib/term-pack";
 import { cn } from "@/lib/utils";
@@ -101,9 +100,9 @@ export default async function ClassCoveragePage({
         variant="ghost"
         size="sm"
         className="-ml-2 h-11"
-        render={<Link href="/dashboard/coverage" />}
+        render={<Link href={coverageGradeHref(grade, cls.stream)} />}
       >
-        <ArrowLeft /> All my classes
+        <ArrowLeft /> {streamLabel(grade, cls.stream)}
       </Button>
 
       <div>
@@ -142,20 +141,7 @@ export default async function ClassCoveragePage({
         />
       ) : (
         <>
-          <section className="space-y-3 rounded-xl border bg-card p-4">
-            <div className="flex items-start justify-between gap-3">
-              <p className="text-2xl font-semibold">{summary.percent}%</p>
-              <PaceBadge pace={summary.pace} />
-            </div>
-            <CoverageBar
-              percent={summary.percent}
-              expected={summary.expected}
-              label={`Coverage of ${cls.label}`}
-            />
-            <p className="text-sm">{coverageLine(summary)}</p>
-            <p className="text-xs text-muted-foreground">
-              {expectedLine(summary)}
-            </p>
+          <SummaryCard summary={summary}>
             <dl className="grid grid-cols-3 gap-2 border-t pt-3 text-center">
               {summary.terms.map((t) => (
                 <div key={t.term}>
@@ -168,7 +154,7 @@ export default async function ClassCoveragePage({
                 </div>
               ))}
             </dl>
-          </section>
+          </SummaryCard>
 
           {cls.source === "schemes" && (
             <p className="flex gap-2 rounded-xl border bg-card p-3 text-sm">

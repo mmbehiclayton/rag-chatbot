@@ -4,6 +4,7 @@ import {
   type CoverageItem,
   type CoverageStatus,
   type CoverageSummary,
+  coverageGradeHref,
   coverageHref,
   coverageKey,
   isCoverageStatus,
@@ -40,6 +41,19 @@ export type ClassCoverage = {
   summary: CoverageSummary;
 };
 
+/** One class (a grade, or a stream of it) with every learning area the teacher teaches there. */
+export type ClassGroup = {
+  grade: string;
+  stream: string;
+  /** "Grade 7 East" */
+  label: string;
+  href: string;
+  areas: ClassCoverage[];
+  /** Learning areas with a design or scheme to measure against. */
+  tracked: number;
+  summary: CoverageSummary;
+};
+
 type SchemeSub = {
   strand: string;
   name: string;
@@ -66,26 +80,27 @@ function schemeSubStrands(content: unknown, term: string) {
 }
 
 /**
- * Syllabus coverage for the teacher's classes this school year (or one learning area with `only`).
+ * Syllabus coverage for the teacher's classes this school year: all of them, one grade (`only.grade`)
+ * or one learning area (`only.grade` and `only.subject`).
  * A fixed handful of queries however many classes there are; everything else is worked out here.
  */
 export async function getCoverage(
   teacherId: string,
-  only?: { grade: string; subject: string },
+  only?: { grade: string; subject?: string },
 ) {
   const today = todayInKenya();
   const year = Number(today.slice(0, 4));
-  const classes = only
-    ? [only]
-    : (await getTeacherClasses(teacherId)).map(({ grade, subject }) => ({
-        grade,
-        subject,
-      }));
+  const classes = only?.subject
+    ? [{ grade: only.grade, subject: only.subject }]
+    : (await getTeacherClasses(teacherId))
+        .filter((c) => !only || c.grade === only.grade)
+        .map(({ grade, subject }) => ({ grade, subject }));
   if (classes.length === 0)
     return {
       year,
       currentTerm: null,
       classes: [] as ClassCoverage[],
+      groups: [] as ClassGroup[],
       summary: summarise([], [], today),
     };
 
@@ -240,12 +255,42 @@ export async function getCoverage(
         today,
       )?.term ?? null,
     classes: result,
+    groups: groupByClass(result, termDates, today),
     summary: summarise(
       result.flatMap((c) => c.items),
       termDates,
       today,
     ),
   };
+}
+
+/** Learning areas gathered under their class (grade and stream), in the order the classes come. */
+function groupByClass(
+  areas: ClassCoverage[],
+  termDates: Parameters<typeof summarise>[1],
+  today: string,
+): ClassGroup[] {
+  const groups = new Map<string, ClassCoverage[]>();
+  for (const a of areas) {
+    const k = `${a.grade}|${a.stream}`;
+    groups.set(k, [...(groups.get(k) ?? []), a]);
+  }
+  return [...groups.values()].map((list) => {
+    const { grade, stream } = list[0];
+    return {
+      grade,
+      stream,
+      label: streamLabel(grade, stream),
+      href: coverageGradeHref(grade, stream),
+      areas: list,
+      tracked: list.filter((a) => a.source).length,
+      summary: summarise(
+        list.flatMap((a) => a.items),
+        termDates,
+        today,
+      ),
+    };
+  });
 }
 
 /** Without a checked design, the sub-strands in the teacher's schemes stand in for it. */
