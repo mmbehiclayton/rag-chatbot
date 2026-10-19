@@ -25,6 +25,11 @@ export function createHref(
   return `/dashboard/create/${kind}?${new URLSearchParams({ grade, subject })}`;
 }
 
+/** A learning area's checked curriculum design. */
+export function designHref(grade: string, subject: string) {
+  return `/dashboard/designs/${encodeURIComponent(grade)}/${encodeURIComponent(subject)}`;
+}
+
 /** Where clause for a teacher's lesson plans in one class (older scheme lessons only carry grade on the scheme). */
 export function classLessonWhere(
   teacherId: string,

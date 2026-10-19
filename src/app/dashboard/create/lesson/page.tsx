@@ -66,6 +66,9 @@ export default async function CreateLessonPage({
         mySubjects={preferClass(profile?.subjectsTaught, query.subject)}
         topicSuggestions={suggestions}
         curricula={curricula}
+        initialTopic={
+          typeof query.topic === "string" ? query.topic.slice(0, 200) : ""
+        }
       />
     </div>
   );

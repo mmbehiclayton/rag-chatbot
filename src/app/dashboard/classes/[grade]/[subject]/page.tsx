@@ -1,6 +1,7 @@
 import { formatDistanceToNow } from "date-fns";
 import {
   ArrowLeft,
+  BookMarked,
   BookOpen,
   ChevronRight,
   ClipboardCheck,
@@ -19,8 +20,10 @@ import { auth } from "@/lib/auth";
 import {
   classLessonWhere,
   createHref,
+  designHref,
   nextLessonInScheme,
 } from "@/lib/classes";
+import { getPublishedMapKeys } from "@/lib/curriculum-map";
 import { getIndexedCurricula } from "@/lib/curriculum-options";
 import { db, withDbRetry } from "@/lib/db";
 
@@ -63,61 +66,63 @@ export default async function ClassPage({
   if (!grade || !subject) notFound();
   const teacherId = session.userId;
 
-  const [schemes, lessons, notes, assessments, curricula] = await Promise.all([
-    withDbRetry(() =>
-      db.schemeOfWork.findMany({
-        where: { teacherId, grade, subject },
-        orderBy: { updatedAt: "desc" },
-        take: 5,
-        select: {
-          id: true,
-          title: true,
-          term: true,
-          content: true,
-          updatedAt: true,
-          lessonPlans: { select: { lessonNumber: true } },
-        },
-      }),
-    ),
-    withDbRetry(() =>
-      db.lessonPlan.findMany({
-        where: classLessonWhere(teacherId, grade, subject),
-        orderBy: { updatedAt: "desc" },
-        take: 20,
-        select: {
-          id: true,
-          topic: true,
-          lessonNumber: true,
-          schemeId: true,
-          updatedAt: true,
-        },
-      }),
-    ),
-    withDbRetry(() =>
-      db.lessonNote.findMany({
-        where: {
-          teacherId,
-          lessonPlan: classLessonWhere(teacherId, grade, subject),
-        },
-        orderBy: { updatedAt: "desc" },
-        take: 5,
-        select: {
-          id: true,
-          updatedAt: true,
-          lessonPlan: { select: { topic: true } },
-        },
-      }),
-    ),
-    withDbRetry(() =>
-      db.assessment.findMany({
-        where: { teacherId, grade, subject },
-        orderBy: { updatedAt: "desc" },
-        take: 5,
-        select: { id: true, title: true, type: true, updatedAt: true },
-      }),
-    ),
-    getIndexedCurricula(session.tenantId),
-  ]);
+  const [schemes, lessons, notes, assessments, curricula, designs] =
+    await Promise.all([
+      withDbRetry(() =>
+        db.schemeOfWork.findMany({
+          where: { teacherId, grade, subject },
+          orderBy: { updatedAt: "desc" },
+          take: 5,
+          select: {
+            id: true,
+            title: true,
+            term: true,
+            content: true,
+            updatedAt: true,
+            lessonPlans: { select: { lessonNumber: true } },
+          },
+        }),
+      ),
+      withDbRetry(() =>
+        db.lessonPlan.findMany({
+          where: classLessonWhere(teacherId, grade, subject),
+          orderBy: { updatedAt: "desc" },
+          take: 20,
+          select: {
+            id: true,
+            topic: true,
+            lessonNumber: true,
+            schemeId: true,
+            updatedAt: true,
+          },
+        }),
+      ),
+      withDbRetry(() =>
+        db.lessonNote.findMany({
+          where: {
+            teacherId,
+            lessonPlan: classLessonWhere(teacherId, grade, subject),
+          },
+          orderBy: { updatedAt: "desc" },
+          take: 5,
+          select: {
+            id: true,
+            updatedAt: true,
+            lessonPlan: { select: { topic: true } },
+          },
+        }),
+      ),
+      withDbRetry(() =>
+        db.assessment.findMany({
+          where: { teacherId, grade, subject },
+          orderBy: { updatedAt: "desc" },
+          take: 5,
+          select: { id: true, title: true, type: true, updatedAt: true },
+        }),
+      ),
+      getIndexedCurricula(session.tenantId),
+      getPublishedMapKeys(),
+    ]);
 
   const current = schemes[0];
   const next = current
@@ -145,6 +150,15 @@ export default async function ClassPage({
             Everything you have prepared for this class.
           </p>
         </div>
+        {designs.includes(`${grade}|${subject}`) && (
+          <Button
+            variant="outline"
+            className="h-11"
+            render={<Link href={designHref(grade, subject)} />}
+          >
+            <BookMarked /> Read the curriculum design
+          </Button>
+        )}
         {!hasCurriculum && (
           <p className="flex gap-2 rounded-lg border bg-card p-3 text-sm">
             <Info className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />

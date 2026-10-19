@@ -25,19 +25,21 @@ export function QuickLessonForm({
   mySubjects,
   topicSuggestions,
   curricula,
+  initialTopic = "",
 }: {
   grades: GradeOption[];
   myGrades: string[];
   mySubjects: string[];
   topicSuggestions: Record<string, string[]>;
   curricula: string[];
+  initialTopic?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [target, setTarget] = useState(() =>
     defaultGradeSubject(grades, myGrades, mySubjects),
   );
-  const [topic, setTopic] = useState("");
+  const [topic, setTopic] = useState(initialTopic);
   const [duration, setDuration] = useState("40 min");
 
   const key = `${target.grade}|${target.subject}`;

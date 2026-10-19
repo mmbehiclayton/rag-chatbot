@@ -1,6 +1,7 @@
 import {
   BarChart3,
   BookMarked,
+  BookOpen,
   Building2,
   Database,
   FlaskConical,
@@ -20,10 +21,11 @@ import {
 export type NavItem = { name: string; href: string; icon: LucideIcon };
 export type NavGroup = { label?: string; items: NavItem[] };
 
-/** The four destinations every user sees, on the bottom bar and the sidebar. Work is organised by class. */
+/** The five destinations every user sees, on the bottom bar and the sidebar. Work is organised by class. */
 export const PRIMARY_NAV: NavItem[] = [
   { name: "Today", href: "/dashboard", icon: Home },
   { name: "My classes", href: "/dashboard/classes", icon: GraduationCap },
+  { name: "Designs", href: "/dashboard/designs", icon: BookOpen },
   { name: "Ask Elimu", href: "/dashboard/chat", icon: MessageSquare },
   { name: "Me", href: "/dashboard/profile", icon: UserCircle },
 ];
@@ -98,6 +100,7 @@ const TITLES: [string, string][] = [
   ["/dashboard/pilot", "Pilot"],
   ["/dashboard/classes", "My classes"],
   ["/dashboard/curriculum", "Curriculum maps"],
+  ["/dashboard/designs", "Curriculum designs"],
   ["/dashboard/library", "Library"],
   ["/dashboard/schemes", "Scheme of work"],
   ["/dashboard/lessons", "Lesson plan"],

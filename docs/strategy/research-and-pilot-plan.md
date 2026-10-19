@@ -64,6 +64,20 @@ Today the app is organised by document type: schemes, lessons, notes and assessm
 **Pilot coverage, following Pareto:** junior school, Grades 7–9, core learning areas only. That is roughly 25 maps, not 300. JSS has the worst shortage, the most out-of-field teaching and many young, phone-first teachers.
 - **Alternative:** Grade 11 (new in January 2027). No vendor has good material yet, but the designs are new and the knowledge base risk is higher.
 
+### Curriculum designs: how we compete (October 2026)
+
+- **The market:** Elimu Library (elimulibrary.com) sells each design as a PDF for KES 199, per grade and learning area, through a cart and M-Pesa. KICD's own bookshop sells Grade 10 designs at KES 400 a subject. Vendors compete on price and catalogue size.
+- **Why we don't sell the PDFs:** KICD sells these documents and reserves its rights (section 4). Reselling them is the vendors' risk, not a moat, and a 3 MB PDF is costly on paid data.
+- **What we do instead:** teachers read each checked design free inside Elimu, at /dashboard/designs, organised by section and grade:
+  - It is text only, light on data.
+  - It can be filtered by term.
+  - Every sub-strand has "Plan a lesson on this", and every learning area has "Make my scheme of work".
+- **Why this drives sales:** the design becomes the way in to the paid Term Pack (schemes, lesson plans, records of work) instead of a KES 199 one-off. A vendor's buyer gets a PDF; our reader is one tap from the document they actually have to hand in.
+- **Next, if reading numbers justify it:**
+  - Public, search-friendly design outlines (strand and sub-strand names only) that bring teachers in from Google.
+  - Notes on "what changed" in each rationalised edition.
+  - A KICD Orange Book listing as the trust signal.
+
 ## 5. Money (validate in the pilot, build after)
 
 | Plan | Price (to test) | What it gives |
