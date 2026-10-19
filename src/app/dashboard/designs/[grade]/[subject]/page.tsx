@@ -100,7 +100,7 @@ export default async function DesignPage({
         className="-ml-2 h-11"
         render={<Link href="/dashboard/designs" />}
       >
-        <ArrowLeft /> All designs
+        <ArrowLeft /> All curriculum designs
       </Button>
 
       <PageHeader

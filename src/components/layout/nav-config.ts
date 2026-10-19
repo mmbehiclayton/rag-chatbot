@@ -25,7 +25,7 @@ export type NavGroup = { label?: string; items: NavItem[] };
 export const PRIMARY_NAV: NavItem[] = [
   { name: "Today", href: "/dashboard", icon: Home },
   { name: "My classes", href: "/dashboard/classes", icon: GraduationCap },
-  { name: "Designs", href: "/dashboard/designs", icon: BookOpen },
+  { name: "Curriculum Designs", href: "/dashboard/designs", icon: BookOpen },
   { name: "Ask Elimu", href: "/dashboard/chat", icon: MessageSquare },
   { name: "Me", href: "/dashboard/profile", icon: UserCircle },
 ];
@@ -100,7 +100,7 @@ const TITLES: [string, string][] = [
   ["/dashboard/pilot", "Pilot"],
   ["/dashboard/classes", "My classes"],
   ["/dashboard/curriculum", "Curriculum maps"],
-  ["/dashboard/designs", "Curriculum designs"],
+  ["/dashboard/designs", "Curriculum Designs"],
   ["/dashboard/library", "Library"],
   ["/dashboard/schemes", "Scheme of work"],
   ["/dashboard/lessons", "Lesson plan"],

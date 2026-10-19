@@ -101,7 +101,7 @@ export default async function DesignsPage({
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <PageHeader
-        title="Curriculum designs"
+        title="Curriculum Designs"
         description="Strands, sub-strands and learning outcomes from the KICD designs, checked by two teachers. Free to read, with one tap to plan a lesson."
       />
 

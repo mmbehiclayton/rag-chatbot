@@ -203,7 +203,7 @@ export default async function KnowledgePage(props: Props) {
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <h2 className="text-base font-semibold">Curriculum designs</h2>
+            <h2 className="text-base font-semibold">Curriculum Designs</h2>
             {gradeFilter && (
               <Badge variant="outline" className="gap-1">
                 {gradeFilter}

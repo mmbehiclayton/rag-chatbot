@@ -49,7 +49,7 @@ export default async function PublicDesignPage({ params }: Props) {
           href="/designs"
           className="inline-flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
         >
-          <ArrowLeft className="size-4" aria-hidden /> All designs
+          <ArrowLeft className="size-4" aria-hidden /> All curriculum designs
         </Link>
 
         <div className="space-y-2">

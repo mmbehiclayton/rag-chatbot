@@ -6,7 +6,7 @@ import { PublicHeader, SignUpPrompt } from "@/components/shared/public-header";
 import { getDesignIndex, publicDesignHref, slug } from "@/lib/public-designs";
 
 export const metadata: Metadata = {
-  title: "CBC curriculum designs by grade: strands and sub-strands | Elimu",
+  title: "CBC Curriculum Designs by grade: strands and sub-strands | Elimu",
   description:
     "Strands and sub-strands of the KICD curriculum designs for each grade and learning area, checked by teachers. Free to read on your phone, then plan your lessons with Elimu.",
   alternates: { canonical: "/designs" },
@@ -26,7 +26,7 @@ export default async function PublicDesignsPage() {
       <PublicHeader />
       <div className="mx-auto max-w-4xl space-y-8 px-4 py-8">
         <div className="max-w-2xl space-y-2">
-          <h1 className="text-2xl font-semibold">CBC curriculum designs</h1>
+          <h1 className="text-2xl font-semibold">CBC Curriculum Designs</h1>
           <p className="text-muted-foreground">
             The strands and sub-strands of each KICD design, checked by two
             teachers. {ready} learning areas are ready so far. Open one to see

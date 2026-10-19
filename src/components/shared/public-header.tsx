@@ -11,7 +11,7 @@ export function PublicHeader() {
         <Logo />
         <nav aria-label="Site" className="flex items-center gap-1">
           <Button variant="ghost" render={<Link href="/designs" />}>
-            Designs
+            Curriculum Designs
           </Button>
           <Button variant="ghost" render={<Link href="/login" />}>
             Sign in
