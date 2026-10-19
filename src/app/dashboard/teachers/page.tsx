@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RoleSelector } from "@/components/dashboard/role-selector";
 import { CuratorToggle } from "@/components/dashboard/curator-toggle";
+import { RemoveTeacher } from "@/components/admin/remove-teacher";
 import { SchoolInvite } from "@/components/admin/school-invite";
 import { getInviteCode, inviteUrl } from "@/lib/invites";
 
@@ -139,6 +140,9 @@ export default async function TeachersPage(props: Props) {
               <div className="flex flex-wrap items-center gap-3 pl-12">
                 <RoleSelector userId={user.id} initialRole={user.role} currentSessionRole={session.role} />
                 {isSuperAdmin && user.role !== "SUPERADMIN" && <CuratorToggle userId={user.id} isCurator={user.isCurator} />}
+                {!isSuperAdmin && user.role === "TEACHER" && user.id !== session.userId && (
+                  <RemoveTeacher teacherId={user.id} name={user.name || user.email} />
+                )}
               </div>
             </li>
           ))}
