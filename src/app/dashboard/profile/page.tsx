@@ -237,12 +237,8 @@ export default async function ProfilePage() {
             variant="outline"
             size="lg"
             render={
-              <a
-                aria-label="Get help"
-                href={`mailto:${SUPPORT_EMAIL}?subject=Elimu%20help`}
-              >
-                <span className="sr-only">Get help</span>
-              </a>
+              // biome-ignore lint/a11y/useAnchorContent: the Button supplies the content
+              <a href={`mailto:${SUPPORT_EMAIL}?subject=Elimu%20help`} />
             }
           >
             <LifeBuoy /> Get help

@@ -1,12 +1,17 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
+import {
+  NativeSelect,
+  NativeSelectOptGroup,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
 import { CLASS_COOKIE, classKey } from "@/lib/class-filter";
-import { cn } from "@/lib/utils";
 
 /**
- * A sideways row of the teacher's classes. The choice is kept in a cookie so the
- * same class stays picked on Schemes, Lesson plans, Notes and Assessments.
+ * One dropdown of the teacher's classes, grouped by grade, so the chosen class is always in view.
+ * The choice is kept in a cookie so it stays the same on Schemes, Lesson plans, Notes and Assessments.
  */
 export function ClassFilter({
   basePath,
@@ -18,39 +23,44 @@ export function ClassFilter({
   /** classKey of the chosen class, or "" for all. */
   selected: string;
 }) {
-  const remember = (value: string) => {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const grades = [...new Set(classes.map((c) => c.grade))];
+
+  const choose = (value: string) => {
+    const key = value || "all";
     // biome-ignore lint/suspicious/noDocumentCookie: a plain preference cookie, read on the server
-    document.cookie = `${CLASS_COOKIE}=${encodeURIComponent(value)}; path=/dashboard; max-age=31536000; samesite=lax`;
+    document.cookie = `${CLASS_COOKIE}=${encodeURIComponent(key)}; path=/dashboard; max-age=31536000; samesite=lax`;
+    startTransition(() =>
+      router.push(`${basePath}?${new URLSearchParams({ class: key })}`),
+    );
   };
-  const tabs = [
-    { key: "", label: "All my classes" },
-    ...classes.map((c) => ({
-      key: classKey(c),
-      label: `${c.grade} ${c.subject}`,
-    })),
-  ];
 
   return (
-    <nav
-      aria-label="Class"
-      className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0"
-    >
-      {tabs.map((t) => (
-        <Link
-          key={t.key || "all"}
-          href={`${basePath}?${new URLSearchParams({ class: t.key || "all" })}`}
-          onClick={() => remember(t.key || "all")}
-          aria-current={t.key === selected ? "page" : undefined}
-          className={cn(
-            "inline-flex min-h-11 shrink-0 items-center rounded-md border px-3 text-sm font-medium whitespace-nowrap",
-            t.key === selected
-              ? "border-primary bg-accent text-accent-foreground"
-              : "bg-card text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {t.label}
-        </Link>
-      ))}
-    </nav>
+    <div className="space-y-1">
+      <label htmlFor="class-filter" className="text-sm font-medium">
+        Class
+      </label>
+      <NativeSelect
+        id="class-filter"
+        className="w-full sm:w-80"
+        value={selected}
+        disabled={isPending}
+        onChange={(e) => choose(e.target.value)}
+      >
+        <NativeSelectOption value="">All my classes</NativeSelectOption>
+        {grades.map((grade) => (
+          <NativeSelectOptGroup key={grade} label={grade}>
+            {classes
+              .filter((c) => c.grade === grade)
+              .map((c) => (
+                <NativeSelectOption key={classKey(c)} value={classKey(c)}>
+                  {c.grade} {c.subject}
+                </NativeSelectOption>
+              ))}
+          </NativeSelectOptGroup>
+        ))}
+      </NativeSelect>
+    </div>
   );
 }

@@ -54,7 +54,12 @@ export const PRIMARY_NAV: NavItem[] = [
     href: "/dashboard/notes",
     icon: NotebookPen,
   },
-  { name: "Assessments", href: "/dashboard/assessments", icon: ClipboardList },
+  {
+    name: "Assessments",
+    short: "Tests",
+    href: "/dashboard/assessments",
+    icon: ClipboardList,
+  },
 ];
 
 /** Used now and then: on the sidebar under "More", on Home and on the Profile page on a phone. */

@@ -199,6 +199,11 @@ export async function DocumentListPage({
                     {` · ${row.term} · `}
                     {formatDistanceToNow(row.updatedAt, { addSuffix: true })}
                   </p>
+                  {row.linked && (
+                    <p className="mt-0.5 text-xs font-medium text-primary">
+                      {row.linked}
+                    </p>
+                  )}
                 </div>
                 <ChevronRight
                   className="size-4 shrink-0 text-muted-foreground"

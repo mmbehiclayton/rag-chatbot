@@ -32,13 +32,12 @@ export function InviteShare({
         <Button
           size="lg"
           render={
+            // biome-ignore lint/a11y/useAnchorContent: the Button supplies the content
             <a
               href={`https://wa.me/?text=${encodeURIComponent(message)}`}
               target="_blank"
               rel="noopener noreferrer"
-            >
-              <span className="sr-only">Share on WhatsApp</span>
-            </a>
+            />
           }
         >
           <MessageCircle /> Share on WhatsApp

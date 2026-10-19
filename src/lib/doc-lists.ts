@@ -81,6 +81,8 @@ export type DocRow = {
   /** "Term 2 2026" */
   term: string;
   updatedAt: Date;
+  /** What it links to: "Notes ready" on a lesson plan, "12 lesson plans" on a scheme. */
+  linked?: string;
 };
 
 /** A class to filter by: one grade + learning area. */
@@ -128,6 +130,7 @@ export async function loadDocRows(
             updatedAt: true,
             ...FILED,
             scheme: { select: { grade: true, subject: true, ...FILED } },
+            lessonNotes: { select: { id: true }, take: 1 },
           },
         }),
         db.lessonPlan.count({ where }),
@@ -140,6 +143,7 @@ export async function loadDocRows(
           subject: r.subject ?? r.scheme?.subject ?? null,
           term: termOf(r),
           updatedAt: r.updatedAt,
+          linked: r.lessonNotes.length > 0 ? "Notes ready" : undefined,
         })),
         count,
       ];
@@ -163,11 +167,22 @@ export async function loadDocRows(
             subject: true,
             updatedAt: true,
             ...FILED,
+            _count: { select: { lessonPlans: true } },
           },
         }),
         db.schemeOfWork.count({ where }),
       ]);
-      return [rows.map((r) => ({ ...r, term: termOf(r) })), count];
+      return [
+        rows.map(({ _count, ...r }) => ({
+          ...r,
+          term: termOf(r),
+          linked:
+            _count.lessonPlans > 0
+              ? `${_count.lessonPlans} lesson plan${_count.lessonPlans === 1 ? "" : "s"}`
+              : "No lesson plans yet",
+        })),
+        count,
+      ];
     }
     case "notes": {
       const { teacherId: _, ...plan } = only
