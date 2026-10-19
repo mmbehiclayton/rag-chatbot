@@ -1,11 +1,11 @@
 "use server";
 
-import { openai } from "@ai-sdk/openai";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { embedMany } from "ai";
 import { extractText, getDocumentProxy } from "unpdf";
 import { explainAIErrorForStaff } from "@/lib/ai-errors";
 import { noteAIFailure } from "@/lib/ai-health";
+import { getAIKey, openai } from "@/lib/ai-keys";
 import { auth } from "@/lib/auth";
 import { MISSING_FILE, readCurriculumFile } from "@/lib/curriculum-files";
 import { db } from "@/lib/db";
@@ -66,7 +66,7 @@ export async function processPDF(documentId: string) {
 
     // 4. Generate Vectors (1536 dimensions)
     let embeddings: number[][] = [];
-    if (process.env.OPENAI_API_KEY) {
+    if (await getAIKey("openai")) {
       const res = await embedMany({
         model: openai.embedding("text-embedding-3-small"),
         values: chunkTexts,
@@ -74,7 +74,7 @@ export async function processPDF(documentId: string) {
       embeddings = res.embeddings;
     } else {
       console.warn(
-        "No OPENAI_API_KEY found! Generating dummy embeddings for extraction testing.",
+        "No OpenAI key found! Generating dummy embeddings for extraction testing.",
       );
       embeddings = chunkTexts.map(() =>
         Array.from({ length: 1536 }, () => Math.random() - 0.5),

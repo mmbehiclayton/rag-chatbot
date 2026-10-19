@@ -23,6 +23,11 @@ export const ROUTE_ACCESS: { prefix: string; area: string; roles: Role[] }[] = [
     roles: ["SUPERADMIN"],
   },
   {
+    prefix: "/dashboard/ai-keys",
+    area: "AI keys (OpenAI and Anthropic)",
+    roles: ["SUPERADMIN"],
+  },
+  {
     prefix: "/dashboard/tenants",
     area: "Schools and accounts",
     roles: ["SUPERADMIN"],

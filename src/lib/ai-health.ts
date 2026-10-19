@@ -11,7 +11,7 @@ type Outage = { problem: "credit" | "key"; since: string; emailedAt?: string };
 const STAFF_TEXT: Record<Outage["problem"], string> = {
   credit:
     "The OpenAI account is out of credit. Add credit in OpenAI billing (platform.openai.com, Settings, Billing).",
-  key: "OpenAI rejected Elimu's API key. Check OPENAI_API_KEY in Vercel's environment settings.",
+  key: "OpenAI rejected Elimu's API key. Save a working key on Settings, AI keys.",
 };
 
 export function outageText(problem: Outage["problem"]) {

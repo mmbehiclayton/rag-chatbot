@@ -1,6 +1,6 @@
-import { openai } from "@ai-sdk/openai";
 import { Prisma } from "@prisma/client";
 import { embed } from "ai";
+import { openai } from "@/lib/ai-keys";
 import { db } from "@/lib/db";
 
 export async function retrieveContext(

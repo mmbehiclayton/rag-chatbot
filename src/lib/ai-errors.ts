@@ -74,7 +74,7 @@ export function explainAIError(label: string, e: unknown): string {
       return "Elimu can't write anything right now. We're fixing it. Please try again later.";
     case "key":
       console.error(
-        "[ai] OpenAI rejected the API key. Check OPENAI_API_KEY in this environment.",
+        "[ai] OpenAI rejected the API key. Save a working key on Settings, AI keys.",
       );
       return "Elimu can't write anything right now. We're fixing it. Please try again later.";
     case "busy":
@@ -93,7 +93,7 @@ export function explainAIErrorForStaff(e: unknown): string {
     case "credit":
       return "The OpenAI account is out of credit. Add credit in OpenAI billing, then press Try again.";
     case "key":
-      return "OpenAI rejected the API key. Check OPENAI_API_KEY in Vercel, then press Try again.";
+      return "OpenAI rejected the API key. Save a working key on Settings, AI keys, then press Try again.";
     case "busy":
       return "OpenAI is limiting requests right now. Wait a few minutes, then press Try again.";
   }

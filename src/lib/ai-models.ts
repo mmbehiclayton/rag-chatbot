@@ -1,5 +1,3 @@
-import { anthropic } from "@ai-sdk/anthropic";
-import { openai } from "@ai-sdk/openai";
 import {
   defaultSettingsMiddleware,
   type LanguageModelMiddleware,
@@ -7,6 +5,7 @@ import {
 } from "ai";
 import { providerDown } from "@/lib/ai-errors";
 import { noteAIFailure, noteAIWorking } from "@/lib/ai-health";
+import { anthropic, getAIKey, openai } from "@/lib/ai-keys";
 
 /**
  * Which OpenAI model does which job. Change them in Vercel's environment settings, without a
@@ -34,9 +33,9 @@ export function backupModelName(): string {
   return process.env.ELIMU_MODEL_BACKUP?.trim() || BACKUP_DEFAULT;
 }
 
-/** The backup only runs when an Anthropic key is set in this environment. */
-export function hasBackup(): boolean {
-  return !!process.env.ANTHROPIC_API_KEY?.trim();
+/** The backup only runs when an Anthropic key is saved on Settings, AI keys, or in the hosting settings. */
+export async function hasBackup(): Promise<boolean> {
+  return !!(await getAIKey("anthropic"));
 }
 
 // Whether this server instance's last AI call went to the backup, for the usage log.
@@ -71,7 +70,7 @@ function health(job: ModelJob): LanguageModelMiddleware {
       return result;
     } catch (e) {
       await noteAIFailure(e);
-      if (!hasBackup() || !providerDown(e)) throw e;
+      if (!providerDown(e) || !(await hasBackup())) throw e;
       console.error("[ai] OpenAI failed, using the Claude backup:", e);
       try {
         const result = await onClaude(anthropic(backupModelName()));

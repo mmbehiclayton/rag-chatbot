@@ -11,14 +11,23 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ROLE_LABELS, type Role } from "@/lib/access";
+import { backupModelName, modelName } from "@/lib/ai-models";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
 
-// What the code really uses (src/lib/actions/generation.ts and src/lib/rag.ts).
-const MODELS = [
+// What Elimu really uses now (src/lib/ai-models.ts and src/lib/rag.ts).
+const models = () => [
   {
     use: "Writing schemes, lessons, notes and assessments",
-    model: "OpenAI gpt-4o",
+    model: `OpenAI ${modelName("write")}`,
+  },
+  {
+    use: "Ask Elimu and the lesson helper",
+    model: `OpenAI ${modelName("chat")}`,
+  },
+  {
+    use: "Backup when OpenAI isn't working",
+    model: `Claude ${backupModelName()}`,
   },
   {
     use: "Finding the right part of the curriculum designs",
@@ -27,6 +36,11 @@ const MODELS = [
 ];
 
 const STAFF_LINKS = [
+  {
+    href: "/dashboard/ai-keys",
+    title: "AI keys",
+    desc: "The OpenAI and Anthropic keys Elimu uses",
+  },
   {
     href: "/dashboard/pilot",
     title: "Pilot",
@@ -128,15 +142,15 @@ export default async function SettingsPage() {
             <CardHeader>
               <CardTitle>AI models</CardTitle>
               <CardDescription>
-                Set in the code. Changing them needs a new release, not a
-                setting.
+                Change them in Vercel's environment settings: ELIMU_MODEL_WRITE,
+                ELIMU_MODEL_CHAT and ELIMU_MODEL_BACKUP.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <dl className="divide-y text-sm">
-                {MODELS.map((m) => (
+                {models().map((m) => (
                   <div
-                    key={m.model}
+                    key={m.use}
                     className="flex flex-col gap-0.5 py-2 sm:flex-row sm:justify-between sm:gap-4"
                   >
                     <dt className="text-muted-foreground">{m.use}</dt>

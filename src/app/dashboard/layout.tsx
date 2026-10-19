@@ -21,7 +21,7 @@ export default async function DashboardLayout({
   const session = await auth();
   if (!session?.userId) redirect("/login");
 
-  const [user, outage] = await Promise.all([
+  const [user, outage, backup] = await Promise.all([
     withDbRetry(() =>
       db.user.findUnique({
         where: { id: session.userId },
@@ -29,6 +29,7 @@ export default async function DashboardLayout({
       }),
     ),
     getAIOutage(),
+    hasBackup(),
   ]);
 
   // New teachers set up their grades and learning areas once before using the app.
@@ -63,10 +64,10 @@ export default async function DashboardLayout({
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 overflow-y-auto px-4 pt-4 pb-24 sm:px-6 md:pt-6 md:pb-8">
-          {outage && (session.role === "SUPERADMIN" || !hasBackup()) && (
+          {outage && (session.role === "SUPERADMIN" || !backup) && (
             <AIOutageBanner
               staff={session.role === "SUPERADMIN"}
-              backup={hasBackup()}
+              backup={backup}
               problem={outage.problem}
               since={outage.sinceDate}
             />
