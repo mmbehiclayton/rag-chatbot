@@ -21,12 +21,15 @@ export function GradeSubjectPicker({
   mySubjects,
   value,
   onChange,
+  curricula,
 }: {
   grades: GradeOption[];
   myGrades: string[];
   mySubjects: string[];
   value: GradeSubject;
   onChange: (next: GradeSubject) => void;
+  /** "grade|subject" keys with a curriculum design in Elimu; others are marked in the list. */
+  curricula?: string[];
 }) {
   const known = (g: string) => grades.some((o) => o.name === g);
   const ownGrades = myGrades.filter(known);
@@ -83,6 +86,9 @@ export function GradeSubjectPicker({
             {gradeSubjects.map((s) => (
               <NativeSelectOption key={s} value={s}>
                 {s}
+                {curricula && !curricula.includes(`${value.grade}|${s}`)
+                  ? " (no design yet)"
+                  : ""}
               </NativeSelectOption>
             ))}
           </NativeSelect>

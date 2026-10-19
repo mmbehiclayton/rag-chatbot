@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Info } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -11,6 +11,7 @@ import {
   GradeSubjectPicker,
 } from "@/components/create/grade-subject-picker";
 import { ChoiceChips } from "@/components/shared/choice-chips";
+import { CurriculumNotice } from "@/components/shared/curriculum-notice";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -82,6 +83,7 @@ export function TermPlanForm({
   myGrades,
   mySubjects,
   curricula,
+  requested = [],
   calendar = {},
   designPerWeek = {},
   initialTerm,
@@ -92,6 +94,8 @@ export function TermPlanForm({
   myGrades: string[];
   mySubjects: string[];
   curricula: string[];
+  /** Classes whose design the teacher has already asked for, "grade|subject". */
+  requested?: string[];
   calendar?: TermCalendar;
   /** Lessons a week from the KICD design, keyed "grade|subject". */
   designPerWeek?: Record<string, number>;
@@ -180,7 +184,7 @@ export function TermPlanForm({
       } catch {
         // Only reached when the request itself fails, e.g. the connection dropped.
         toast.error(
-          "We couldn't reach Elimu. Check your connection and try again.",
+          "We lost contact with Elimu. It may still have finished, so check your Library before you try again.",
         );
       }
     });
@@ -215,6 +219,7 @@ export function TermPlanForm({
       <Card>
         <CardContent className="space-y-5">
           <GradeSubjectPicker
+            curricula={curricula}
             grades={grades}
             myGrades={myGrades}
             mySubjects={mySubjects}
@@ -226,15 +231,13 @@ export function TermPlanForm({
           />
 
           {target.grade && target.subject && !hasCurriculum && (
-            <p className="flex gap-2 rounded-md bg-warning/10 p-3 text-sm text-foreground">
-              <Info
-                className="mt-0.5 size-4 shrink-0 text-warning"
-                aria-hidden
-              />
-              The curriculum design for {target.grade} {target.subject} isn't in
-              Elimu yet, so this can't be created. Try another learning area, or
-              ask your school admin to add it.
-            </p>
+            <CurriculumNotice
+              key={classKey}
+              grade={target.grade}
+              subject={target.subject}
+              kind={kind}
+              requested={requested.includes(classKey)}
+            />
           )}
 
           <div className="space-y-2">

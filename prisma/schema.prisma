@@ -65,17 +65,18 @@ model User {
   assessments     Assessment[]
   generationLogs  GenerationLog[]
   chatSessions    ChatSession[]
-  mapsEdited      CurriculumMap[]    @relation("MapEditor")
-  mapsChecked     CurriculumMap[]    @relation("MapChecker")
+  mapsEdited      CurriculumMap[]     @relation("MapEditor")
+  mapsChecked     CurriculumMap[]     @relation("MapChecker")
   terms           TeacherTerm[]
   timetableSlots  TimetableSlot[]
   lessonRecords   LessonRecord[]
   coverage        SyllabusCoverage[]
   coverageLessons CoverageLesson[]
-  termPasses      TermPass[]         @relation("PassTeacher")
-  passesReviewed  TermPass[]         @relation("PassReviewer")
+  termPasses      TermPass[]          @relation("PassTeacher")
+  passesReviewed  TermPass[]          @relation("PassReviewer")
   headReviews     HeadReview[]
   docVersions     DocumentVersion[]
+  curriculumAsks  CurriculumRequest[]
 
   @@index([tenantId])
   @@index([invitedById])
@@ -97,6 +98,22 @@ model GenerationLog {
 
   @@index([userId])
   @@index([tenantId])
+}
+
+/**
+ * A teacher telling Elimu they need the curriculum design for a class that isn't in Elimu yet,
+ * so staff know which designs to add first. One per teacher per class.
+ */
+model CurriculumRequest {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  grade     String
+  subject   String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, grade, subject])
+  @@index([grade, subject])
 }
 
 /**

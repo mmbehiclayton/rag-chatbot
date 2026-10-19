@@ -81,3 +81,11 @@ export function preferClass(
   const items = list ?? [];
   return v ? [v, ...items.filter((i) => i !== v)] : items;
 }
+
+/** "Grade|Learning area" keys of the curriculum designs this teacher has told Elimu they need. */
+export async function getCurriculumRequests(userId: string) {
+  const rows = await db.curriculumRequest
+    .findMany({ where: { userId }, select: { grade: true, subject: true } })
+    .catch(() => []);
+  return rows.map((r) => `${r.grade}|${r.subject}`);
+}

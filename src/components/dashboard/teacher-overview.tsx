@@ -230,7 +230,9 @@ export async function TeacherOverview({
           <Info className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
           <span>
             The curriculum designs for your classes aren't in Elimu yet. You can
-            still create documents, but check strands and outcomes carefully.
+            make lesson plans and notes, but check them against your design.
+            Schemes of work and assessments need the design: open a class to
+            tell us you need it.
           </span>
         </p>
       )}

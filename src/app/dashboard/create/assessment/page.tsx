@@ -3,6 +3,7 @@ import { TermPlanForm } from "@/components/create/term-plan-form";
 import { PageHeader } from "@/components/shared/page-header";
 import { auth } from "@/lib/auth";
 import {
+  getCurriculumRequests,
   getGradeOptions,
   getIndexedCurricula,
   getTeachingProfile,
@@ -22,10 +23,13 @@ export default async function Page({
   if (!session?.userId) redirect("/login");
   const query = await searchParams;
 
-  const [profile, grades, curricula, terms] = await Promise.all([
+  const [profile, grades, [curricula, requested], terms] = await Promise.all([
     getTeachingProfile(session.userId),
     getGradeOptions(),
-    getIndexedCurricula(session.tenantId),
+    Promise.all([
+      getIndexedCurricula(session.tenantId),
+      getCurriculumRequests(session.userId),
+    ]),
     getTeacherTerms(session.userId),
   ]);
   // Start on the term in progress (or next to open) and the assessment due about now.
@@ -47,6 +51,7 @@ export default async function Page({
         myGrades={preferClass(profile?.gradesTaught, query.grade)}
         mySubjects={preferClass(profile?.subjectsTaught, query.subject)}
         curricula={curricula}
+        requested={requested}
         initialTerm={current ? `Term ${current.term}` : undefined}
         initialAssessmentType={
           current ? assessmentTypeFor(current, today) : undefined

@@ -7,7 +7,6 @@ import {
   ClipboardCheck,
   ClipboardList,
   FileText,
-  Info,
   ListChecks,
   NotebookPen,
   Plus,
@@ -15,6 +14,7 @@ import {
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ExportButton, parseTitle } from "@/components/document/doc-parts";
+import { CurriculumNotice } from "@/components/shared/curriculum-notice";
 import { LinkList, SectionTitle } from "@/components/shared/link-list";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
@@ -27,7 +27,10 @@ import {
 } from "@/lib/classes";
 import { coverageHref } from "@/lib/coverage";
 import { getPublishedMapKeys } from "@/lib/curriculum-map";
-import { getIndexedCurricula } from "@/lib/curriculum-options";
+import {
+  getCurriculumRequests,
+  getIndexedCurricula,
+} from "@/lib/curriculum-options";
 import { db, withDbRetry } from "@/lib/db";
 import { type Filing, filingLabel, filingOf, filingOn } from "@/lib/filing";
 import { todayInKenya } from "@/lib/term-pack";
@@ -189,6 +192,9 @@ export default async function ClassPage({
       )
     : null;
   const hasCurriculum = curricula.includes(`${grade}|${subject}`);
+  const requested =
+    !hasCurriculum &&
+    (await getCurriculumRequests(teacherId)).includes(`${grade}|${subject}`);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -260,13 +266,12 @@ export default async function ClassPage({
           </Button>
         )}
         {!hasCurriculum && (
-          <p className="flex gap-2 rounded-lg border bg-card p-3 text-sm">
-            <Info className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
-            <span>
-              The curriculum design for this class isn't in Elimu yet. You can
-              still create documents, but check strands and outcomes carefully.
-            </span>
-          </p>
+          <CurriculumNotice
+            grade={grade}
+            subject={subject}
+            kind="class"
+            requested={requested}
+          />
         )}
       </div>
 

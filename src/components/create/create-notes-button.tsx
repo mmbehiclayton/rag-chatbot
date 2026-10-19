@@ -34,7 +34,7 @@ export function CreateNotesButton({
             router.push(`/dashboard/notes/${result.id}`);
           } catch {
             toast.error(
-              "We couldn't reach Elimu. Check your connection and try again.",
+              "We lost contact with Elimu. Reload this page in a minute: the notes may still have been made.",
             );
           }
         })

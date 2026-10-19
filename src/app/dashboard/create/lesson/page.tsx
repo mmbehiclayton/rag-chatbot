@@ -3,6 +3,7 @@ import { QuickLessonForm } from "@/components/create/quick-lesson-form";
 import { PageHeader } from "@/components/shared/page-header";
 import { auth } from "@/lib/auth";
 import {
+  getCurriculumRequests,
   getGradeOptions,
   getIndexedCurricula,
   getTeachingProfile,
@@ -21,7 +22,7 @@ export default async function CreateLessonPage({
   if (!session?.userId) redirect("/login");
   const query = await searchParams;
 
-  const [profile, grades, schemes, curricula] = await Promise.all([
+  const [profile, grades, schemes, [curricula, requested]] = await Promise.all([
     getTeachingProfile(session.userId),
     getGradeOptions(),
     // Sub-strands from the teacher's own schemes become topic suggestions.
@@ -33,7 +34,10 @@ export default async function CreateLessonPage({
         select: { grade: true, subject: true, content: true },
       }),
     ),
-    getIndexedCurricula(session.tenantId),
+    Promise.all([
+      getIndexedCurricula(session.tenantId),
+      getCurriculumRequests(session.userId),
+    ]),
   ]);
 
   const suggestions: Record<string, string[]> = {};
@@ -66,6 +70,7 @@ export default async function CreateLessonPage({
         mySubjects={preferClass(profile?.subjectsTaught, query.subject)}
         topicSuggestions={suggestions}
         curricula={curricula}
+        requested={requested}
         initialTopic={
           typeof query.topic === "string" ? query.topic.slice(0, 200) : ""
         }

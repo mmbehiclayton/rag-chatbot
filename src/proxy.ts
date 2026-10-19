@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { ROUTE_ACCESS } from "@/lib/access";
 import { db } from "@/lib/db";
+import { loginHref } from "@/lib/safe-next";
 import { firstTouch, SOURCE_COOKIE, SOURCE_MAX_AGE } from "@/lib/signup-source";
 
 const secretKey =
@@ -29,8 +30,39 @@ const isPublicRoute = (path: string) =>
   path.startsWith("/designs/") ||
   path.startsWith("/api/paystack/");
 
+/** Sends a signed-out visitor to sign in, then back to the page they wanted. API calls get a 401 instead. */
+function toLogin(request: NextRequest) {
+  const { pathname, search } = request.nextUrl;
+  const wantsPage = request.headers.get("accept")?.includes("text/html");
+  if (pathname.startsWith("/api/") && !wantsPage)
+    return NextResponse.json(
+      { error: "Your session has ended. Please sign in again." },
+      { status: 401 },
+    );
+  return NextResponse.redirect(
+    new URL(loginHref(`${pathname}${search}`), request.url),
+  );
+}
+
+async function readSession(token: string | undefined) {
+  if (!token) return null;
+  try {
+    const { payload } = await jwtVerify(token, key, { algorithms: ["HS256"] });
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
+
+  // Signed-in teachers who open the sign-in or sign-up page go straight to Home.
+  if (
+    (path === "/login" || path === "/register") &&
+    (await readSession(request.cookies.get("session")?.value))
+  )
+    return NextResponse.redirect(new URL("/dashboard", request.url));
 
   // Allow public assets
   if (path.match(/\.(png|jpg|jpeg|svg|gif|webp|ico|css|js)$/)) {
@@ -56,24 +88,12 @@ export async function proxy(request: NextRequest) {
   }
 
   // 2. Read session cookie
-  const token = request.cookies.get("session")?.value;
-  let sessionPayload = null;
-
-  if (token) {
-    try {
-      const { payload } = await jwtVerify(token, key, {
-        algorithms: ["HS256"],
-      });
-      sessionPayload = payload;
-    } catch {
-      console.log("Invalid JWT token in middleware");
-    }
-  }
+  const sessionPayload = await readSession(
+    request.cookies.get("session")?.value,
+  );
 
   // 3. Prevent unauthenticated access
-  if (!sessionPayload) {
-    return NextResponse.redirect(new URL("/login", request.url));
-  }
+  if (!sessionPayload) return toLogin(request);
 
   // 4. Dashboard routes check the session in the database, so a sign-out, an expired session
   // or a role change applies straight away instead of waiting for the token to expire.
@@ -89,7 +109,7 @@ export async function proxy(request: NextRequest) {
             .catch(() => undefined)
         : null;
     if (dbSession === null || (dbSession && dbSession.expiresAt < new Date())) {
-      const response = NextResponse.redirect(new URL("/login", request.url));
+      const response = toLogin(request);
       response.cookies.delete("session");
       return response;
     }

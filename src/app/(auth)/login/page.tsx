@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useActionState, useRef, useState } from "react";
 import {
   AuthHeading,
   FormMessage,
@@ -21,6 +22,12 @@ const DEMO_ACCOUNTS = [
   { label: "School admin", email: "admin@greenvalley.ac.ke" },
   { label: "Super admin", email: "superadmin@elimu.ai" },
 ];
+
+/** Carries ?next= through sign-in so the teacher lands on the page they opened. */
+function NextField() {
+  const next = useSearchParams().get("next");
+  return next ? <input type="hidden" name="next" value={next} /> : null;
+}
 
 export default function LoginPage() {
   const [state, formAction, isPending] = useActionState(login, null);
@@ -52,6 +59,9 @@ export default function LoginPage() {
       />
 
       <form ref={formRef} action={formAction} className="space-y-4">
+        <Suspense>
+          <NextField />
+        </Suspense>
         <div className="space-y-1.5">
           <Label htmlFor="email">Email</Label>
           <Input

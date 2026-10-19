@@ -8,6 +8,7 @@ import { createSession, destroySession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { sendPasswordResetEmail, sendVerificationEmail } from "@/lib/email";
 import { findInviter, INVITE_COOKIE } from "@/lib/invites";
+import { safeNext } from "@/lib/safe-next";
 import { parseSource, SOURCE_COOKIE } from "@/lib/signup-source";
 
 export async function register(_prevState: unknown, formData: FormData) {
@@ -136,7 +137,7 @@ export async function login(_prevState: unknown, formData: FormData) {
 
   await createSession(user);
 
-  redirect("/dashboard");
+  redirect(safeNext(formData.get("next")));
 }
 
 export async function logout() {

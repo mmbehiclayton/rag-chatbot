@@ -50,7 +50,8 @@ const WHAT: Record<ImproveKind, string> = {
   SCHEME: "scheme of work",
 };
 
-const OFFLINE = "We couldn't reach Elimu. Check your connection and try again.";
+const OFFLINE =
+  "We lost contact with Elimu. Reload the page in a minute to see if the change was made.";
 
 /** Lets the teacher ask Elimu to change their scheme, lesson plan or notes, with undo. */
 export function ImproveButton({

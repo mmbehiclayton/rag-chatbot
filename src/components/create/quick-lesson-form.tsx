@@ -1,6 +1,5 @@
 "use client";
 
-import { Info } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -12,6 +11,7 @@ import {
 import { ReusePanel } from "@/components/create/reuse-panel";
 import { TopicPicker } from "@/components/create/topic-picker";
 import { ChoiceChips } from "@/components/shared/choice-chips";
+import { CurriculumNotice } from "@/components/shared/curriculum-notice";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { generateQuickLessonPlan } from "@/lib/actions/generation";
@@ -26,6 +26,7 @@ export function QuickLessonForm({
   mySubjects,
   topicSuggestions,
   curricula,
+  requested = [],
   initialTopic = "",
 }: {
   grades: GradeOption[];
@@ -33,6 +34,8 @@ export function QuickLessonForm({
   mySubjects: string[];
   topicSuggestions: Record<string, string[]>;
   curricula: string[];
+  /** Classes whose design the teacher has already asked for, "grade|subject". */
+  requested?: string[];
   initialTopic?: string;
 }) {
   const router = useRouter();
@@ -64,7 +67,7 @@ export function QuickLessonForm({
         router.push(`/dashboard/lessons/${result.id}`);
       } catch {
         toast.error(
-          "We couldn't reach Elimu. Check your connection and try again.",
+          "We lost contact with Elimu. It may still have finished, so check your Library before you try again.",
         );
       }
     });
@@ -90,6 +93,7 @@ export function QuickLessonForm({
       <Card>
         <CardContent className="space-y-5">
           <GradeSubjectPicker
+            curricula={curricula}
             grades={grades}
             myGrades={myGrades}
             mySubjects={mySubjects}
@@ -98,14 +102,13 @@ export function QuickLessonForm({
           />
 
           {target.grade && target.subject && !hasCurriculum && (
-            <p className="flex gap-2 rounded-md bg-warning/10 p-3 text-sm text-foreground">
-              <Info
-                className="mt-0.5 size-4 shrink-0 text-warning"
-                aria-hidden
-              />
-              The curriculum design for {target.grade} {target.subject} isn't in
-              Elimu yet, so check strands and outcomes carefully.
-            </p>
+            <CurriculumNotice
+              key={key}
+              grade={target.grade}
+              subject={target.subject}
+              kind="lesson"
+              requested={requested.includes(key)}
+            />
           )}
 
           {target.grade && target.subject && (

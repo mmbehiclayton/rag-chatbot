@@ -24,7 +24,7 @@ export default async function CurriculumMapsPage({
   if (!curator) redirect("/dashboard");
 
   const { level: levelParam } = await searchParams;
-  const [grades, maps, designs] = await Promise.all([
+  const [grades, maps, designs, asks] = await Promise.all([
     getGradeOptions(),
     withDbRetry(() =>
       db.curriculumMap.findMany({
@@ -44,6 +44,15 @@ export default async function CurriculumMapsPage({
         select: { gradeLevel: true, subject: true },
       }),
     ),
+    // Classes teachers told Elimu they need, most asked first.
+    db.curriculumRequest
+      .groupBy({
+        by: ["grade", "subject"],
+        _count: { _all: true },
+        orderBy: { _count: { userId: "desc" } },
+        take: 30,
+      })
+      .catch(() => []),
   ]);
   const hasDesign = new Set(designs.map((d) => `${d.gradeLevel}|${d.subject}`));
 
@@ -84,6 +93,14 @@ export default async function CurriculumMapsPage({
       value: pairs.filter((m, i) => !m && !shownDesigns[i]).length,
     },
   ];
+  // Still waiting: teachers can't create from a class until it has a design or a map in use.
+  const waiting = asks
+    .filter(
+      (a) =>
+        !hasDesign.has(`${a.grade}|${a.subject}`) &&
+        byKey.get(`${a.grade}|${a.subject}`)?.status !== MAP_STATUS.PUBLISHED,
+    )
+    .slice(0, 10);
   // Maps someone else finished, which this curator can check now (every level).
   const toCheck = maps.filter(
     (m) => m.status === MAP_STATUS.IN_REVIEW && m.editedById !== curator.id,
@@ -128,6 +145,44 @@ export default async function CurriculumMapsPage({
                 >
                   <span className="min-w-0 flex-1 truncate text-sm font-medium">
                     {m.grade} · {m.subject}
+                  </span>
+                  <ChevronRight
+                    className="size-4 shrink-0 text-muted-foreground"
+                    aria-hidden
+                  />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {waiting.length > 0 && (
+        <section className="space-y-2">
+          <div>
+            <h2 className="text-base font-semibold">
+              Teachers are asking for these
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              No design uploaded yet. Elimu staff upload designs on the
+              Knowledge base page; then the map can be drafted.
+            </p>
+          </div>
+          <ul className="divide-y rounded-xl border bg-card">
+            {waiting.map((a) => (
+              <li key={`${a.grade}|${a.subject}`}>
+                <Link
+                  href={mapHref(a.grade, a.subject)}
+                  className="flex min-h-12 items-center gap-3 px-4 py-2 hover:bg-muted/60"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">
+                      {a.grade} · {a.subject}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-sm text-muted-foreground">
+                    {a._count._all}{" "}
+                    {a._count._all === 1 ? "teacher" : "teachers"}
                   </span>
                   <ChevronRight
                     className="size-4 shrink-0 text-muted-foreground"
