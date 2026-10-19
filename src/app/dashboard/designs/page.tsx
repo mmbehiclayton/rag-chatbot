@@ -26,15 +26,56 @@ function summary(s: Summary) {
     .join(" · ");
 }
 
-/** Curriculum designs by section and grade. Only designs a second curator has checked can be opened. */
+function designsHref(level: string, grade?: string) {
+  const q = new URLSearchParams({ level });
+  if (grade) q.set("grade", grade);
+  return `/dashboard/designs?${q}`;
+}
+
+/** One row of tabs that scrolls sideways on a phone. */
+function TabRow({
+  label,
+  tabs,
+}: {
+  label: string;
+  tabs: { key: string; href: string; current: boolean; text: string }[];
+}) {
+  return (
+    <nav
+      aria-label={label}
+      className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0"
+    >
+      {tabs.map((t) => (
+        <Link
+          key={t.key}
+          href={t.href}
+          aria-current={t.current ? "page" : undefined}
+          className={cn(
+            "inline-flex min-h-11 shrink-0 items-center rounded-md border px-3 text-sm font-medium whitespace-nowrap",
+            t.current
+              ? "border-primary bg-accent text-accent-foreground"
+              : "bg-card text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {t.text}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+/**
+ * Curriculum designs: pick a section, then a class, then a learning area.
+ * Only designs a second curator has checked can be opened.
+ */
 export default async function DesignsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ level?: string; q?: string }>;
+  searchParams: Promise<{ level?: string; grade?: string; q?: string }>;
 }) {
   const session = await auth();
   if (!session?.userId) redirect("/login");
-  const { level: levelParam, q } = await searchParams;
+  const { level: levelParam, grade: gradeParam, q } = await searchParams;
   const query = (q ?? "").trim().toLowerCase();
 
   const [grades, profile, maps] = await Promise.all([
@@ -69,12 +110,20 @@ export default async function DesignsPage({
   const myGrades = profile?.gradesTaught ?? [];
   const mySubjects = profile?.subjectsTaught ?? [];
   const levels = [...new Set(grades.map((g) => g.level))];
+  const fromParam = grades.find((g) => g.name === gradeParam);
   const myLevel = grades.find((g) => myGrades.includes(g.name))?.level;
   const level =
     levelParam && levels.includes(levelParam)
       ? levelParam
-      : (myLevel ??
+      : (fromParam?.level ??
+        myLevel ??
         (levels.includes(PILOT_LEVEL) ? PILOT_LEVEL : (levels[0] ?? "")));
+  // The class within the section: the one asked for, else one the teacher teaches, else the first.
+  const inLevel = grades.filter((g) => g.level === level);
+  const grade =
+    (fromParam?.level === level ? fromParam : undefined) ??
+    inLevel.find((g) => myGrades.includes(g.name)) ??
+    inLevel[0];
 
   // The teacher's own classes that are ready to read, so they don't have to look for them.
   const myClasses = grades
@@ -85,8 +134,8 @@ export default async function DesignsPage({
         .map((s) => ({ grade: g.name, subject: s })),
     );
 
-  // A search looks across every section; otherwise show the chosen section.
-  const shown = (query ? grades : grades.filter((g) => g.level === level))
+  // A search looks across every section; otherwise show the chosen class.
+  const shown = (query ? grades : grades.filter((g) => g === grade))
     .map((g) => ({
       ...g,
       learningAreas: g.learningAreas.filter(
@@ -157,24 +206,31 @@ export default async function DesignsPage({
         </section>
       )}
 
-      {!query && levels.length > 1 && (
-        <nav aria-label="Sections" className="flex gap-2 overflow-x-auto pb-1">
-          {levels.map((l) => (
-            <Link
-              key={l}
-              href={`/dashboard/designs?level=${encodeURIComponent(l)}`}
-              aria-current={l === level ? "page" : undefined}
-              className={cn(
-                "inline-flex min-h-11 shrink-0 items-center rounded-md border px-3 text-sm font-medium",
-                l === level
-                  ? "border-primary bg-accent text-accent-foreground"
-                  : "bg-card text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {l}
-            </Link>
-          ))}
-        </nav>
+      {!query && (
+        <div className="space-y-2">
+          {levels.length > 1 && (
+            <TabRow
+              label="Sections"
+              tabs={levels.map((l) => ({
+                key: l,
+                href: designsHref(l),
+                current: l === level,
+                text: l,
+              }))}
+            />
+          )}
+          {inLevel.length > 1 && (
+            <TabRow
+              label="Classes"
+              tabs={inLevel.map((g) => ({
+                key: g.name,
+                href: designsHref(level, g.name),
+                current: g === grade,
+                text: g.name,
+              }))}
+            />
+          )}
+        </div>
       )}
 
       {shown.length === 0 ? (
