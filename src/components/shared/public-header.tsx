@@ -3,19 +3,37 @@ import Link from "next/link";
 import { Logo } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
 
-/** Header for pages anyone can read without signing in. */
-export function PublicHeader() {
+/**
+ * Header for pages anyone can read without signing in. Teachers who are already signed in
+ * get a way back to their dashboard instead of "Sign in".
+ */
+export function PublicHeader({ signedIn = false }: { signedIn?: boolean }) {
   return (
     <header className="border-b bg-card">
       <div className="mx-auto flex h-14 max-w-4xl items-center justify-between gap-2 px-4">
         <Logo />
         <nav aria-label="Site" className="flex items-center gap-1">
-          <Button variant="ghost" render={<Link href="/designs" />}>
-            Curriculum Designs
+          <Button
+            variant="ghost"
+            className="h-11"
+            render={<Link href="/designs" />}
+          >
+            <span className="sm:hidden">Designs</span>
+            <span className="hidden sm:inline">Curriculum designs</span>
           </Button>
-          <Button variant="ghost" render={<Link href="/login" />}>
-            Sign in
-          </Button>
+          {signedIn ? (
+            <Button className="h-11" render={<Link href="/dashboard" />}>
+              My dashboard
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              className="h-11"
+              render={<Link href="/login" />}
+            >
+              Sign in
+            </Button>
+          )}
         </nav>
       </div>
     </header>

@@ -6,9 +6,13 @@ import {
   NotebookPen,
 } from "lucide-react";
 import Link from "next/link";
-import { Logo } from "@/components/shared/logo";
+import { PublicHeader } from "@/components/shared/public-header";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
+import { plansOn, TRIAL_DAYS, termPrice } from "@/lib/plans";
+
+const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL;
 
 const DOCUMENTS = [
   {
@@ -48,51 +52,66 @@ const STEPS = [
   },
 ];
 
-const FAQ = [
-  {
-    q: "Where does the content come from?",
-    a: "Elimu drafts each document from the KICD curriculum designs for your grade and learning area. It is a first draft: read it and adjust it for your learners before you teach.",
-  },
-  {
-    q: "Which classes are covered?",
-    a: "We are starting with Junior School, Grades 7 to 9. If a curriculum design isn't in Elimu yet, we tell you so you can check the content carefully.",
-  },
-  {
-    q: "Does it work on my phone?",
-    a: "Yes. Elimu is built for Android phones and light on mobile data. You can print from a phone or a cyber.",
-  },
-  {
-    q: "How much does it cost?",
-    a: "It is free to start. You don't need a card or M-Pesa to create an account.",
-  },
-];
+/** A short example so teachers see the kind of draft they get before signing up. */
+const SAMPLE = {
+  heading: "Grade 7 · Integrated Science · 40 minutes",
+  rows: [
+    { label: "Strand", value: "Mixtures, Elements and Compounds" },
+    { label: "Sub-strand", value: "Mixtures" },
+    {
+      label: "Learning outcomes",
+      value:
+        "By the end of the lesson, the learner should be able to say what a mixture is, separate sand from water, and name ways mixtures are separated at home.",
+    },
+    {
+      label: "Key inquiry question",
+      value: "How do we separate mixtures at home?",
+    },
+    {
+      label: "Resources",
+      value: "Sand, water, a jug, two clear bottles cut in half.",
+    },
+  ],
+  steps: [
+    "Introduction (5 min): learners say what they see when sand is stirred into water.",
+    "Development (25 min): in groups, learners pour off the water slowly and record what is left.",
+    "Conclusion (10 min): groups share results; learners list mixtures they separate at home.",
+  ],
+};
+
+function priceAnswer(paying: boolean, price: number) {
+  return paying
+    ? `It is free to start. For the first ${TRIAL_DAYS} days you can use every class. After that one class stays free, and a term pass for all your classes is KES ${price.toLocaleString("en-KE")} a term, paid by M-Pesa. You don't need a card or M-Pesa to create an account.`
+    : "It is free during the pilot, for every class. Later, one class will stay free and a term pass will cover the rest. You don't need a card or M-Pesa to create an account.";
+}
 
 export default async function Home() {
-  const session = await auth();
+  const [session, paying, price] = await Promise.all([
+    auth(),
+    plansOn(),
+    termPrice(),
+  ]);
   const signedIn = !!session?.userId;
-  const primary = signedIn
-    ? { href: "/dashboard", label: "Open Elimu" }
-    : { href: "/register", label: "Create free account" };
+
+  const faq = [
+    {
+      q: "Where does the content come from?",
+      a: "Elimu drafts each document from the KICD curriculum designs for your grade and learning area. It is a first draft: read it and adjust it for your learners before you teach.",
+    },
+    {
+      q: "Which classes are covered?",
+      a: "We are starting with Junior School, Grades 7 to 9. If a curriculum design isn't in Elimu yet, we tell you so you can check the content carefully.",
+    },
+    {
+      q: "Does it work on my phone?",
+      a: "Yes. Elimu is built for Android phones and light on mobile data. You can print from a phone or a cyber.",
+    },
+    { q: "How much does it cost?", a: priceAnswer(paying, price) },
+  ];
 
   return (
     <div className="min-h-dvh bg-background">
-      <header className="border-b bg-card">
-        <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4">
-          <Logo />
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" render={<Link href="/designs" />}>
-              Curriculum Designs
-            </Button>
-            {signedIn ? (
-              <Button render={<Link href="/dashboard" />}>Open Elimu</Button>
-            ) : (
-              <Button variant="ghost" render={<Link href="/login" />}>
-                Sign in
-              </Button>
-            )}
-          </div>
-        </div>
-      </header>
+      <PublicHeader signedIn={signedIn} />
 
       <main>
         <section className="mx-auto max-w-4xl px-4 py-12 sm:py-16">
@@ -105,11 +124,24 @@ export default async function Home() {
               assessments from the KICD curriculum designs. You review them,
               print them, and get back to teaching.
             </p>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button size="lg" render={<Link href={primary.href} />}>
-                {primary.label}
-              </Button>
-              {!signedIn && (
+            {signedIn ? (
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button size="lg" render={<Link href="/dashboard" />}>
+                  Go to my dashboard
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  render={<Link href="/dashboard/create/lesson" />}
+                >
+                  Create a lesson plan
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button size="lg" render={<Link href="/register" />}>
+                  Create free account
+                </Button>
                 <Button
                   size="lg"
                   variant="outline"
@@ -117,10 +149,12 @@ export default async function Home() {
                 >
                   I already have an account
                 </Button>
-              )}
-            </div>
+              </div>
+            )}
             <p className="text-sm text-muted-foreground">
-              Free to start. Made for Junior School teachers, Grades 7 to 9.
+              {signedIn
+                ? "You're signed in. Your classes and documents are on your dashboard."
+                : "Free to start. Made for Junior School teachers, Grades 7 to 9."}
             </p>
           </div>
         </section>
@@ -158,44 +192,70 @@ export default async function Home() {
         </section>
 
         <section className="mx-auto max-w-4xl px-4 py-12">
-          <h2 className="text-xl font-semibold">How it works</h2>
-          <ol className="mt-6 grid gap-6 sm:grid-cols-3">
-            {STEPS.map((s, i) => (
-              <li key={s.title} className="space-y-2">
-                <span className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                  {i + 1}
-                </span>
-                <h3 className="font-medium">{s.title}</h3>
-                <p className="text-sm text-muted-foreground">{s.body}</p>
-              </li>
-            ))}
-          </ol>
+          <h2 className="text-xl font-semibold">See what you get</h2>
+          <p className="mt-2 max-w-2xl text-muted-foreground">
+            Part of a lesson plan as Elimu drafts it. You can change any line
+            before you print.
+          </p>
+          <article className="mt-6 space-y-4 rounded-xl border bg-card p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="font-semibold">{SAMPLE.heading}</h3>
+              <Badge variant="secondary">Example draft</Badge>
+            </div>
+            <dl className="space-y-3 text-sm">
+              {SAMPLE.rows.map((r) => (
+                <div key={r.label} className="grid gap-1 sm:grid-cols-4">
+                  <dt className="text-muted-foreground">{r.label}</dt>
+                  <dd className="sm:col-span-3">{r.value}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="space-y-2 border-t pt-4 text-sm">
+              <p className="font-medium">Lesson steps</p>
+              <ol className="list-decimal space-y-1 pl-5">
+                {SAMPLE.steps.map((s) => (
+                  <li key={s}>{s}</li>
+                ))}
+              </ol>
+            </div>
+          </article>
         </section>
 
-        <section className="border-t bg-card">
-          <div className="mx-auto max-w-4xl space-y-3 px-4 py-12">
-            <h2 className="text-xl font-semibold">
-              Read the curriculum designs, free
-            </h2>
-            <p className="max-w-2xl text-muted-foreground">
-              See the strands and sub-strands for each grade and learning area,
-              checked by teachers, then plan straight from them.
-            </p>
-            <Button
-              variant="outline"
-              size="lg"
-              render={<Link href="/designs" />}
-            >
-              Browse curriculum designs
-            </Button>
+        <section className="border-y bg-card">
+          <div className="mx-auto max-w-4xl px-4 py-12">
+            <h2 className="text-xl font-semibold">How it works</h2>
+            <ol className="mt-6 grid gap-6 sm:grid-cols-3">
+              {STEPS.map((s, i) => (
+                <li key={s.title} className="space-y-2">
+                  <span className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                    {i + 1}
+                  </span>
+                  <h3 className="font-medium">{s.title}</h3>
+                  <p className="text-sm text-muted-foreground">{s.body}</p>
+                </li>
+              ))}
+            </ol>
           </div>
+        </section>
+
+        <section className="mx-auto max-w-4xl space-y-3 px-4 py-12">
+          <h2 className="text-xl font-semibold">
+            Read the curriculum designs, free
+          </h2>
+          <p className="max-w-2xl text-muted-foreground">
+            See the strands and sub-strands for each grade and learning area,
+            checked by teachers, then plan straight from them.
+          </p>
+          <Button variant="outline" size="lg" render={<Link href="/designs" />}>
+            Browse curriculum designs
+          </Button>
         </section>
 
         <section className="border-y bg-card">
           <div className="mx-auto max-w-4xl px-4 py-12">
             <h2 className="text-xl font-semibold">Questions teachers ask</h2>
             <div className="mt-6 divide-y rounded-xl border bg-background">
-              {FAQ.map((f) => (
+              {faq.map((f) => (
                 <details key={f.q} className="group px-4">
                   <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 font-medium">
                     {f.q}
@@ -219,35 +279,84 @@ export default async function Home() {
           </div>
         </section>
 
-        <section className="mx-auto max-w-4xl px-4 py-12">
-          <div className="space-y-4 rounded-xl border bg-card p-6">
-            <h2 className="text-xl font-semibold">Start with one class</h2>
-            <ul className="space-y-2 text-sm">
-              {[
-                "Free account, no card needed",
-                "Your documents stay in your account",
-                "Print or save every document as PDF",
-              ].map((t) => (
-                <li key={t} className="flex items-center gap-2">
-                  <Check className="size-4 shrink-0 text-primary" aria-hidden />{" "}
-                  {t}
-                </li>
-              ))}
-            </ul>
-            <Button size="lg" render={<Link href={primary.href} />}>
-              {primary.label}
-            </Button>
-          </div>
-        </section>
+        {!signedIn && (
+          <section className="mx-auto max-w-4xl px-4 py-12">
+            <div className="space-y-4 rounded-xl border bg-card p-6">
+              <h2 className="text-xl font-semibold">Start with one class</h2>
+              <ul className="space-y-2 text-sm">
+                {[
+                  "Free account, no card needed",
+                  "Your documents stay in your account",
+                  "Print or save every document as PDF",
+                ].map((t) => (
+                  <li key={t} className="flex items-center gap-2">
+                    <Check
+                      className="size-4 shrink-0 text-primary"
+                      aria-hidden
+                    />{" "}
+                    {t}
+                  </li>
+                ))}
+              </ul>
+              <Button size="lg" render={<Link href="/register" />}>
+                Create free account
+              </Button>
+            </div>
+          </section>
+        )}
       </main>
 
       <footer className="border-t">
-        <div className="mx-auto flex max-w-4xl flex-col gap-2 px-4 py-6 text-sm text-muted-foreground sm:flex-row sm:justify-between">
-          <span>© {new Date().getFullYear()} Elimu</span>
-          <span>
-            Drafts are based on KICD curriculum designs. Always review before
-            you teach.
-          </span>
+        <div className="mx-auto max-w-4xl space-y-4 px-4 py-6 text-sm text-muted-foreground">
+          <nav
+            aria-label="Footer"
+            className="flex flex-wrap gap-x-4 gap-y-1 font-medium text-foreground"
+          >
+            <Link
+              href="/designs"
+              className="flex min-h-11 items-center hover:underline"
+            >
+              Curriculum designs
+            </Link>
+            {signedIn ? (
+              <Link
+                href="/dashboard"
+                className="flex min-h-11 items-center hover:underline"
+              >
+                My dashboard
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/register"
+                  className="flex min-h-11 items-center hover:underline"
+                >
+                  Create account
+                </Link>
+                <Link
+                  href="/login"
+                  className="flex min-h-11 items-center hover:underline"
+                >
+                  Sign in
+                </Link>
+              </>
+            )}
+            {SUPPORT_EMAIL && (
+              <a
+                href={`mailto:${SUPPORT_EMAIL}?subject=Elimu%20help`}
+                className="flex min-h-11 items-center hover:underline"
+              >
+                Get help
+              </a>
+            )}
+          </nav>
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
+            <span>© {new Date().getFullYear()} Elimu</span>
+            <span>
+              Drafts are based on KICD curriculum designs. Always review before
+              you teach.
+            </span>
+          </div>
         </div>
       </footer>
     </div>
