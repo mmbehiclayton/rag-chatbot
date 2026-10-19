@@ -1,6 +1,9 @@
-import { redirect } from "next/navigation";
+import { DocumentListPage } from "@/components/documents/document-list-page";
 
-// Lists now live in the Library; keep this route so old links still work.
-export default function Page() {
-  redirect("/dashboard/library?type=assessments");
+export default function AssessmentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  return <DocumentListPage type="assessments" searchParams={searchParams} />;
 }

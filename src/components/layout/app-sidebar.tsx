@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import {
   adminNavGroups,
   isActivePath,
+  MORE_NAV,
   type NavItem,
   PRIMARY_NAV,
 } from "./nav-config";
@@ -40,7 +41,10 @@ export function AppSidebar({
   isCurator?: boolean;
 }) {
   const pathname = usePathname();
-  const groups = adminNavGroups(role, isCurator);
+  const groups = [
+    { label: "More", items: MORE_NAV },
+    ...adminNavGroups(role, isCurator),
+  ];
 
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-r bg-sidebar md:flex">

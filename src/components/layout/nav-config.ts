@@ -3,14 +3,19 @@ import {
   BookMarked,
   BookOpen,
   Building2,
+  CalendarDays,
+  ClipboardList,
   Database,
+  FileText,
   FlaskConical,
   GraduationCap,
   Home,
   LayoutGrid,
+  Library,
   ListChecks,
   type LucideIcon,
   MessageSquare,
+  NotebookPen,
   Settings,
   Settings2,
   ShieldAlert,
@@ -19,7 +24,7 @@ import {
   Users,
 } from "lucide-react";
 
-/** `short` is the label on the phone's bottom bar, where six items share about 360px. */
+/** `short` is the label on the phone's bottom bar, where five items share about 360px. */
 export type NavItem = {
   name: string;
   short?: string;
@@ -28,33 +33,45 @@ export type NavItem = {
 };
 export type NavGroup = { label?: string; items: NavItem[] };
 
-/** The destinations every user sees, on the bottom bar and the sidebar. Work is organised by class. */
+/** The bottom bar and the top of the sidebar: Home, then the four documents teachers keep. */
 export const PRIMARY_NAV: NavItem[] = [
-  { name: "Today", href: "/dashboard", icon: Home },
+  { name: "Home", href: "/dashboard", icon: Home },
   {
-    name: "My classes",
-    short: "Classes",
-    href: "/dashboard/classes",
-    icon: GraduationCap,
-  },
-  {
-    name: "Curriculum Designs",
-    short: "Designs",
-    href: "/dashboard/designs",
+    name: "Schemes of work",
+    short: "Schemes",
+    href: "/dashboard/schemes",
     icon: BookOpen,
   },
   {
+    name: "Lesson plans",
+    short: "Lessons",
+    href: "/dashboard/lessons",
+    icon: FileText,
+  },
+  {
+    name: "Lesson notes",
+    short: "Notes",
+    href: "/dashboard/notes",
+    icon: NotebookPen,
+  },
+  { name: "Assessments", href: "/dashboard/assessments", icon: ClipboardList },
+];
+
+/** Used now and then: on the sidebar under "More", on Home and on the Profile page on a phone. */
+export const MORE_NAV: NavItem[] = [
+  { name: "My classes", href: "/dashboard/classes", icon: GraduationCap },
+  {
     name: "Syllabus coverage",
-    short: "Coverage",
     href: "/dashboard/coverage",
     icon: ListChecks,
   },
   {
-    name: "Ask Elimu",
-    short: "Ask",
-    href: "/dashboard/chat",
-    icon: MessageSquare,
+    name: "Curriculum designs",
+    href: "/dashboard/designs",
+    icon: Library,
   },
+  { name: "This week", href: "/dashboard/timetable", icon: CalendarDays },
+  { name: "Ask Elimu", href: "/dashboard/chat", icon: MessageSquare },
   { name: "Profile", href: "/dashboard/profile", icon: UserCircle },
 ];
 
@@ -121,16 +138,15 @@ const TITLES: [string, string][] = [
   ["/dashboard/create/lesson", "New lesson plan"],
   ["/dashboard/create/scheme", "New scheme of work"],
   ["/dashboard/create/assessment", "New assessment"],
-  ["/dashboard/create", "Create"],
   ["/dashboard/profile/term", "Term dates and timetable"],
   ["/dashboard/timetable", "This week"],
   ["/dashboard/profile/plan", "Term pass"],
   ["/dashboard/pilot", "Pilot"],
   ["/dashboard/classes", "My classes"],
   ["/dashboard/curriculum", "Curriculum maps"],
-  ["/dashboard/designs", "Curriculum Designs"],
+  ["/dashboard/designs", "Curriculum designs"],
   ["/dashboard/coverage", "Syllabus coverage"],
-  ["/dashboard/library", "Library"],
+  ["/dashboard/notes/new", "New lesson notes"],
   ["/dashboard/schemes", "Scheme of work"],
   ["/dashboard/lessons", "Lesson plan"],
   ["/dashboard/notes", "Lesson notes"],
@@ -148,12 +164,21 @@ const TITLES: [string, string][] = [
   ["/dashboard/rbac", "Access control"],
 ];
 
+/** The four document lists, titled in the plural. */
+const LIST_TITLES: Record<string, string> = {
+  "/dashboard/schemes": "Schemes of work",
+  "/dashboard/lessons": "Lesson plans",
+  "/dashboard/notes": "Lesson notes",
+  "/dashboard/assessments": "Assessments",
+};
+
 export function titleForPath(pathname: string) {
+  if (LIST_TITLES[pathname]) return LIST_TITLES[pathname];
   if (/^\/dashboard\/schemes\/[^/]+\/record$/.test(pathname))
     return "Record of work";
   return (
     TITLES.find(
       ([prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-    )?.[1] ?? "Today"
+    )?.[1] ?? "Home"
   );
 }

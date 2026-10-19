@@ -40,6 +40,8 @@ Why this one:
 
 ## 3. Fixing "features scattered anyhowly"
 
+> Update, October 2026: navigation is now organised by document type (Home, Schemes, Lessons, Notes, Assessments), with the class as a remembered filter. See `navigation-plan.md`.
+
 Today the app is organised by document type: schemes, lessons, notes and assessments each live in a separate list. Teachers think in classes ("my Grade 7 Integrated Science"). Proposed structure:
 
 - **Today:** today's lessons from the timetable, each with its plan and a Taught button.

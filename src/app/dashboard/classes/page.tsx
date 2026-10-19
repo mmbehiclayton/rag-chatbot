@@ -60,10 +60,10 @@ export default async function ClassesPage() {
       <p className="text-sm text-muted-foreground">
         Looking for something else?{" "}
         <Link
-          href="/dashboard/library"
+          href="/dashboard/lessons"
           className="font-medium text-primary hover:underline"
         >
-          See all your documents
+          See all your lesson plans
         </Link>
       </p>
     </div>

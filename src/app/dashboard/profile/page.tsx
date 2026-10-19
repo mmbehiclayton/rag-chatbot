@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { adminNavGroups } from "@/components/layout/nav-config";
+import { adminNavGroups, MORE_NAV } from "@/components/layout/nav-config";
 import { InviteShare } from "@/components/pilot/invite-share";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -68,7 +68,13 @@ export default async function ProfilePage() {
   ]);
   if (!user) redirect("/login");
 
-  const adminGroups = adminNavGroups(session.role ?? null, user.isCurator);
+  const adminGroups = [
+    {
+      label: "More",
+      items: MORE_NAV.filter((i) => i.href !== "/dashboard/profile"),
+    },
+    ...adminNavGroups(session.role ?? null, user.isCurator),
+  ];
   const isTeacher = user.role === "TEACHER";
   const [inviteCode, joined] = isTeacher
     ? await Promise.all([

@@ -1,9 +1,12 @@
+import { MessageSquare } from "lucide-react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { PageTitle } from "@/components/layout/page-title";
 import { UserNav } from "@/components/layout/user-nav";
 import { Logo } from "@/components/shared/logo";
+import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
 
@@ -37,11 +40,20 @@ export default async function DashboardLayout({
             <Logo href="/dashboard" className="md:hidden [&>span]:sr-only" />
             <PageTitle />
           </div>
-          <UserNav
-            role={session.role}
-            name={user?.name}
-            email={user?.email ?? session.email}
-          />
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              variant="outline"
+              className="h-11 md:h-10"
+              render={<Link href="/dashboard/chat" />}
+            >
+              <MessageSquare /> Ask
+            </Button>
+            <UserNav
+              role={session.role}
+              name={user?.name}
+              email={user?.email ?? session.email}
+            />
+          </div>
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 overflow-y-auto px-4 pt-4 pb-24 sm:px-6 md:pt-6 md:pb-8">

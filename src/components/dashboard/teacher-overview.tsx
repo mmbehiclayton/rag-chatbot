@@ -7,10 +7,10 @@ import {
   GraduationCap,
   Info,
   NotebookPen,
-  Plus,
 } from "lucide-react";
 import Link from "next/link";
 import { parseTitle } from "@/components/document/doc-parts";
+import { MORE_NAV } from "@/components/layout/nav-config";
 import { EmptyState } from "@/components/shared/empty-state";
 import {
   LinkList,
@@ -31,6 +31,38 @@ import { getIndexedCurricula } from "@/lib/curriculum-options";
 import { db, withDbRetry } from "@/lib/db";
 
 type Recent = LinkListItem & { updatedAt: Date };
+
+const MAKE = [
+  {
+    href: "/dashboard/create/lesson",
+    icon: FileText,
+    title: "Lesson plan",
+    note: "For tomorrow",
+  },
+  {
+    href: "/dashboard/create/scheme",
+    icon: BookOpen,
+    title: "Scheme of work",
+    note: "For the term",
+  },
+  {
+    href: "/dashboard/notes/new",
+    icon: NotebookPen,
+    title: "Lesson notes",
+    note: "From a lesson plan",
+  },
+  {
+    href: "/dashboard/create/assessment",
+    icon: ClipboardList,
+    title: "Assessment",
+    note: "With a marking scheme",
+  },
+];
+
+/** The tools that aren't on the bottom bar, minus the ones Home already shows. */
+const TOOLS = MORE_NAV.filter(
+  (i) => !["/dashboard/classes", "/dashboard/profile"].includes(i.href),
+);
 
 export async function TeacherOverview({
   session,
@@ -233,26 +265,42 @@ export async function TeacherOverview({
         </section>
       )}
 
-      <Link
-        href="/dashboard/create/lesson"
-        className="flex min-h-16 items-center gap-4 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/60"
-      >
-        <span className="flex size-11 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
-          <Plus className="size-6" aria-hidden />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-base font-semibold">
-            Quick lesson plan
-          </span>
-          <span className="mt-0.5 block text-sm text-muted-foreground">
-            One lesson for tomorrow, no scheme needed
-          </span>
-        </span>
-        <ChevronRight
-          className="size-5 shrink-0 text-muted-foreground"
-          aria-hidden
-        />
-      </Link>
+      <section id="make" className="scroll-mt-4 space-y-2">
+        <SectionTitle title="Make something" />
+        <ul className="grid grid-cols-2 gap-2">
+          {MAKE.map((m, i) => (
+            <li key={m.href}>
+              <Link
+                href={m.href}
+                className={
+                  i === 0
+                    ? "flex h-full min-h-24 flex-col justify-between gap-2 rounded-xl border border-primary bg-primary p-4 text-primary-foreground transition-colors hover:bg-primary/90"
+                    : "flex h-full min-h-24 flex-col justify-between gap-2 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/60"
+                }
+              >
+                <m.icon
+                  className={
+                    i === 0 ? "size-5" : "size-5 text-muted-foreground"
+                  }
+                  aria-hidden
+                />
+                <span>
+                  <span className="block text-sm font-semibold">{m.title}</span>
+                  <span
+                    className={
+                      i === 0
+                        ? "block text-xs text-primary-foreground/80"
+                        : "block text-xs text-muted-foreground"
+                    }
+                  >
+                    {m.note}
+                  </span>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
 
       <section className="space-y-2">
         <SectionTitle
@@ -297,16 +345,40 @@ export async function TeacherOverview({
             title="Recently opened"
             action={
               <Link
-                href="/dashboard/library"
+                href="/dashboard/lessons"
                 className="inline-flex min-h-10 items-center text-sm font-medium text-primary hover:underline"
               >
-                All documents
+                All lesson plans
               </Link>
             }
           />
           <LinkList items={recent} />
         </section>
       )}
+
+      <section className="space-y-2">
+        <SectionTitle title="Tools" />
+        <ul className="divide-y rounded-xl border bg-card">
+          {TOOLS.map((t) => (
+            <li key={t.href}>
+              <Link
+                href={t.href}
+                className="flex min-h-12 items-center gap-3 px-4 text-sm font-medium transition-colors hover:bg-muted/60"
+              >
+                <t.icon
+                  className="size-5 shrink-0 text-muted-foreground"
+                  aria-hidden
+                />
+                <span className="flex-1">{t.name}</span>
+                <ChevronRight
+                  className="size-4 shrink-0 text-muted-foreground"
+                  aria-hidden
+                />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
     </div>
   );
 }
