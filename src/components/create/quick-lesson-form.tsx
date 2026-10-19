@@ -9,6 +9,7 @@ import {
   defaultGradeSubject,
   GradeSubjectPicker,
 } from "@/components/create/grade-subject-picker";
+import { ReusePanel } from "@/components/create/reuse-panel";
 import { TopicPicker } from "@/components/create/topic-picker";
 import { ChoiceChips } from "@/components/shared/choice-chips";
 import { Button } from "@/components/ui/button";
@@ -129,6 +130,14 @@ export function QuickLessonForm({
           </div>
         </CardContent>
       </Card>
+
+      {ready && (
+        <ReusePanel
+          grade={target.grade}
+          subject={target.subject}
+          topic={topic}
+        />
+      )}
 
       <Button type="submit" size="lg" className="w-full" disabled={!ready}>
         Create lesson plan

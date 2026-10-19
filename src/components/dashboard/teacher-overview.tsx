@@ -9,6 +9,8 @@ import {
   NotebookPen,
 } from "lucide-react";
 import Link from "next/link";
+import { Suspense } from "react";
+import { TeacherStats } from "@/components/dashboard/teacher-stats";
 import { parseTitle } from "@/components/document/doc-parts";
 import { MORE_NAV } from "@/components/layout/nav-config";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -19,6 +21,7 @@ import {
 } from "@/components/shared/link-list";
 import { TodayLessons } from "@/components/term-pack/today-lessons";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   getTeacherClasses,
   gradeHref,
@@ -231,6 +234,10 @@ export async function TeacherOverview({
           </span>
         </p>
       )}
+
+      <Suspense fallback={<Skeleton className="h-40 rounded-xl" />}>
+        <TeacherStats teacherId={teacherId} />
+      </Suspense>
 
       <TodayLessons teacherId={teacherId} hasSchemes={schemes.length > 0} />
 

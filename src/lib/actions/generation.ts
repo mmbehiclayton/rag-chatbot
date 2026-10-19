@@ -1,6 +1,7 @@
 "use server";
 
 import { openai } from "@ai-sdk/openai";
+import type { Prisma } from "@prisma/client";
 import { generateObject } from "ai";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
@@ -24,6 +25,13 @@ import {
   plansOn,
 } from "@/lib/plans";
 import { retrieveContext } from "@/lib/rag";
+import {
+  BEST_FIRST,
+  BEST_SCHEME_FIRST,
+  copyLessonPlan,
+  countReuse,
+  logReuse,
+} from "@/lib/reuse";
 import { schemeLessons } from "@/lib/term-pack";
 import { getTeacherTerms } from "@/lib/term-pack-data";
 
@@ -486,7 +494,7 @@ async function generateSchemeOfWorkImpl(
         term: parameters.term,
         NOT: { title: { startsWith: "[Needs Review]" } },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: BEST_SCHEME_FIRST,
       take: 10,
     });
     // With a real timetable, only reuse a scheme that has the same number of lessons.
@@ -510,17 +518,10 @@ async function generateSchemeOfWorkImpl(
           curriculumId: cachedScheme.curriculumId,
         },
       });
-      await db.generationLog.create({
-        data: {
-          userId: session.userId,
-          tenantId: session.tenantId,
-          contentType: "SCHEME_OF_WORK",
-          promptTokens: 0,
-          completionTokens: 0,
-          totalTokens: 0,
-          model: "cache",
-        },
-      });
+      await Promise.all([
+        logReuse(session, "SCHEME_OF_WORK"),
+        countReuse("SchemeOfWork", cachedScheme.id),
+      ]);
       revalidatePath("/dashboard/library");
       return clone;
     }
@@ -688,6 +689,41 @@ async function generateLessonPlanImpl(
   });
   if (!scheme) throw new TeacherError("We couldn't find that scheme of work.");
 
+  const filed = filingOf(await getTeacherTerms(session.userId), scheme);
+  const week = schemeLessons(scheme.content).find(
+    (l) => l.lessonNumber === lessonNumber,
+  )?.weekNumber;
+
+  // A teacher using a copy of this scheme may already have this lesson: copy theirs, no AI needed.
+  const ready = await db.lessonPlan.findFirst({
+    where: {
+      lessonNumber,
+      teacherId: { not: session.userId },
+      scheme: {
+        grade: scheme.grade,
+        subject: scheme.subject,
+        term: scheme.term,
+        content: { equals: scheme.content as Prisma.InputJsonValue },
+      },
+    },
+    orderBy: BEST_FIRST,
+    select: { id: true },
+  });
+  if (ready) {
+    const copy = await copyLessonPlan(ready.id, session, {
+      lessonNumber,
+      schemeId,
+      grade: scheme.grade,
+      subject: scheme.subject,
+      ...filed,
+      week,
+    });
+    if (copy) {
+      revalidatePath("/dashboard/library");
+      return copy;
+    }
+  }
+
   await checkGenerationGuards(session, scheme);
 
   const schemeMap = await getPublishedMap(scheme.grade, scheme.subject);
@@ -713,11 +749,6 @@ ${schemeMap ? `\n${MAP_RULES}\n\nCURRICULUM MAP FOR THIS LESSON:\n${lessonGround
     system: systemPrompt,
     prompt: `Generate the full expanded Lesson Plan for Lesson ${lessonNumber}: "${topic}".`,
   });
-
-  const filed = filingOf(await getTeacherTerms(session.userId), scheme);
-  const week = schemeLessons(scheme.content).find(
-    (l) => l.lessonNumber === lessonNumber,
-  )?.weekNumber;
 
   const lessonPlan = await db.lessonPlan.create({
     data: {
@@ -862,6 +893,41 @@ async function generateLessonNotesImpl(lessonPlanId: string) {
     include: { scheme: { select: { grade: true, subject: true } } },
   });
   if (!lessonPlan) throw new TeacherError("We couldn't find that lesson plan.");
+
+  // Another teacher's notes for the same lesson (same topic and outcomes) fit as they are.
+  const grade = lessonPlan.grade ?? lessonPlan.scheme?.grade;
+  const subject = lessonPlan.subject ?? lessonPlan.scheme?.subject;
+  const readyNotes =
+    grade && subject && lessonPlan.objectives.length > 0
+      ? await db.lessonNote.findFirst({
+          where: {
+            teacherId: { not: session.userId },
+            lessonPlan: {
+              topic: { equals: lessonPlan.topic, mode: "insensitive" },
+              objectives: { equals: lessonPlan.objectives },
+              OR: [{ grade, subject }, { scheme: { grade, subject } }],
+            },
+          },
+          orderBy: [
+            { checkedAt: { sort: "desc", nulls: "last" } },
+            { updatedAt: "desc" },
+          ],
+          select: { notes: true, resources: true },
+        })
+      : null;
+  if (readyNotes) {
+    const copy = await db.lessonNote.create({
+      data: {
+        lessonPlanId,
+        notes: readyNotes.notes,
+        resources: readyNotes.resources ?? undefined,
+        teacherId: session.userId,
+      },
+    });
+    await logReuse(session, "LESSON_NOTES");
+    revalidatePath("/dashboard/notes");
+    return copy;
+  }
 
   await checkGenerationGuards(session, {
     grade: lessonPlan.grade ?? lessonPlan.scheme?.grade ?? "",
