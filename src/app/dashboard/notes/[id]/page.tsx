@@ -10,6 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
+import { docMeta } from "@/lib/documents";
 
 type Notes = {
   learningOutcomes?: string[];
@@ -62,7 +63,9 @@ export default async function NoteDetailPage({
             grade: true,
             subject: true,
             content: true,
-            scheme: { select: { grade: true, subject: true } },
+            scheme: {
+              select: { grade: true, subject: true, term: true, year: true },
+            },
           },
         },
       },
@@ -81,13 +84,12 @@ export default async function NoteDetailPage({
   const outcomes = asArray(c.learningOutcomes).length
     ? c.learningOutcomes
     : planContent.specificLearningOutcomes;
-  const meta = [
-    plan.grade ?? plan.scheme?.grade,
-    plan.subject ?? plan.scheme?.subject,
-    "Lesson notes",
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const meta = docMeta({
+    grade: plan.grade ?? plan.scheme?.grade,
+    subject: plan.subject ?? plan.scheme?.subject,
+    term: plan.scheme?.term,
+    year: plan.scheme?.year,
+  });
   const examples = asArray<NonNullable<Notes["workedExamples"]>[number]>(
     c.workedExamples,
   );
@@ -101,6 +103,7 @@ export default async function NoteDetailPage({
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <DocHeader
+        kind="notes"
         backHref={`/dashboard/lessons/${plan.id}`}
         backLabel="Lesson plan"
         title={plan.topic}

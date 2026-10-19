@@ -25,6 +25,7 @@ export default async function EditLessonPage({
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <DocHeader
+        kind="lesson"
         backHref={`/dashboard/lessons/${lesson.id}`}
         backLabel="Lesson plan"
         title="Edit lesson plan"

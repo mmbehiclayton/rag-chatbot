@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
 import { classHref } from "@/lib/classes";
 import { db, withDbRetry } from "@/lib/db";
+import { docMeta } from "@/lib/documents";
 
 /** "Name: how" pairs, such as core competencies and how the lesson develops them. */
 function pairs(items: { name?: string; detail?: string }[]) {
@@ -63,7 +64,15 @@ export default async function LessonDetailPage({
     db.lessonPlan.findFirst({
       where: { id, teacherId: session.userId },
       include: {
-        scheme: { select: { id: true, grade: true, subject: true } },
+        scheme: {
+          select: {
+            id: true,
+            grade: true,
+            subject: true,
+            term: true,
+            year: true,
+          },
+        },
         lessonNotes: {
           select: { id: true },
           orderBy: { createdAt: "desc" },
@@ -78,14 +87,16 @@ export default async function LessonDetailPage({
   const s = c.lessonStructure ?? {};
   const grade = lesson.grade ?? lesson.scheme?.grade;
   const subject = lesson.subject ?? lesson.scheme?.subject;
-  const meta = [
-    grade,
-    subject,
+  const meta = docMeta(
+    {
+      grade,
+      subject,
+      term: lesson.scheme?.term,
+      year: lesson.scheme?.year,
+    },
     lesson.scheme ? `Lesson ${lesson.lessonNumber}` : null,
     `${lesson.durationMinutes} min`,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  );
   const note = lesson.lessonNotes[0];
   const steps = asArray<LessonActivity>(s.mainActivities);
   const extended = c.extendedActivity || s.conclusion?.homework;
@@ -108,6 +119,7 @@ export default async function LessonDetailPage({
   return (
     <div className="mx-auto max-w-3xl space-y-4 pb-6">
       <DocHeader
+        kind="lesson"
         backHref={
           lesson.scheme
             ? `/dashboard/schemes/${lesson.scheme.id}`

@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
 import { classHref } from "@/lib/classes";
 import { db, withDbRetry } from "@/lib/db";
+import { docMeta } from "@/lib/documents";
 import { formatDay, formatRange, termLabel } from "@/lib/term-pack";
 import { getSchemeSchedule } from "@/lib/term-pack-data";
 
@@ -115,10 +116,19 @@ export default async function SchemeDetailPage({
   return (
     <div className="mx-auto max-w-4xl space-y-4">
       <DocHeader
+        kind="scheme"
         backHref={classHref(scheme.grade, scheme.subject)}
         backLabel={`${scheme.grade} ${scheme.subject}`}
         title={title}
-        meta={`${scheme.grade} · ${scheme.subject} · ${schedule.term ? termLabel(schedule.term) : scheme.term} · ${counter} lessons`}
+        meta={docMeta(
+          {
+            grade: scheme.grade,
+            subject: scheme.subject,
+            term: schedule.term ? termLabel(schedule.term) : scheme.term,
+            year: schedule.term ? null : scheme.year,
+          },
+          `${counter} lessons`,
+        )}
         needsReview={needsReview}
         actions={
           <>

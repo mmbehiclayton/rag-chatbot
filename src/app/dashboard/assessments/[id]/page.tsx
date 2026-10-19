@@ -10,6 +10,7 @@ import {
 import { auth } from "@/lib/auth";
 import { classHref } from "@/lib/classes";
 import { db, withDbRetry } from "@/lib/db";
+import { docMeta } from "@/lib/documents";
 
 type Question = {
   questionNumber?: number;
@@ -62,10 +63,15 @@ export default async function AssessmentDetailPage({
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <DocHeader
+        kind="assessment"
         backHref={classHref(assessment.grade, assessment.subject)}
         backLabel={`${assessment.grade} ${assessment.subject}`}
         title={title}
-        meta={`${assessment.grade} · ${assessment.subject} · ${assessment.type} · ${totalMarks} marks`}
+        meta={docMeta(
+          { grade: assessment.grade, subject: assessment.subject },
+          assessment.type,
+          `${totalMarks} marks`,
+        )}
         needsReview={needsReview}
         actions={
           <ExportButton

@@ -2,9 +2,8 @@ import { ArrowLeft, Download } from "lucide-react";
 import Link from "next/link";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
+import { DOC_LABELS, type DocKind, NEEDS_REVIEW } from "@/lib/documents";
 import { cn } from "@/lib/utils";
-
-export const NEEDS_REVIEW = /^\[Needs Review\]\s*/i;
 
 /** Splits the "[Needs Review]" flag the verification pass adds off a title. */
 export function parseTitle(title: string) {
@@ -18,8 +17,9 @@ export function asArray<T = string>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
-/** Header for a generated document: back link, title, context line, status and actions. */
+/** Header for a generated document: back link, document type, title, context line, status and actions. */
 export function DocHeader({
+  kind,
   backHref,
   backLabel,
   title,
@@ -27,6 +27,7 @@ export function DocHeader({
   needsReview,
   actions,
 }: {
+  kind?: DocKind;
   backHref: string;
   backLabel: string;
   title: string;
@@ -43,6 +44,9 @@ export function DocHeader({
         <ArrowLeft className="size-4" /> {backLabel}
       </Link>
       <div className="space-y-2">
+        {kind && (
+          <p className="text-sm font-medium text-primary">{DOC_LABELS[kind]}</p>
+        )}
         <h1 className="text-xl font-semibold sm:text-2xl">{title}</h1>
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <span>{meta}</span>

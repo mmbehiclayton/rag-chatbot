@@ -2,6 +2,15 @@ import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
+  cleanTitle,
+  DOC_LABELS,
+  type DocContext,
+  type DocKind,
+  docFields,
+  docName,
+  teacherContext,
+} from "@/lib/documents";
+import {
   type ClassRef,
   coversClass,
   freePlanMessage,
@@ -94,15 +103,7 @@ export async function GET(req: NextRequest) {
     } else if (type === "record") {
       const scheme = await db.schemeOfWork.findFirst({
         where: { id, teacherId: session.userId },
-        include: {
-          teacher: {
-            select: {
-              name: true,
-              schoolName: true,
-              tenant: { select: { name: true } },
-            },
-          },
-        },
+        include: TEACHER_INCLUDE,
       });
       if (!scheme) return new NextResponse("Not found", { status: 404 });
       cls = scheme;
@@ -142,9 +143,12 @@ export async function GET(req: NextRequest) {
               grade: true,
               subject: true,
               content: true,
-              scheme: { select: { grade: true, subject: true } },
+              scheme: {
+                select: { grade: true, subject: true, term: true, year: true },
+              },
             },
           },
+          ...TEACHER_INCLUDE,
         },
       });
       if (!note) return new NextResponse("Not found", { status: 404 });
@@ -207,6 +211,9 @@ const baseCSS = `
   .badge { display: inline-block; background: #f3f4f6; color: #111; border: 1px solid #d1d5db; border-radius: 4px; padding: 2px 7px; font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: .04em; margin: 2px 3px 2px 0; }
   .print-btn { position: fixed; top: 16px; right: 16px; background: #111; color: #fff; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold; z-index: 50; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
   .page-break { page-break-before: always; break-before: page; }
+  .doc-detail { font-size: 15px; margin: 8px 0 0; }
+  table.head th { width: 18%; text-align: left; }
+  table.head td { width: 32%; height: 26px; }
   .cover { text-align: center; padding: 30mm 0; }
   .cover h1 { border: none; font-size: 26px; }
   .cover p { color: #555; font-size: 14px; margin-top: 6px; }
@@ -247,6 +254,34 @@ function wrap(title: string, body: string, landscape = false) {
     }
   `;
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)}</title><style>${baseCSS}${paper}</style></head><body>${printScript}<div class="page">${body}</div></body></html>`;
+}
+
+/**
+ * The same header on every printed document: the document type, its title,
+ * then School, Teacher, Grade, Learning area, Term and Year from the profile.
+ * `extra` cells are already-escaped HTML, for the document's own fields.
+ */
+function docHead(
+  kind: DocKind,
+  ctx: DocContext,
+  detail?: string | null,
+  extra: Array<[string, string]> = [],
+) {
+  const cells = [
+    ...docFields(ctx).map((f): [string, string] => [f.label, esc(f.value)]),
+    ...extra,
+  ];
+  const rows: string[] = [];
+  for (let i = 0; i < cells.length; i += 2) {
+    const [a, b] = [cells[i], cells[i + 1]];
+    rows.push(
+      `<tr><th>${a[0]}</th><td>${a[1]}</td>${b ? `<th>${b[0]}</th><td>${b[1]}</td>` : "<th></th><td></td>"}</tr>`,
+    );
+  }
+  const title = cleanTitle(detail);
+  return `
+    <div class="center"><h1>${DOC_LABELS[kind]}</h1>${title ? `<p class="doc-detail">${esc(title)}</p>` : ""}</div>
+    <table class="head">${rows.join("")}</table>`;
 }
 
 function arr(v: unknown): string[] {
@@ -322,15 +357,17 @@ function schemeBody(scheme: SchemeExport, weekDates?: Map<number, string>) {
     .join("");
 
   const body = `
-    <div class="center"><h1>Scheme of work</h1><p>${esc((scheme.title ?? "").replace(/^\[Needs Review\]\s*/i, ""))}</p></div>
-    <div class="meta center">
-      ${schoolOf(scheme.teacher) ? `<div>School: <span>${esc(schoolOf(scheme.teacher))}</span></div>` : ""}
-      ${scheme.teacher?.name ? `<div>Teacher: <span>${esc(scheme.teacher.name)}</span></div>` : ""}
-      <div>Grade: <span>${esc(scheme.grade)}</span></div>
-      <div>Learning area: <span>${esc(scheme.subject)}</span></div>
-      <div>Term: <span>${esc(scheme.term)}</span></div>
-      ${scheme.year ? `<div>Year: <span>${esc(scheme.year)}</span></div>` : ""}
-    </div>
+    ${docHead(
+      "scheme",
+      {
+        ...teacherContext(scheme.teacher),
+        grade: scheme.grade,
+        subject: scheme.subject,
+        term: scheme.term,
+        year: scheme.year,
+      },
+      scheme.title,
+    )}
     <table class="scheme">
       <colgroup>
         <col style="width:4%"><col style="width:4%"><col style="width:7%"><col style="width:7%"><col style="width:19%">
@@ -352,11 +389,7 @@ function schemeBody(scheme: SchemeExport, weekDates?: Map<number, string>) {
 }
 
 type RecordScheme = {
-  teacher?: {
-    schoolName?: string | null;
-    tenant?: { name?: string | null } | null;
-    name?: string | null;
-  } | null;
+  teacher?: TeacherInfo;
   grade: string;
   subject?: string;
   term?: string;
@@ -369,8 +402,8 @@ function buildRecordHTML(
   const taught = schedule.slots.filter(
     (s) => s.status === "TAUGHT" && s.lessonNumber,
   );
-  const school =
-    scheme.teacher?.schoolName || scheme.teacher?.tenant?.name || "";
+  const cls = streamLabel(scheme.grade, schedule.stream);
+  const term = schedule.term ? termLabel(schedule.term) : scheme.term;
   const rows = taught
     .map(
       (s) => `
@@ -396,14 +429,12 @@ function buildRecordHTML(
       .signs { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-top: 40px; font-size: 12px; page-break-inside: avoid; }
       .sign .line { border-bottom: 1px solid #111; height: 36px; margin-bottom: 6px; }
     </style>
-    <div class="center"><h1>Record of work</h1></div>
-    <div class="meta center">
-      ${school ? `<div>School: <span>${esc(school)}</span></div>` : ""}
-      <div>Teacher: <span>${esc(scheme.teacher?.name)}</span></div>
-      <div>Grade: <span>${esc(streamLabel(scheme.grade, schedule.stream))}</span></div>
-      <div>Learning area: <span>${esc(scheme.subject)}</span></div>
-      <div>Term: <span>${esc(schedule.term ? termLabel(schedule.term) : scheme.term)}</span></div>
-    </div>
+    ${docHead("record", {
+      ...teacherContext(scheme.teacher),
+      grade: cls,
+      subject: scheme.subject,
+      term,
+    })}
     <table class="record">
       <colgroup>
         <col style="width:6%"><col style="width:11%"><col style="width:7%"><col style="width:22%">
@@ -417,7 +448,7 @@ function buildRecordHTML(
     <div class="signs">${sign("Teacher")}${sign("Head of department")}${sign("Head teacher")}</div>
   `;
   return wrap(
-    `Record of work · ${streamLabel(scheme.grade, schedule.stream)} ${scheme.subject}`,
+    docName("record", { grade: cls, subject: scheme.subject }, term),
     body,
   );
 }
@@ -427,7 +458,11 @@ function buildSchemeHTML(
   weekDates?: Map<number, string>,
 ) {
   return wrap(
-    scheme.title ?? "Scheme of work",
+    docName(
+      "scheme",
+      scheme,
+      [scheme.term, scheme.year].filter(Boolean).join(" "),
+    ),
     schemeBody(scheme, weekDates),
     /* landscape */ true,
   );
@@ -497,12 +532,13 @@ type LessonExport = {
   schemeId?: string | null;
   grade?: string | null;
   subject?: string | null;
-  scheme?: { grade?: string | null; subject?: string | null } | null;
-  teacher?: {
-    name?: string | null;
-    schoolName?: string | null;
-    tenant?: { name?: string | null } | null;
+  scheme?: {
+    grade?: string | null;
+    subject?: string | null;
+    term?: string | null;
+    year?: number | null;
   } | null;
+  teacher?: TeacherInfo;
 };
 
 /** The teacher's name and school, for document headers. */
@@ -522,12 +558,11 @@ type TeacherInfo = {
   tenant?: { name?: string | null } | null;
 } | null;
 
-const schoolOf = (teacher?: TeacherInfo) =>
-  teacher?.schoolName || teacher?.tenant?.name || "";
-
 /** What every exported lesson plan needs for its header. */
 const LESSON_EXPORT_INCLUDE = {
-  scheme: { select: { grade: true, subject: true } },
+  scheme: {
+    select: { grade: true, subject: true, term: true, year: true },
+  },
   ...TEACHER_INCLUDE,
 } as const;
 
@@ -542,10 +577,9 @@ function lessonBody(lesson: LessonExport) {
   const diff = c.lessonStructure?.differentiation;
   const rubric = c.assessmentRubric;
   const extended = c.extendedActivity || conc?.homework;
-  const school =
-    lesson.teacher?.schoolName || lesson.teacher?.tenant?.name || "";
   const grade = lesson.grade ?? lesson.scheme?.grade ?? "";
   const subject = lesson.subject ?? lesson.scheme?.subject ?? "";
+  const numbered = !!(lesson.schemeId && lesson.lessonNumber);
 
   const list = (items: unknown, tag = "ul") => {
     const li = arr(items)
@@ -584,23 +618,35 @@ function lessonBody(lesson: LessonExport) {
 
   return `
     <style>
-      table.head th { width: 18%; text-align: left; }
-      table.head td { width: 32%; }
       .blank { border-bottom: 1px solid #999; height: 26px; }
       .signline { margin-top: 28px; font-size: 12px; }
     </style>
-    <div class="center"><h1>Lesson plan</h1></div>
-    <table class="head">
-      <tr><th>School</th><td>${esc(school)}</td><th>Teacher</th><td>${esc(lesson.teacher?.name)}</td></tr>
-      <tr><th>Grade</th><td>${esc(grade)}</td><th>Learning area</th><td>${esc(subject)}</td></tr>
-      <tr><th>Date</th><td></td><th>Time</th><td>${lesson.durationMinutes ? `${esc(lesson.durationMinutes)} minutes` : ""}</td></tr>
-      <tr><th>Roll</th><td>Boys ___ Girls ___ Total ___</td><th>Lesson</th><td>${lesson.schemeId && lesson.lessonNumber ? esc(lesson.lessonNumber) : ""}</td></tr>
-    </table>
+    ${docHead(
+      "lesson",
+      {
+        ...teacherContext(lesson.teacher),
+        grade,
+        subject,
+        term: lesson.scheme?.term,
+        year: lesson.scheme?.year,
+      },
+      lesson.topic,
+      [
+        ["Date", ""],
+        [
+          "Time",
+          lesson.durationMinutes
+            ? `${esc(lesson.durationMinutes)} minutes`
+            : "",
+        ],
+        ["Roll", "Boys ___ Girls ___ Total ___"],
+        ["Lesson", numbered ? esc(lesson.lessonNumber) : ""],
+      ],
+    )}
 
     <div class="section">
       ${para("Strand", c.strand)}
       ${para("Sub-strand", c.subStrand)}
-      ${para("Lesson title", lesson.topic ?? undefined)}
     </div>
 
     ${section(
@@ -699,7 +745,15 @@ function lessonBody(lesson: LessonExport) {
 }
 
 function buildLessonHTML(lesson: LessonExport) {
-  return wrap(lesson.topic ?? "Lesson plan", lessonBody(lesson));
+  const cls = {
+    grade: lesson.grade ?? lesson.scheme?.grade,
+    subject: lesson.subject ?? lesson.scheme?.subject,
+  };
+  const detail =
+    lesson.schemeId && lesson.lessonNumber
+      ? `${cleanTitle(lesson.topic)}, lesson ${lesson.lessonNumber}`
+      : lesson.topic;
+  return wrap(docName("lesson", cls, detail), lessonBody(lesson));
 }
 
 type AssessmentQuestion = {
@@ -745,8 +799,7 @@ function assessmentBody(assessment: AssessmentExport) {
   const sections = Array.isArray(c.sections) ? c.sections : [];
   const questionsOf = (section: AssessmentSection) =>
     Array.isArray(section.questions) ? section.questions : [];
-  const title = (assessment.title ?? "").replace(/^\[Needs Review\]\s*/i, "");
-  const school = schoolOf(assessment.teacher);
+  const title = cleanTitle(assessment.title);
   const sectionName = (section: AssessmentSection, si: number) =>
     `Section ${si + 1}${section.sectionTitle ? `: ${esc(section.sectionTitle)}` : ""}`;
 
@@ -806,18 +859,21 @@ function assessmentBody(assessment: AssessmentExport) {
 
   return `
     <style>
-      table.head th { width: 18%; text-align: left; }
-      table.head td { width: 32%; height: 28px; }
       table.paper td { border: none; border-bottom: 1px solid #eee; }
     </style>
-    <div class="center"><h1>${esc(title)}</h1></div>
-    <div class="meta center">
-      ${school ? `<div>School: <span>${esc(school)}</span></div>` : ""}
-      <div>Grade: <span>${esc(assessment.grade)}</span></div>
-      <div>Learning area: <span>${esc(assessment.subject)}</span></div>
-      ${assessment.type ? `<div>Type: <span>${esc(assessment.type)}</span></div>` : ""}
-      ${c.markingScheme?.totalMarks ? `<div>Total marks: <span>${esc(c.markingScheme.totalMarks)}</span></div>` : ""}
-    </div>
+    ${docHead(
+      "assessment",
+      {
+        ...teacherContext(assessment.teacher),
+        grade: assessment.grade,
+        subject: assessment.subject,
+      },
+      title,
+      [
+        ["Type", esc(assessment.type)],
+        ["Total marks", esc(c.markingScheme?.totalMarks)],
+      ],
+    )}
     <table class="head">
       <tr><th>Learner's name</th><td></td><th>Admission no.</th><td></td></tr>
       <tr><th>Stream</th><td></td><th>Date</th><td></td></tr>
@@ -842,7 +898,7 @@ function assessmentBody(assessment: AssessmentExport) {
 
 function buildAssessmentHTML(assessment: AssessmentExport) {
   return wrap(
-    (assessment.title ?? "Assessment").replace(/^\[Needs Review\]\s*/i, ""),
+    docName("assessment", assessment, assessment.title),
     assessmentBody(assessment),
   );
 }
@@ -855,8 +911,14 @@ type NotesExport = {
     grade?: string | null;
     subject?: string | null;
     content?: unknown;
-    scheme?: { grade?: string | null; subject?: string | null } | null;
+    scheme?: {
+      grade?: string | null;
+      subject?: string | null;
+      term?: string | null;
+      year?: number | null;
+    } | null;
   };
+  teacher?: TeacherInfo;
 };
 
 function buildNotesHTML(note: NotesExport) {
@@ -864,6 +926,10 @@ function buildNotesHTML(note: NotesExport) {
   const plan = note.lessonPlan ?? {};
   const overview = (c.conceptOverview ?? {}) as Record<string, unknown>;
   const planContent = (plan.content ?? {}) as Record<string, unknown>;
+  const cls = {
+    grade: plan.grade ?? plan.scheme?.grade,
+    subject: plan.subject ?? plan.scheme?.subject,
+  };
   const outcomes = arr(c.learningOutcomes).length
     ? c.learningOutcomes
     : planContent.specificLearningOutcomes;
@@ -913,12 +979,16 @@ function buildNotesHTML(note: NotesExport) {
     .join("");
 
   const body = `
-    <h1>${esc(plan.topic ?? "Lesson notes")}</h1>
-    <div class="meta">
-      <div>Grade: <span>${esc(plan.grade ?? plan.scheme?.grade ?? "")}</span></div>
-      <div>Learning area: <span>${esc(plan.subject ?? plan.scheme?.subject ?? "")}</span></div>
-      <div><span>Lesson notes</span></div>
-    </div>
+    ${docHead(
+      "notes",
+      {
+        ...teacherContext(note.teacher),
+        ...cls,
+        term: plan.scheme?.term,
+        year: plan.scheme?.year,
+      },
+      plan.topic,
+    )}
     <div class="section">
       ${planContent.strand ? `<p><strong>Strand:</strong> ${esc(planContent.strand)}</p>` : ""}
       ${planContent.subStrand ? `<p><strong>Sub-strand:</strong> ${esc(planContent.subStrand)}</p>` : ""}
@@ -944,7 +1014,7 @@ function buildNotesHTML(note: NotesExport) {
     ${arr(c.boardSummary).length ? `<div class="section"><h2>Board summary</h2>${list(c.boardSummary)}</div>` : ""}
     ${arr(c.references).length ? `<div class="section"><h2>References</h2>${list(c.references)}</div>` : ""}
   `;
-  return wrap(`${plan.topic ?? "Lesson"} – Notes`, body);
+  return wrap(docName("notes", cls, plan.topic), body);
 }
 
 // Combines every record of a learning area (grade + subject) into one document,
@@ -958,9 +1028,9 @@ function buildCombinedHTML(
   const landscape = kind === "scheme";
   const label =
     kind === "scheme"
-      ? "Schemes of Work"
+      ? "Schemes of work"
       : kind === "lesson"
-        ? "Lesson Plans"
+        ? "Lesson plans"
         : "Assessments";
   const bodyFn =
     kind === "scheme"
@@ -968,7 +1038,7 @@ function buildCombinedHTML(
       : kind === "lesson"
         ? lessonBody
         : assessmentBody;
-  const title = `${label} — ${grade} ${subject}`;
+  const title = `${grade} ${subject} – ${label}`;
   const cover = `<div class="cover"><h1>${esc(title)}</h1><p>${items.length} ${label.toLowerCase()}</p></div>`;
   const inner =
     cover +
