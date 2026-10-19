@@ -2,6 +2,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ChevronLeft, ChevronRight, Search, Users } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { RemoveTeacher } from "@/components/admin/remove-teacher";
 import { SchoolInvite } from "@/components/admin/school-invite";
 import { CuratorToggle } from "@/components/dashboard/curator-toggle";
 import { RoleSelector } from "@/components/dashboard/role-selector";
@@ -197,6 +198,14 @@ export default async function TeachersPage(props: Props) {
                 {isSuperAdmin && user.role !== "SUPERADMIN" && (
                   <CuratorToggle userId={user.id} isCurator={user.isCurator} />
                 )}
+                {!isSuperAdmin &&
+                  user.role === "TEACHER" &&
+                  user.id !== session.userId && (
+                    <RemoveTeacher
+                      teacherId={user.id}
+                      name={user.name || user.email}
+                    />
+                  )}
               </div>
             </li>
           ))}
