@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Plus } from "lucide-react";
+import { Pencil, Plus, Trash2, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -8,7 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
-import { createSchool, updateTenant } from "@/lib/actions/tenants";
+import {
+  addPersonToSchool,
+  createSchool,
+  deleteSchool,
+  updateTenant,
+} from "@/lib/actions/tenants";
 
 const DEFAULT_QUOTA = 5_000_000;
 
@@ -171,5 +176,170 @@ export function EditTenant({
         </Button>
       </div>
     </form>
+  );
+}
+
+/** Add a school admin or a teacher to a school by email. */
+export function AddPerson({ id, school }: { id: string; school: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [role, setRole] = useState<"ADMIN" | "TEACHER">("TEACHER");
+  const [isPending, startTransition] = useTransition();
+
+  if (!open)
+    return (
+      <Button
+        variant="ghost"
+        size="icon-lg"
+        aria-label={`Add a person to ${school}`}
+        onClick={() => setOpen(true)}
+      >
+        <UserPlus />
+      </Button>
+    );
+
+  const save = () =>
+    startTransition(async () => {
+      const result = await addPersonToSchool({
+        schoolId: id,
+        email,
+        name: name || undefined,
+        role,
+      });
+      if (!result.success) return void toast.error(result.error);
+      toast.success(
+        result.created
+          ? `Added. We've emailed ${email.trim()} a link to set a password.`
+          : `${email.trim()} is now in ${school}.`,
+      );
+      setOpen(false);
+      setEmail("");
+      setName("");
+      router.refresh();
+    });
+
+  return (
+    <form
+      className="basis-full space-y-3 pt-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        save();
+      }}
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor={`${id}-email`}>Email</Label>
+          <Input
+            id={`${id}-email`}
+            type="email"
+            inputMode="email"
+            autoComplete="off"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={`${id}-person`}>Name (if they're new)</Label>
+          <Input
+            id={`${id}-person`}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={120}
+          />
+        </div>
+      </div>
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium">Role</legend>
+        <div className="flex gap-2">
+          {(
+            [
+              ["TEACHER", "Teacher"],
+              ["ADMIN", "School admin"],
+            ] as const
+          ).map(([value, label]) => (
+            <Button
+              key={value}
+              type="button"
+              variant={role === value ? "secondary" : "outline"}
+              className="h-11"
+              aria-pressed={role === value}
+              onClick={() => setRole(value)}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
+      </fieldset>
+      <p className="text-xs text-muted-foreground">
+        Someone with an account moves into {school}. Anyone new gets an email
+        with a link to set their password.
+      </p>
+      <div className="flex gap-2">
+        <Button type="submit" disabled={isPending || !email.includes("@")}>
+          {isPending && <Spinner />} Add person
+        </Button>
+        <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** Delete a school after a second tap. Its people keep their accounts and work. */
+export function DeleteSchool({
+  id,
+  school,
+  people,
+}: {
+  id: string;
+  school: string;
+  people: number;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  if (!open)
+    return (
+      <Button
+        variant="ghost"
+        size="icon-lg"
+        aria-label={`Delete ${school}`}
+        onClick={() => setOpen(true)}
+      >
+        <Trash2 />
+      </Button>
+    );
+
+  const remove = () =>
+    startTransition(async () => {
+      const result = await deleteSchool(id);
+      if (!result.success) return void toast.error(result.error);
+      toast.success(`${school} deleted`);
+      router.refresh();
+    });
+
+  return (
+    <div className="basis-full space-y-3 rounded-md border border-destructive/40 p-3">
+      <p className="text-sm">
+        Delete {school}?{" "}
+        {people > 0
+          ? `Its ${people === 1 ? "1 person keeps their" : `${people} people keep their`} account and work, moved to an account of their own as a teacher. `
+          : ""}
+        Designs the school uploaded are deleted. This can't be undone.
+      </p>
+      <div className="flex gap-2">
+        <Button variant="destructive" disabled={isPending} onClick={remove}>
+          {isPending && <Spinner />} Delete school
+        </Button>
+        <Button variant="ghost" onClick={() => setOpen(false)}>
+          Cancel
+        </Button>
+      </div>
+    </div>
   );
 }

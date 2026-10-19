@@ -64,3 +64,36 @@ export async function sendPasswordResetEmail(email: string, token: string) {
     `,
   });
 }
+
+/** Sent when Elimu staff add someone to a school: a link to set their password and sign in. */
+export async function sendSchoolWelcomeEmail(
+  email: string,
+  token: string,
+  school: string,
+) {
+  const link = `${APP_URL}/reset-password?token=${token}`;
+  const resend = getResend();
+
+  if (!resend) {
+    console.log(`[DEV] Set-password link for ${email}: ${link}`);
+    return;
+  }
+
+  await resend.emails.send({
+    from: FROM,
+    to: email,
+    subject: `You've been added to ${school} on Elimu`,
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px">
+        <h2 style="color:#2c3e50">Welcome to Elimu</h2>
+        <p>You've been added to ${school}. Set a password to sign in. The link expires in 7 days.</p>
+        <a href="${link}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#1e8449;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">
+          Set your password
+        </a>
+        <p style="margin-top:24px;color:#6b7280;font-size:13px">
+          If you weren't expecting this, you can safely ignore this email.
+        </p>
+      </div>
+    `,
+  });
+}

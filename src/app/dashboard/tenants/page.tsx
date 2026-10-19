@@ -7,7 +7,12 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AddSchool, EditTenant } from "@/components/admin/tenant-forms";
+import {
+  AddPerson,
+  AddSchool,
+  DeleteSchool,
+  EditTenant,
+} from "@/components/admin/tenant-forms";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -210,6 +215,16 @@ export default async function SchoolsPage(props: Props) {
                     </div>
                   </div>
                   <EditTenant id={t.id} name={t.name} quota={t.tokenQuota} />
+                  {t.type === "SCHOOL" && (
+                    <>
+                      <AddPerson id={t.id} school={t.name} />
+                      <DeleteSchool
+                        id={t.id}
+                        school={t.name}
+                        people={t._count.users}
+                      />
+                    </>
+                  )}
                 </div>
               </li>
             );
