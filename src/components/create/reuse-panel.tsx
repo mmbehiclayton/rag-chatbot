@@ -99,8 +99,7 @@ export function ReusePanel({
             <Button
               type="button"
               variant="outline"
-              size="sm"
-              className="shrink-0"
+              className="h-11 shrink-0"
               disabled={isPending}
               onClick={() => use(l.id)}
             >

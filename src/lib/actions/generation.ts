@@ -44,7 +44,7 @@ import { getTeacherTerms } from "@/lib/term-pack-data";
 class TeacherError extends Error {}
 
 export type GenerationResult =
-  | { ok: true; id: string }
+  | { ok: true; id: string; reused?: boolean }
   | { ok: false; error: string };
 
 function explain(label: string, e: unknown): string {
@@ -53,11 +53,11 @@ function explain(label: string, e: unknown): string {
 
 async function asResult(
   label: string,
-  fn: () => Promise<{ id: string }>,
+  fn: () => Promise<{ id: string; reused?: boolean }>,
 ): Promise<GenerationResult> {
   try {
-    const { id } = await fn();
-    return { ok: true, id };
+    const { id, reused } = await fn();
+    return reused ? { ok: true, id, reused } : { ok: true, id };
   } catch (e) {
     return { ok: false, error: explain(label, e) };
   }
@@ -850,6 +850,33 @@ async function generateQuickLessonPlanImpl(parameters: {
   )
     ? parameters.durationMinutes
     : 40;
+
+  // Another teacher already has exactly this lesson: copy theirs, no AI needed.
+  const ready = await db.lessonPlan.findFirst({
+    where: {
+      teacherId: { not: session.userId },
+      durationMinutes,
+      topic: { equals: topic, mode: "insensitive" },
+      OR: [
+        { grade: parameters.grade, subject: parameters.subject },
+        { scheme: { grade: parameters.grade, subject: parameters.subject } },
+      ],
+    },
+    orderBy: BEST_FIRST,
+    select: { id: true },
+  });
+  if (ready) {
+    const copy = await copyLessonPlan(ready.id, session, {
+      grade: parameters.grade,
+      subject: parameters.subject,
+      durationMinutes,
+      ...(await filingFor(session.userId)),
+    });
+    if (copy) {
+      revalidatePath("/dashboard/library");
+      return { id: copy.id, reused: true };
+    }
+  }
 
   await checkGenerationGuards(session, parameters);
 

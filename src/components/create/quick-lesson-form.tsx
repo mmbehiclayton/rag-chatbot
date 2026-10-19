@@ -63,7 +63,11 @@ export function QuickLessonForm({
           durationMinutes: Number.parseInt(duration, 10),
         });
         if (!result.ok) return void toast.error(result.error);
-        toast.success("Lesson plan ready");
+        toast.success(
+          result.reused
+            ? "Another teacher already made this lesson, so you got your own copy straight away. Use Improve to change it."
+            : "Lesson plan ready",
+        );
         router.push(`/dashboard/lessons/${result.id}`);
       } catch {
         toast.error(
