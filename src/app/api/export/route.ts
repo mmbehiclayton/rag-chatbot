@@ -143,6 +143,8 @@ export async function GET(req: NextRequest) {
               grade: true,
               subject: true,
               content: true,
+              term: true,
+              year: true,
               scheme: {
                 select: { grade: true, subject: true, term: true, year: true },
               },
@@ -532,6 +534,9 @@ type LessonExport = {
   schemeId?: string | null;
   grade?: string | null;
   subject?: string | null;
+  term?: string | null;
+  year?: number | null;
+  week?: number | null;
   scheme?: {
     grade?: string | null;
     subject?: string | null;
@@ -627,8 +632,8 @@ function lessonBody(lesson: LessonExport) {
         ...teacherContext(lesson.teacher),
         grade,
         subject,
-        term: lesson.scheme?.term,
-        year: lesson.scheme?.year,
+        term: lesson.term ?? lesson.scheme?.term,
+        year: lesson.year ?? lesson.scheme?.year,
       },
       lesson.topic,
       [
@@ -640,7 +645,12 @@ function lessonBody(lesson: LessonExport) {
             : "",
         ],
         ["Roll", "Boys ___ Girls ___ Total ___"],
-        ["Lesson", numbered ? esc(lesson.lessonNumber) : ""],
+        [
+          "Lesson",
+          numbered
+            ? `${lesson.week ? `Week ${esc(lesson.week)}, ` : ""}lesson ${esc(lesson.lessonNumber)}`
+            : "",
+        ],
       ],
     )}
 
@@ -789,6 +799,8 @@ type AssessmentExport = {
   grade?: string | null;
   subject?: string | null;
   type?: string | null;
+  term?: string | null;
+  year?: number | null;
   content?: unknown;
   teacher?: TeacherInfo;
 };
@@ -867,6 +879,8 @@ function assessmentBody(assessment: AssessmentExport) {
         ...teacherContext(assessment.teacher),
         grade: assessment.grade,
         subject: assessment.subject,
+        term: assessment.term,
+        year: assessment.year,
       },
       title,
       [
@@ -911,6 +925,8 @@ type NotesExport = {
     grade?: string | null;
     subject?: string | null;
     content?: unknown;
+    term?: string | null;
+    year?: number | null;
     scheme?: {
       grade?: string | null;
       subject?: string | null;
@@ -984,8 +1000,8 @@ function buildNotesHTML(note: NotesExport) {
       {
         ...teacherContext(note.teacher),
         ...cls,
-        term: plan.scheme?.term,
-        year: plan.scheme?.year,
+        term: plan.term ?? plan.scheme?.term,
+        year: plan.year ?? plan.scheme?.year,
       },
       plan.topic,
     )}

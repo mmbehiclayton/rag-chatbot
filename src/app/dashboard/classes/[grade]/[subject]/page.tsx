@@ -27,6 +27,10 @@ import {
 import { getPublishedMapKeys } from "@/lib/curriculum-map";
 import { getIndexedCurricula } from "@/lib/curriculum-options";
 import { db, withDbRetry } from "@/lib/db";
+import { type Filing, filingLabel, filingOf, filingOn } from "@/lib/filing";
+import { todayInKenya } from "@/lib/term-pack";
+import { getTeacherTerms } from "@/lib/term-pack-data";
+import { cn } from "@/lib/utils";
 
 function decode(value: string) {
   try {
@@ -53,10 +57,14 @@ function NewButton({ href, label }: { href: string; label: string }) {
   );
 }
 
+const FILED = { term: true, year: true, createdAt: true } as const;
+
 export default async function ClassPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ grade: string; subject: string }>;
+  searchParams: Promise<{ term?: string | string[] }>;
 }) {
   const session = await auth();
   if (!session?.userId) redirect("/login");
@@ -73,11 +81,11 @@ export default async function ClassPage({
         db.schemeOfWork.findMany({
           where: { teacherId, grade, subject },
           orderBy: { updatedAt: "desc" },
-          take: 5,
+          take: 50,
           select: {
             id: true,
             title: true,
-            term: true,
+            ...FILED,
             content: true,
             updatedAt: true,
             lessonPlans: { select: { lessonNumber: true } },
@@ -88,13 +96,16 @@ export default async function ClassPage({
         db.lessonPlan.findMany({
           where: classLessonWhere(teacherId, grade, subject),
           orderBy: { updatedAt: "desc" },
-          take: 20,
+          take: 500,
           select: {
             id: true,
             topic: true,
             lessonNumber: true,
+            week: true,
             schemeId: true,
             updatedAt: true,
+            ...FILED,
+            scheme: { select: FILED },
           },
         }),
       ),
@@ -105,11 +116,13 @@ export default async function ClassPage({
             lessonPlan: classLessonWhere(teacherId, grade, subject),
           },
           orderBy: { updatedAt: "desc" },
-          take: 5,
+          take: 500,
           select: {
             id: true,
             updatedAt: true,
-            lessonPlan: { select: { topic: true } },
+            lessonPlan: {
+              select: { topic: true, ...FILED, scheme: { select: FILED } },
+            },
           },
         }),
       ),
@@ -117,15 +130,56 @@ export default async function ClassPage({
         db.assessment.findMany({
           where: { teacherId, grade, subject },
           orderBy: { updatedAt: "desc" },
-          take: 5,
-          select: { id: true, title: true, type: true, updatedAt: true },
+          take: 200,
+          select: {
+            id: true,
+            title: true,
+            type: true,
+            updatedAt: true,
+            ...FILED,
+          },
         }),
       ),
       getIndexedCurricula(session.tenantId),
       getPublishedMapKeys(),
     ]);
 
-  const current = schemes[0];
+  // Show one term at a time: the one asked for, else the term in progress, else the latest.
+  const terms = await getTeacherTerms(teacherId);
+  const labelOf = (doc: Parameters<typeof filingOf>[1]) =>
+    filingLabel(filingOf(terms, doc));
+  const filings = new Map<string, Filing>();
+  for (const doc of [
+    ...schemes,
+    ...lessons,
+    ...notes.map((n) => n.lessonPlan),
+    ...assessments,
+  ]) {
+    const f = filingOf(terms, doc);
+    filings.set(filingLabel(f), f);
+  }
+  const today = filingOn(terms, todayInKenya());
+  filings.set(filingLabel(today), today);
+  const termOptions = [...filings.entries()]
+    .sort(([, a], [, b]) => b.year - a.year || b.term.localeCompare(a.term))
+    .map(([label]) => label);
+  const asked = [(await searchParams).term].flat()[0];
+  const selected = asked && filings.has(asked) ? asked : filingLabel(today);
+  const inTerm = <T extends Parameters<typeof filingOf>[1]>(docs: T[]) =>
+    docs.filter((d) => labelOf(d) === selected);
+
+  const termSchemes = inTerm(schemes);
+  const termLessons = inTerm(lessons);
+  const schemeLessons = termLessons
+    .filter((l) => l.schemeId)
+    .sort((a, b) => a.lessonNumber - b.lessonNumber);
+  const otherLessons = termLessons.filter((l) => !l.schemeId);
+  const termNotes = notes.filter((n) => labelOf(n.lessonPlan) === selected);
+  const termAssessments = inTerm(assessments);
+  const termHref = (label: string) =>
+    `?${new URLSearchParams({ term: label })}`;
+
+  const current = termSchemes[0];
   const next = current
     ? nextLessonInScheme(
         current,
@@ -148,9 +202,31 @@ export default async function ClassPage({
             {grade} · {subject}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Everything you have prepared for this class.
+            Your documents for {selected}.
           </p>
         </div>
+        {termOptions.length > 1 && (
+          <nav
+            aria-label="Term"
+            className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0"
+          >
+            <div className="inline-flex gap-1 rounded-lg bg-muted p-1">
+              {termOptions.map((label) => (
+                <Link
+                  key={label}
+                  href={termHref(label)}
+                  aria-current={label === selected ? "page" : undefined}
+                  className={cn(
+                    "inline-flex min-h-10 items-center rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground",
+                    label === selected && "bg-card text-foreground shadow-sm",
+                  )}
+                >
+                  {label}
+                </Link>
+              ))}
+            </div>
+          </nav>
+        )}
         {designs.includes(`${grade}|${subject}`) && (
           <Button
             variant="outline"
@@ -198,10 +274,9 @@ export default async function ClassPage({
                   {parseTitle(current.title).title}
                 </span>
                 <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                  {current.term}
                   {next
-                    ? ` · ${next.done} of ${next.total} lesson plans ready`
-                    : " · all lesson plans ready"}
+                    ? `${next.done} of ${next.total} lesson plans ready`
+                    : "All lesson plans ready"}
                 </span>
               </span>
               <ChevronRight
@@ -257,12 +332,12 @@ export default async function ClassPage({
             </Button>
           </div>
         )}
-        {schemes.length > 1 && (
+        {termSchemes.length > 1 && (
           <LinkList
-            items={schemes.slice(1).map((s) => ({
+            items={termSchemes.slice(1).map((s) => ({
               href: `/dashboard/schemes/${s.id}`,
               title: parseTitle(s.title).title,
-              meta: `${s.term} · updated ${ago(s.updatedAt)}`,
+              meta: `Updated ${ago(s.updatedAt)}`,
               icon: BookOpen,
             }))}
           />
@@ -279,36 +354,54 @@ export default async function ClassPage({
             />
           }
         />
-        {lessons.length === 0 ? (
+        {termLessons.length === 0 ? (
           <p className="rounded-xl border border-dashed bg-card p-4 text-sm text-muted-foreground">
-            No lesson plans yet. Create them from the scheme, or make a single
-            lesson plan with New.
+            No lesson plans for {selected} yet. Create them from the scheme, or
+            make a single lesson plan with New.
           </p>
         ) : (
-          <LinkList
-            items={lessons.map((l) => ({
-              href: `/dashboard/lessons/${l.id}`,
-              title: l.topic,
-              meta: [
-                l.schemeId && `Lesson ${l.lessonNumber}`,
-                `updated ${ago(l.updatedAt)}`,
-              ]
-                .filter(Boolean)
-                .join(" · "),
-              icon: FileText,
-            }))}
-          />
+          <>
+            {schemeLessons.length > 0 && (
+              <LinkList
+                items={schemeLessons.map((l) => ({
+                  href: `/dashboard/lessons/${l.id}`,
+                  title: l.topic,
+                  meta: [l.week && `Week ${l.week}`, `Lesson ${l.lessonNumber}`]
+                    .filter(Boolean)
+                    .join(" · "),
+                  icon: FileText,
+                }))}
+              />
+            )}
+            {otherLessons.length > 0 && (
+              <>
+                {schemeLessons.length > 0 && (
+                  <h3 className="pt-2 text-sm font-medium text-muted-foreground">
+                    Other lesson plans
+                  </h3>
+                )}
+                <LinkList
+                  items={otherLessons.map((l) => ({
+                    href: `/dashboard/lessons/${l.id}`,
+                    title: l.topic,
+                    meta: `Updated ${ago(l.updatedAt)}`,
+                    icon: FileText,
+                  }))}
+                />
+              </>
+            )}
+          </>
         )}
       </section>
 
-      {notes.length > 0 && (
+      {termNotes.length > 0 && (
         <section className="space-y-2">
           <SectionTitle title="Lesson notes" />
           <LinkList
-            items={notes.map((n) => ({
+            items={termNotes.map((n) => ({
               href: `/dashboard/notes/${n.id}`,
               title: n.lessonPlan.topic,
-              meta: `updated ${ago(n.updatedAt)}`,
+              meta: `Updated ${ago(n.updatedAt)}`,
               icon: NotebookPen,
             }))}
           />
@@ -325,13 +418,13 @@ export default async function ClassPage({
             />
           }
         />
-        {assessments.length === 0 ? (
+        {termAssessments.length === 0 ? (
           <p className="rounded-xl border border-dashed bg-card p-4 text-sm text-muted-foreground">
-            No assessments yet.
+            No assessments for {selected} yet.
           </p>
         ) : (
           <LinkList
-            items={assessments.map((a) => ({
+            items={termAssessments.map((a) => ({
               href: `/dashboard/assessments/${a.id}`,
               title: parseTitle(a.title).title,
               meta: `${a.type} · updated ${ago(a.updatedAt)}`,

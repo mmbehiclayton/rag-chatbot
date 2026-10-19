@@ -91,9 +91,10 @@ export default async function LessonDetailPage({
     {
       grade,
       subject,
-      term: lesson.scheme?.term,
-      year: lesson.scheme?.year,
+      term: lesson.term ?? lesson.scheme?.term,
+      year: lesson.year ?? lesson.scheme?.year,
     },
+    lesson.scheme && lesson.week ? `Week ${lesson.week}` : null,
     lesson.scheme ? `Lesson ${lesson.lessonNumber}` : null,
     `${lesson.durationMinutes} min`,
   );

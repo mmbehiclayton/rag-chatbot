@@ -15,6 +15,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
+import { filingLabel, filingOf } from "@/lib/filing";
+import type { TermDates } from "@/lib/term-pack";
+import { getTeacherTerms } from "@/lib/term-pack-data";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 20;
@@ -53,8 +56,12 @@ type Row = {
   title: string;
   grade: string | null;
   subject: string | null;
+  /** "Term 2 2026" */
+  term: string;
   updatedAt: Date;
 };
+
+const FILED = { term: true, year: true, createdAt: true } as const;
 
 function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -65,7 +72,10 @@ async function loadRows(
   teacherId: string,
   q: string,
   skip: number,
+  terms: TermDates[],
 ): Promise<[Row[], number]> {
+  const termOf = (doc: Parameters<typeof filingOf>[1]) =>
+    filingLabel(filingOf(terms, doc));
   const contains = q
     ? { contains: q, mode: "insensitive" as const }
     : undefined;
@@ -85,7 +95,8 @@ async function loadRows(
             grade: true,
             subject: true,
             updatedAt: true,
-            scheme: { select: { grade: true, subject: true } },
+            ...FILED,
+            scheme: { select: { grade: true, subject: true, ...FILED } },
           },
         }),
         db.lessonPlan.count({ where }),
@@ -96,6 +107,7 @@ async function loadRows(
           title: r.topic,
           grade: r.grade ?? r.scheme?.grade ?? null,
           subject: r.subject ?? r.scheme?.subject ?? null,
+          term: termOf(r),
           updatedAt: r.updatedAt,
         })),
         count,
@@ -115,11 +127,12 @@ async function loadRows(
             grade: true,
             subject: true,
             updatedAt: true,
+            ...FILED,
           },
         }),
         db.schemeOfWork.count({ where }),
       ]);
-      return [rows, count];
+      return [rows.map((r) => ({ ...r, term: termOf(r) })), count];
     }
     case "notes": {
       const where = {
@@ -140,7 +153,8 @@ async function loadRows(
                 topic: true,
                 grade: true,
                 subject: true,
-                scheme: { select: { grade: true, subject: true } },
+                ...FILED,
+                scheme: { select: { grade: true, subject: true, ...FILED } },
               },
             },
           },
@@ -153,6 +167,7 @@ async function loadRows(
           title: r.lessonPlan.topic,
           grade: r.lessonPlan.grade ?? r.lessonPlan.scheme?.grade ?? null,
           subject: r.lessonPlan.subject ?? r.lessonPlan.scheme?.subject ?? null,
+          term: termOf(r.lessonPlan),
           updatedAt: r.updatedAt,
         })),
         count,
@@ -172,11 +187,12 @@ async function loadRows(
             grade: true,
             subject: true,
             updatedAt: true,
+            ...FILED,
           },
         }),
         db.assessment.count({ where }),
       ]);
-      return [rows, count];
+      return [rows.map((r) => ({ ...r, term: termOf(r) })), count];
     }
   }
 }
@@ -196,8 +212,9 @@ export default async function LibraryPage({
   const q = (first(params.q) ?? "").trim().slice(0, 100);
   const page = Math.max(1, Number.parseInt(first(params.page) ?? "1", 10) || 1);
 
+  const terms = await getTeacherTerms(session.userId);
   const [rows, total] = await withDbRetry(() =>
-    loadRows(type, session.userId, q, (page - 1) * PAGE_SIZE),
+    loadRows(type, session.userId, q, (page - 1) * PAGE_SIZE, terms),
   );
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const config = TYPES[type];
@@ -298,7 +315,7 @@ export default async function LibraryPage({
                   <p className="mt-0.5 truncate text-xs text-muted-foreground">
                     {[row.grade, row.subject].filter(Boolean).join(" · ") ||
                       "No grade set"}
-                    {" · "}
+                    {` · ${row.term} · `}
                     {formatDistanceToNow(row.updatedAt, { addSuffix: true })}
                   </p>
                 </div>

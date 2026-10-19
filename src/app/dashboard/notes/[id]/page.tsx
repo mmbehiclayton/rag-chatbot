@@ -63,6 +63,8 @@ export default async function NoteDetailPage({
             grade: true,
             subject: true,
             content: true,
+            term: true,
+            year: true,
             scheme: {
               select: { grade: true, subject: true, term: true, year: true },
             },
@@ -87,8 +89,8 @@ export default async function NoteDetailPage({
   const meta = docMeta({
     grade: plan.grade ?? plan.scheme?.grade,
     subject: plan.subject ?? plan.scheme?.subject,
-    term: plan.scheme?.term,
-    year: plan.scheme?.year,
+    term: plan.term ?? plan.scheme?.term,
+    year: plan.year ?? plan.scheme?.year,
   });
   const examples = asArray<NonNullable<Notes["workedExamples"]>[number]>(
     c.workedExamples,

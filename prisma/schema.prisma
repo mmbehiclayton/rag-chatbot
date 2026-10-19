@@ -197,6 +197,7 @@ model SchemeOfWork {
   lessonPlans   LessonPlan[]
   lessonRecords LessonRecord[]
   headReviews   HeadReview[]
+  assessments   Assessment[]
 
   @@index([teacherId])
   @@index([curriculumId])
@@ -217,6 +218,10 @@ model LessonPlan {
   grade           String?
   subject         String?
   durationMinutes Int           @default(40)
+  // The term the plan is filed under ("Term 2", 2026), and its scheme week when it has one
+  term            String?
+  year            Int?
+  week            Int?
 
   teacherId String
   teacher   User   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
@@ -276,18 +281,28 @@ model ChatMessage {
 }
 
 model Assessment {
-  id      String @id @default(uuid())
+  id      String  @id @default(uuid())
   title   String
   grade   String
   subject String
   type    String
   content Json
+  // The term the assessment is filed under ("Term 2", 2026)
+  term    String?
+  year    Int?
+
+  // The scheme of work for the same class and term, when the teacher has one
+  schemeId String?
+  scheme   SchemeOfWork? @relation(fields: [schemeId], references: [id], onDelete: SetNull)
 
   teacherId String
   teacher   User   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([teacherId])
+  @@index([schemeId])
 }
 
 model PasswordResetToken {

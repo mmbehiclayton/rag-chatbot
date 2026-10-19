@@ -1,3 +1,5 @@
+import { BookOpen } from "lucide-react";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
   asArray,
@@ -7,6 +9,7 @@ import {
   ExportButton,
   parseTitle,
 } from "@/components/document/doc-parts";
+import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
 import { classHref } from "@/lib/classes";
 import { db, withDbRetry } from "@/lib/db";
@@ -45,7 +48,10 @@ export default async function AssessmentDetailPage({
 
   const { id } = await params;
   const assessment = await withDbRetry(() =>
-    db.assessment.findFirst({ where: { id, teacherId: session.userId } }),
+    db.assessment.findFirst({
+      where: { id, teacherId: session.userId },
+      include: { scheme: { select: { id: true } } },
+    }),
   );
   if (!assessment) notFound();
 
@@ -68,15 +74,32 @@ export default async function AssessmentDetailPage({
         backLabel={`${assessment.grade} ${assessment.subject}`}
         title={title}
         meta={docMeta(
-          { grade: assessment.grade, subject: assessment.subject },
+          {
+            grade: assessment.grade,
+            subject: assessment.subject,
+            term: assessment.term,
+            year: assessment.year,
+          },
           assessment.type,
           `${totalMarks} marks`,
         )}
         needsReview={needsReview}
         actions={
-          <ExportButton
-            href={`/api/export?type=assessment&id=${assessment.id}`}
-          />
+          <>
+            <ExportButton
+              href={`/api/export?type=assessment&id=${assessment.id}`}
+            />
+            {assessment.scheme && (
+              <Button
+                variant="outline"
+                render={
+                  <Link href={`/dashboard/schemes/${assessment.scheme.id}`} />
+                }
+              >
+                <BookOpen /> Scheme of work
+              </Button>
+            )}
+          </>
         }
       />
 

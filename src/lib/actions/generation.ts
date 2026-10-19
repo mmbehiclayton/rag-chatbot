@@ -15,6 +15,7 @@ import {
   subStrandsForTerm,
 } from "@/lib/curriculum-map";
 import { db } from "@/lib/db";
+import { filingFor, filingOf } from "@/lib/filing";
 import {
   type ClassRef,
   coversClass,
@@ -24,6 +25,7 @@ import {
 } from "@/lib/plans";
 import { retrieveContext } from "@/lib/rag";
 import { schemeLessons } from "@/lib/term-pack";
+import { getTeacherTerms } from "@/lib/term-pack-data";
 
 // ─── Results and errors ───────────────────────────────────────────────────────
 
@@ -712,6 +714,11 @@ ${schemeMap ? `\n${MAP_RULES}\n\nCURRICULUM MAP FOR THIS LESSON:\n${lessonGround
     prompt: `Generate the full expanded Lesson Plan for Lesson ${lessonNumber}: "${topic}".`,
   });
 
+  const filed = filingOf(await getTeacherTerms(session.userId), scheme);
+  const week = schemeLessons(scheme.content).find(
+    (l) => l.lessonNumber === lessonNumber,
+  )?.weekNumber;
+
   const lessonPlan = await db.lessonPlan.create({
     data: {
       lessonNumber,
@@ -721,6 +728,8 @@ ${schemeMap ? `\n${MAP_RULES}\n\nCURRICULUM MAP FOR THIS LESSON:\n${lessonGround
       schemeId,
       grade: scheme.grade,
       subject: scheme.subject,
+      ...filed,
+      week,
       teacherId: session.userId,
     },
   });
@@ -823,6 +832,7 @@ ${groundingText}
       grade: parameters.grade,
       subject: parameters.subject,
       durationMinutes,
+      ...(await filingFor(session.userId)),
       teacherId: session.userId,
     },
   });
@@ -973,6 +983,20 @@ ${groundingBlock(grounding)}
     prompt: `Generate the complete assessment paper with marking scheme now.`,
   });
 
+  // File it under the term, beside that term's scheme when the teacher has one.
+  const filed = await filingFor(session.userId, parameters.term);
+  const scheme = await db.schemeOfWork.findFirst({
+    where: {
+      teacherId: session.userId,
+      grade: parameters.grade,
+      subject: parameters.subject,
+      term: parameters.term,
+      OR: [{ year: filed.year }, { year: null }],
+    },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true },
+  });
+
   const assessment = await db.assessment.create({
     data: {
       title: object.title,
@@ -980,6 +1004,8 @@ ${groundingBlock(grounding)}
       subject: parameters.subject,
       type: parameters.type,
       content: object,
+      ...filed,
+      schemeId: scheme?.id,
       teacherId: session.userId,
     },
   });
