@@ -218,7 +218,9 @@ const SchemeOfWorkSchema = z.object({
           assessmentMethods: z.array(z.string()),
           reflection: z
             .string()
-            .describe("Teacher's post-lesson reflection, empty string if none"),
+            .describe(
+              "Always an empty string: the teacher fills this in after teaching",
+            ),
         }),
       ),
     }),
@@ -347,6 +349,11 @@ function lessonPlanRules(durationMinutes: number) {
 
 const LessonNotesSchema = z.object({
   topic: z.string(),
+  learningOutcomes: z
+    .array(z.string())
+    .describe(
+      "The lesson plan's specific learning outcomes, copied as written",
+    ),
   conceptOverview: z.object({
     keyDefinitions: z.array(z.string()),
     backgroundContext: z.string(),
@@ -375,13 +382,29 @@ const LessonNotesSchema = z.object({
       correction: z.string(),
     }),
   ),
+  boardSummary: z
+    .array(z.string())
+    .describe("4-8 short points the teacher can copy onto the chalkboard"),
+  references: z
+    .array(z.string())
+    .describe(
+      "Course books or materials to read up from, without invented page numbers",
+    ),
 });
 
 type SchemeOfWorkContent = z.infer<typeof SchemeOfWorkSchema>;
 type LessonPlanContent = z.infer<typeof LessonPlanSchema>;
 
+const CBC_LEVELS = [
+  "Exceeding expectations",
+  "Meeting expectations",
+  "Approaching expectations",
+  "Below expectations",
+] as const;
+
 const AssessmentSchema = z.object({
   title: z.string(),
+  subStrandsCovered: z.array(z.string()),
   sections: z.array(
     z.object({
       sectionTitle: z.string(),
@@ -390,6 +413,11 @@ const AssessmentSchema = z.object({
         z.object({
           questionNumber: z.number(),
           questionText: z.string(),
+          learningOutcome: z
+            .string()
+            .describe(
+              "The specific learning outcome this question tests, as written in the curriculum design",
+            ),
           marks: z.number(),
           modelAnswer: z.string(),
           rubric: z
@@ -401,12 +429,17 @@ const AssessmentSchema = z.object({
   ),
   markingScheme: z.object({
     totalMarks: z.number(),
-    gradingScale: z.array(
-      z.object({
-        range: z.string(),
-        descriptor: z.string(),
-      }),
-    ),
+    gradingScale: z
+      .array(
+        z.object({
+          level: z.enum(CBC_LEVELS),
+          range: z.string().describe("Mark range, e.g. '40-50'"),
+          descriptor: z.string(),
+        }),
+      )
+      .describe(
+        "Exactly four bands, from Exceeding down to Below expectations",
+      ),
   }),
 });
 
@@ -532,6 +565,8 @@ ${
 4. Structure into Weeks and Rows, one row per lesson. Keep each row brief: 1-3 outcomes, 1-2 inquiry questions, 2-3 learning experiences, 2-3 resources and 1-2 assessment methods, each a short phrase.
 5. Tag all 7 core competencies in activities.
 6. Include min 2 Community Service Learning and 2 Parental Engagement strategies.
+7. Learning experiences are learner-centred ("Learners are guided to…"). Resources are things a Kenyan school has or can make; do not invent textbook page numbers.
+8. Leave every row's reflection empty; the teacher writes it after teaching.
 
 ${groundingBlock(grounding)}
 `;
@@ -838,6 +873,9 @@ MANDATORY REQUIREMENTS:
 2. Embed 3 Worked Examples (Basic, Medium, Advanced) containing specific think-aloud commentary.
 3. Write deep Questioning Sequences showing the initial question, expected answer, and handling.
 4. Curate an exhaustive list of Common Misconceptions.
+5. Copy the lesson plan's specific learning outcomes, and make every part of the notes serve them.
+6. Write a short board summary in plain English that learners can copy into their books.
+7. List references: the kind of approved course book or material to read, without inventing page numbers.
 
 SOURCE LESSON PLAN DATA:
 ${JSON.stringify(lessonPlan.content)}
@@ -911,16 +949,19 @@ async function generateAssessmentImpl(parameters: {
 Generate a formal Assessment Paper and marking scheme.${customRuleText}
 
 INPUT DATA:
-- Grade Level: ${parameters.grade}
-- Subject: ${parameters.subject}
-- Assessment Type: ${parameters.type}
-- Total Marks: ${parameters.totalMarks}
-- Duration: ${parameters.durationMinutes} minutes
+- Grade: ${parameters.grade}
+- Learning area: ${parameters.subject}
+- Term: ${parameters.term}
+- Assessment type: ${parameters.type}
+- Total marks: ${parameters.totalMarks}
+- Time allowed: ${parameters.durationMinutes} minutes
 
 MANDATORY REQUIREMENTS:
-1. Cover ALL specified learning outcomes.
-2. Follow Bloom's taxonomy distribution.
-3. Provide a Detailed Marking Scheme.
+1. Cover the term's learning outcomes from the curriculum below. Tag every question with the specific learning outcome it tests, as written in the design, and list the sub-strands covered.
+2. Mix recall, understanding and application questions suited to the grade. Where the learning area calls for it, include a practical or real-life task with a rubric.
+3. Write section instructions to learners in simple English.
+4. Marks add up to exactly ${parameters.totalMarks}. Give a model answer for every question.
+5. Grading scale: exactly four bands from highest to lowest (${CBC_LEVELS.join(", ")}), each with a mark range out of ${parameters.totalMarks} and a short description of what a learner at that level can do.
 
 ${groundingBlock(grounding)}
 `;

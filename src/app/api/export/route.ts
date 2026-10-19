@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
       if (type === "scheme") {
         const items = await db.schemeOfWork.findMany({
           where: { teacherId: session.userId, grade, subject },
+          include: TEACHER_INCLUDE,
           orderBy: { term: "asc" },
         });
         if (!items.length)
@@ -62,6 +63,7 @@ export async function GET(req: NextRequest) {
       } else if (type === "assessment") {
         const items = await db.assessment.findMany({
           where: { teacherId: session.userId, grade, subject },
+          include: TEACHER_INCLUDE,
           orderBy: { updatedAt: "asc" },
         });
         if (!items.length)
@@ -80,6 +82,7 @@ export async function GET(req: NextRequest) {
     if (type === "scheme") {
       const scheme = await db.schemeOfWork.findFirst({
         where: { id, teacherId: session.userId },
+        include: TEACHER_INCLUDE,
       });
       if (!scheme) return new NextResponse("Not found", { status: 404 });
       cls = scheme;
@@ -124,6 +127,7 @@ export async function GET(req: NextRequest) {
     } else if (type === "assessment") {
       const assessment = await db.assessment.findFirst({
         where: { id, teacherId: session.userId },
+        include: TEACHER_INCLUDE,
       });
       if (!assessment) return new NextResponse("Not found", { status: 404 });
       cls = assessment;
@@ -137,6 +141,7 @@ export async function GET(req: NextRequest) {
               topic: true,
               grade: true,
               subject: true,
+              content: true,
               scheme: { select: { grade: true, subject: true } },
             },
           },
@@ -270,7 +275,9 @@ type SchemeExport = {
   grade?: string | null;
   subject?: string | null;
   term?: string | null;
+  year?: number | null;
   content?: unknown;
+  teacher?: TeacherInfo;
 };
 
 function schemeBody(scheme: SchemeExport, weekDates?: Map<number, string>) {
@@ -288,17 +295,18 @@ function schemeBody(scheme: SchemeExport, weekDates?: Map<number, string>) {
           return `
       <tr>
         <td class="wk">${ri === 0 ? `Wk ${esc(week.weekNumber)}${weekDates?.get(week.weekNumber ?? 0) ? `<br><small>${esc(weekDates.get(week.weekNumber ?? 0))}</small>` : ""}` : ""}</td>
+        <td class="center">${ri + 1}</td>
         <td class="b">${esc(rowData.strand)}</td>
         <td class="sub">${esc(rowData.subStrand)}</td>
         <td>${arr(rowData.specificLearningOutcomes)
           .map((o) => `<div class="out">${esc(o)}</div>`)
           .join("")}</td>
-        <td class="kiq">${arr(rowData.keyInquiryQuestions)
-          .map((q) => `<div>Q: ${esc(q)}</div>`)
-          .join("")}</td>
         <td><ul>${arr(rowData.learningExperiences)
           .map((e) => `<li>${esc(e)}</li>`)
           .join("")}</ul></td>
+        <td class="kiq">${arr(rowData.keyInquiryQuestions)
+          .map((q) => `<div>Q: ${esc(q)}</div>`)
+          .join("")}</td>
         <td>${arr(rowData.learningResources)
           .map((r) => `<span class="badge">${esc(r)}</span>`)
           .join("")}</td>
@@ -314,24 +322,27 @@ function schemeBody(scheme: SchemeExport, weekDates?: Map<number, string>) {
     .join("");
 
   const body = `
-    <div class="center"><h1>${esc(scheme.title)}</h1></div>
+    <div class="center"><h1>Scheme of work</h1><p>${esc((scheme.title ?? "").replace(/^\[Needs Review\]\s*/i, ""))}</p></div>
     <div class="meta center">
+      ${schoolOf(scheme.teacher) ? `<div>School: <span>${esc(schoolOf(scheme.teacher))}</span></div>` : ""}
+      ${scheme.teacher?.name ? `<div>Teacher: <span>${esc(scheme.teacher.name)}</span></div>` : ""}
       <div>Grade: <span>${esc(scheme.grade)}</span></div>
-      <div>Subject: <span>${esc(scheme.subject)}</span></div>
+      <div>Learning area: <span>${esc(scheme.subject)}</span></div>
       <div>Term: <span>${esc(scheme.term)}</span></div>
+      ${scheme.year ? `<div>Year: <span>${esc(scheme.year)}</span></div>` : ""}
     </div>
     <table class="scheme">
       <colgroup>
-        <col style="width:4%"><col style="width:7%"><col style="width:7%"><col style="width:21%">
-        <col style="width:13%"><col style="width:20%"><col style="width:10%"><col style="width:11%"><col style="width:7%">
+        <col style="width:4%"><col style="width:4%"><col style="width:7%"><col style="width:7%"><col style="width:19%">
+        <col style="width:18%"><col style="width:12%"><col style="width:10%"><col style="width:11%"><col style="width:8%">
       </colgroup>
       <thead><tr>
-        <th>Week</th><th>Strand</th><th>Sub-Strand</th>
-        <th>Specific Learning Outcomes</th>
-        <th>Key Inquiry Questions</th>
-        <th>Learning Experiences</th>
-        <th>Learning Resources</th>
-        <th>Assessment Methods</th>
+        <th>Week</th><th>Lesson</th><th>Strand</th><th>Sub-strand</th>
+        <th>Specific learning outcomes</th>
+        <th>Learning experiences</th>
+        <th>Key inquiry questions</th>
+        <th>Learning resources</th>
+        <th>Assessment</th>
         <th>Reflection</th>
       </tr></thead>
       <tbody>${weekRows}</tbody>
@@ -494,9 +505,8 @@ type LessonExport = {
   } | null;
 };
 
-/** What every exported lesson plan needs for its header. */
-const LESSON_EXPORT_INCLUDE = {
-  scheme: { select: { grade: true, subject: true } },
+/** The teacher's name and school, for document headers. */
+const TEACHER_INCLUDE = {
   teacher: {
     select: {
       name: true,
@@ -504,6 +514,21 @@ const LESSON_EXPORT_INCLUDE = {
       tenant: { select: { name: true } },
     },
   },
+} as const;
+
+type TeacherInfo = {
+  name?: string | null;
+  schoolName?: string | null;
+  tenant?: { name?: string | null } | null;
+} | null;
+
+const schoolOf = (teacher?: TeacherInfo) =>
+  teacher?.schoolName || teacher?.tenant?.name || "";
+
+/** What every exported lesson plan needs for its header. */
+const LESSON_EXPORT_INCLUDE = {
+  scheme: { select: { grade: true, subject: true } },
+  ...TEACHER_INCLUDE,
 } as const;
 
 /** A lesson plan in the KICD order, with blanks for what the teacher fills in by hand. */
@@ -680,6 +705,7 @@ function buildLessonHTML(lesson: LessonExport) {
 type AssessmentQuestion = {
   questionNumber?: string | number;
   questionText?: string;
+  learningOutcome?: string;
   marks?: number | string;
   modelAnswer?: string;
   rubric?: string;
@@ -692,9 +718,14 @@ type AssessmentSection = {
 };
 
 type AssessmentContent = {
+  subStrandsCovered?: unknown[];
   sections?: AssessmentSection[];
   markingScheme?: {
-    gradingScale?: Array<{ range?: string; descriptor?: string }>;
+    gradingScale?: Array<{
+      level?: string;
+      range?: string;
+      descriptor?: string;
+    }>;
     totalMarks?: number | string;
   };
 };
@@ -705,74 +736,115 @@ type AssessmentExport = {
   subject?: string | null;
   type?: string | null;
   content?: unknown;
+  teacher?: TeacherInfo;
 };
 
+/** The learners' paper first, then the teacher's marking scheme on a new page. */
 function assessmentBody(assessment: AssessmentExport) {
   const c = (assessment.content ?? {}) as AssessmentContent;
   const sections = Array.isArray(c.sections) ? c.sections : [];
+  const questionsOf = (section: AssessmentSection) =>
+    Array.isArray(section.questions) ? section.questions : [];
+  const title = (assessment.title ?? "").replace(/^\[Needs Review\]\s*/i, "");
+  const school = schoolOf(assessment.teacher);
+  const sectionName = (section: AssessmentSection, si: number) =>
+    `Section ${si + 1}${section.sectionTitle ? `: ${esc(section.sectionTitle)}` : ""}`;
 
-  const sectionsHTML = sections
+  const paper = sections
     .map((section, si) => {
-      const questions = Array.isArray(section.questions)
-        ? section.questions
-        : [];
-      const qRows = questions
+      const rows = questionsOf(section)
         .map(
-          (q) => `
+          (q, qi) => `
       <tr>
-        <td style="width:30px;text-align:center">${esc(q.questionNumber)}</td>
+        <td class="center" style="width:30px">${esc(q.questionNumber ?? qi + 1)}</td>
         <td>${esc(q.questionText)}</td>
-        <td style="width:50px;text-align:center">${esc(q.marks)}</td>
-      </tr>
-      <tr style="background:#fafafa">
-        <td></td>
-        <td colspan="2"><em>Answer: ${esc(q.modelAnswer)}</em>${q.rubric ? `<br><small>Rubric: ${esc(q.rubric)}</small>` : ""}</td>
-      </tr>
-    `,
+        <td class="center" style="width:60px">${q.marks != null ? `(${esc(q.marks)})` : ""}</td>
+      </tr>`,
         )
         .join("");
-
       return `
       <div class="section">
-        <h2>Section ${si + 1}: ${esc(section.sectionTitle)}</h2>
-        <p><em>${esc(section.instructions)}</em></p>
-        <table>
-          <thead><tr><th>#</th><th>Question</th><th>Marks</th></tr></thead>
-          <tbody>${qRows}</tbody>
-        </table>
-      </div>
-    `;
+        <h2>${sectionName(section, si)}</h2>
+        ${section.instructions ? `<p><em>${esc(section.instructions)}</em></p>` : ""}
+        <table class="paper"><tbody>${rows}</tbody></table>
+      </div>`;
     })
     .join("");
 
-  const gradingScale = Array.isArray(c.markingScheme?.gradingScale)
-    ? c.markingScheme.gradingScale
-    : [];
-  const scaleHTML = gradingScale
-    .map(
-      (g) => `<tr><td>${esc(g.range)}</td><td>${esc(g.descriptor)}</td></tr>`,
-    )
+  const marking = sections
+    .map((section, si) => {
+      const rows = questionsOf(section)
+        .map(
+          (q, qi) => `
+      <tr>
+        <td class="center">${esc(q.questionNumber ?? qi + 1)}</td>
+        <td>${esc(q.modelAnswer)}${q.rubric ? `<br><small>${esc(q.rubric)}</small>` : ""}</td>
+        <td>${esc(q.learningOutcome)}</td>
+        <td class="center">${esc(q.marks)}</td>
+      </tr>`,
+        )
+        .join("");
+      return `
+      <h3>${sectionName(section, si)}</h3>
+      <table>
+        <thead><tr><th style="width:30px">#</th><th>Answer</th><th style="width:30%">Outcome tested</th><th style="width:50px">Marks</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+    })
     .join("");
 
-  const body = `
-    <h1>${esc(assessment.title)}</h1>
-    <div class="meta">
+  const scale = Array.isArray(c.markingScheme?.gradingScale)
+    ? c.markingScheme.gradingScale
+    : [];
+  const scaleRows = scale
+    .map(
+      (g) =>
+        `<tr><td>${esc(g.level)}</td><td class="center">${esc(g.range)}</td><td>${esc(g.descriptor)}</td></tr>`,
+    )
+    .join("");
+  const covered = arr(c.subStrandsCovered).filter((x) => x.trim());
+
+  return `
+    <style>
+      table.head th { width: 18%; text-align: left; }
+      table.head td { width: 32%; height: 28px; }
+      table.paper td { border: none; border-bottom: 1px solid #eee; }
+    </style>
+    <div class="center"><h1>${esc(title)}</h1></div>
+    <div class="meta center">
+      ${school ? `<div>School: <span>${esc(school)}</span></div>` : ""}
       <div>Grade: <span>${esc(assessment.grade)}</span></div>
-      <div>Subject: <span>${esc(assessment.subject)}</span></div>
-      <div>Type: <span>${esc(assessment.type)}</span></div>
-      <div>Total Marks: <span>${esc(c?.markingScheme?.totalMarks)}</span></div>
+      <div>Learning area: <span>${esc(assessment.subject)}</span></div>
+      ${assessment.type ? `<div>Type: <span>${esc(assessment.type)}</span></div>` : ""}
+      ${c.markingScheme?.totalMarks ? `<div>Total marks: <span>${esc(c.markingScheme.totalMarks)}</span></div>` : ""}
     </div>
-    ${sectionsHTML}
+    <table class="head">
+      <tr><th>Learner's name</th><td></td><th>Admission no.</th><td></td></tr>
+      <tr><th>Stream</th><td></td><th>Date</th><td></td></tr>
+    </table>
+    ${paper}
+
+    <div class="page-break"></div>
+    <div class="center"><h1>Marking scheme</h1><p>${esc(title)}</p></div>
+    ${covered.length ? `<div class="section"><h2>Sub-strands covered</h2><ul>${covered.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+    <div class="section">${marking}</div>
     ${
-      gradingScale.length > 0
-        ? `
-      <h2>Grading Scale</h2>
-      <table><thead><tr><th>Mark Range</th><th>Descriptor</th></tr></thead><tbody>${scaleHTML}</tbody></table>
-    `
+      scaleRows
+        ? `<div class="section">
+      <h2>Grading</h2>
+      <table><thead><tr><th>Level</th><th>Marks</th><th>What the learner can do</th></tr></thead><tbody>${scaleRows}</tbody></table>
+      <p><small>Check the mark ranges against your school's grading policy.</small></p>
+    </div>`
         : ""
     }
   `;
-  return body;
+}
+
+function buildAssessmentHTML(assessment: AssessmentExport) {
+  return wrap(
+    (assessment.title ?? "Assessment").replace(/^\[Needs Review\]\s*/i, ""),
+    assessmentBody(assessment),
+  );
 }
 
 type NotesExport = {
@@ -782,6 +854,7 @@ type NotesExport = {
     topic?: string | null;
     grade?: string | null;
     subject?: string | null;
+    content?: unknown;
     scheme?: { grade?: string | null; subject?: string | null } | null;
   };
 };
@@ -790,6 +863,10 @@ function buildNotesHTML(note: NotesExport) {
   const c = (note.resources ?? {}) as Record<string, unknown>;
   const plan = note.lessonPlan ?? {};
   const overview = (c.conceptOverview ?? {}) as Record<string, unknown>;
+  const planContent = (plan.content ?? {}) as Record<string, unknown>;
+  const outcomes = arr(c.learningOutcomes).length
+    ? c.learningOutcomes
+    : planContent.specificLearningOutcomes;
   const list = (items: unknown) =>
     `<ul>${arr(items)
       .map((i) => `<li>${esc(i)}</li>`)
@@ -843,6 +920,19 @@ function buildNotesHTML(note: NotesExport) {
       <div><span>Lesson notes</span></div>
     </div>
     <div class="section">
+      ${planContent.strand ? `<p><strong>Strand:</strong> ${esc(planContent.strand)}</p>` : ""}
+      ${planContent.subStrand ? `<p><strong>Sub-strand:</strong> ${esc(planContent.subStrand)}</p>` : ""}
+      ${
+        arr(outcomes).length
+          ? `<p><strong>Specific learning outcomes:</strong> by the end of the lesson, the learner should be able to:</p><ol>${arr(
+              outcomes,
+            )
+              .map((o) => `<li>${esc(o)}</li>`)
+              .join("")}</ol>`
+          : ""
+      }
+    </div>
+    <div class="section">
       <h2>Concept overview</h2>
       <p>${esc(overview.whatLearnersNeedToKnow ?? note.notes ?? "")}</p>
       ${overview.backgroundContext ? `<p>${esc(overview.backgroundContext)}</p>` : ""}
@@ -851,12 +941,10 @@ function buildNotesHTML(note: NotesExport) {
     ${examples ? `<div class="section"><h2>Worked examples</h2>${examples}</div>` : ""}
     ${questions ? `<div class="section"><h2>Questioning</h2><table><thead><tr><th>Question</th><th>Expected answer</th><th>If incorrect</th><th>If correct</th></tr></thead><tbody>${questions}</tbody></table></div>` : ""}
     ${misconceptions ? `<div class="section"><h2>Common misconceptions</h2><table><thead><tr><th>Misconception</th><th>Correction</th></tr></thead><tbody>${misconceptions}</tbody></table></div>` : ""}
+    ${arr(c.boardSummary).length ? `<div class="section"><h2>Board summary</h2>${list(c.boardSummary)}</div>` : ""}
+    ${arr(c.references).length ? `<div class="section"><h2>References</h2>${list(c.references)}</div>` : ""}
   `;
   return wrap(`${plan.topic ?? "Lesson"} – Notes`, body);
-}
-
-function buildAssessmentHTML(assessment: AssessmentExport) {
-  return wrap(assessment.title ?? "Assessment", assessmentBody(assessment));
 }
 
 // Combines every record of a learning area (grade + subject) into one document,

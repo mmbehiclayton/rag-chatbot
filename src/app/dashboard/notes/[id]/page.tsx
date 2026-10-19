@@ -12,6 +12,7 @@ import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
 
 type Notes = {
+  learningOutcomes?: string[];
   conceptOverview?: {
     keyDefinitions?: string[];
     backgroundContext?: string;
@@ -31,6 +32,8 @@ type Notes = {
     followUpIfCorrect?: string;
   }[];
   misconceptions?: { misconception?: string; correction?: string }[];
+  boardSummary?: string[];
+  references?: string[];
 };
 
 const LEVEL: Record<string, string> = {
@@ -58,6 +61,7 @@ export default async function NoteDetailPage({
             topic: true,
             grade: true,
             subject: true,
+            content: true,
             scheme: { select: { grade: true, subject: true } },
           },
         },
@@ -68,6 +72,15 @@ export default async function NoteDetailPage({
 
   const c = (note.resources ?? {}) as Notes;
   const plan = note.lessonPlan;
+  const planContent = (plan.content ?? {}) as {
+    strand?: string;
+    subStrand?: string;
+    specificLearningOutcomes?: string[];
+  };
+  // Notes made before October 2026 didn't copy the outcomes; fall back to the plan's.
+  const outcomes = asArray(c.learningOutcomes).length
+    ? c.learningOutcomes
+    : planContent.specificLearningOutcomes;
   const meta = [
     plan.grade ?? plan.scheme?.grade,
     plan.subject ?? plan.scheme?.subject,
@@ -94,6 +107,20 @@ export default async function NoteDetailPage({
         meta={meta}
         actions={<ExportButton href={`/api/export?type=notes&id=${note.id}`} />}
       />
+
+      <DocSection title="What this lesson covers">
+        <Field label="Strand">
+          {planContent.strand && <p>{planContent.strand}</p>}
+        </Field>
+        <Field label="Sub-strand">
+          {planContent.subStrand && <p>{planContent.subStrand}</p>}
+        </Field>
+        <Field label="Specific learning outcomes">
+          {asArray(outcomes).length > 0 && (
+            <BulletList items={outcomes} ordered />
+          )}
+        </Field>
+      </DocSection>
 
       <DocSection title="Concept overview">
         <Field label="What learners need to know">
@@ -179,6 +206,21 @@ export default async function NoteDetailPage({
               </li>
             ))}
           </ul>
+        </DocSection>
+      )}
+
+      {asArray(c.boardSummary).length > 0 && (
+        <DocSection title="Board summary">
+          <p className="text-sm text-muted-foreground">
+            Short points to write on the board for learners to copy.
+          </p>
+          <BulletList items={c.boardSummary} />
+        </DocSection>
+      )}
+
+      {asArray(c.references).length > 0 && (
+        <DocSection title="References">
+          <BulletList items={c.references} />
         </DocSection>
       )}
     </div>
