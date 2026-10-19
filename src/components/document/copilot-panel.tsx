@@ -84,8 +84,12 @@ export function CopilotPanel({ lessonId }: { lessonId: string }) {
           <p className="text-sm text-muted-foreground">Thinking…</p>
         )}
         {error && (
-          <div className="flex items-center gap-2 text-sm text-destructive">
-            Something went wrong.
+          <div className="flex flex-wrap items-center gap-2 text-sm text-destructive">
+            {/^(Failed to fetch|NetworkError|Load failed)/i.test(
+              error.message,
+            ) || !error.message
+              ? "Elimu could not answer. Check your connection."
+              : error.message}
             <Button variant="outline" size="sm" onClick={() => regenerate()}>
               <RotateCw /> Try again
             </Button>

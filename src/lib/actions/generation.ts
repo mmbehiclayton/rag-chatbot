@@ -3,7 +3,6 @@
 import { Prisma } from "@prisma/client";
 import { generateObject } from "ai";
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { z } from "zod";
 import { explainAIError } from "@/lib/ai-errors";
 import { aiModel, modelName } from "@/lib/ai-models";
@@ -26,6 +25,7 @@ import {
   plansOn,
 } from "@/lib/plans";
 import { retrieveContext } from "@/lib/rag";
+import { DOCS_PER_HOUR, overLimit } from "@/lib/rate-limit";
 import {
   BEST_FIRST,
   BEST_SCHEME_FIRST,
@@ -148,29 +148,10 @@ async function checkGenerationGuards(
       throw new TeacherError(freePlanMessage(access));
   }
 
-  // 1. Rate limit: 20 generations per user per hour
-  const headerStore = await headers();
-  const ip = headerStore.get("x-forwarded-for") || "127.0.0.1";
-  const rateLimitKey = `gen_${session.userId}_${ip}`;
-  const windowMs = 60 * 60 * 1000; // 1 hour
-
-  await db.rateLimit
-    .deleteMany({ where: { expiresAt: { lt: new Date() } } })
-    .catch(() => {});
-
-  const limit = await db.rateLimit.upsert({
-    where: { key: rateLimitKey },
-    create: {
-      key: rateLimitKey,
-      expiresAt: new Date(Date.now() + windowMs),
-      points: 1,
-    },
-    update: { points: { increment: 1 } },
-  });
-
-  if (limit.points > 20 && limit.expiresAt > new Date()) {
+  // 1. Rate limit: 20 documents per teacher per hour
+  if (await overLimit(`gen_${session.userId}`, DOCS_PER_HOUR, 60 * 60 * 1000)) {
     throw new TeacherError(
-      "You have created 20 documents in the last hour. Please wait a while before creating more.",
+      `You have created ${DOCS_PER_HOUR} documents in the last hour. Please wait a while before creating more.`,
     );
   }
 

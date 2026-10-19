@@ -1,13 +1,17 @@
 import { convertToModelMessages, streamText } from "ai";
-import { aiModel } from "@/lib/ai-models";
+import { aiModel, modelName } from "@/lib/ai-models";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { CHAT_PER_DAY, overLimit } from "@/lib/rate-limit";
 
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
   const session = await auth();
-  if (!session?.userId) return new Response("Unauthorized", { status: 401 });
+  if (!session?.userId)
+    return new Response("Your session has ended. Please sign in again.", {
+      status: 401,
+    });
 
   const { messages, lessonId } = await req.json();
   if (typeof lessonId !== "string" || !Array.isArray(messages))
@@ -19,6 +23,20 @@ export async function POST(req: Request) {
     select: { content: true },
   });
   if (!lesson) return new Response("Not found", { status: 404 });
+
+  // Shares Ask Elimu's daily limit.
+  if (
+    session.role !== "SUPERADMIN" &&
+    (await overLimit(
+      `chat_${session.userId}`,
+      CHAT_PER_DAY,
+      24 * 60 * 60 * 1000,
+    ))
+  )
+    return new Response(
+      `You've asked Elimu ${CHAT_PER_DAY} questions today, which is the daily limit. You can ask more tomorrow.`,
+      { status: 429 },
+    );
 
   const lessonContext = (lesson.content ?? {}) as Record<string, unknown>;
   const lessonTopic =
@@ -59,7 +77,23 @@ GUIDELINES:
   const result = streamText({
     model: aiModel("chat"),
     system: systemPrompt,
-    messages: await convertToModelMessages(messages.slice(-20)),
+    messages: await convertToModelMessages(messages.slice(-10)),
+    onFinish: async ({ totalUsage }) => {
+      await db.generationLog
+        .create({
+          data: {
+            userId: session.userId,
+            tenantId: session.tenantId,
+            contentType: "CHAT",
+            promptTokens: totalUsage.inputTokens ?? 0,
+            completionTokens: totalUsage.outputTokens ?? 0,
+            totalTokens:
+              (totalUsage.inputTokens ?? 0) + (totalUsage.outputTokens ?? 0),
+            model: modelName("chat"),
+          },
+        })
+        .catch((e) => console.error("Failed to log copilot usage:", e));
+    },
   });
 
   return result.toUIMessageStreamResponse();

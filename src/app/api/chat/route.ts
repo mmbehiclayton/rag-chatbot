@@ -19,6 +19,7 @@ import {
 import { getGradeOptions, getTeachingProfile } from "@/lib/curriculum-options";
 import { db } from "@/lib/db";
 import { retrieveContext } from "@/lib/rag";
+import { CHAT_PER_DAY, overLimit } from "@/lib/rate-limit";
 
 // Below this, a chunk from an unfiltered search is usually about something else.
 const MIN_SIMILARITY = 0.4;
@@ -42,7 +43,10 @@ function extractText(message: ChatMessage | null | undefined): string {
 export async function POST(req: Request) {
   try {
     const session = await auth();
-    if (!session?.userId) return new Response("Unauthorized", { status: 401 });
+    if (!session?.userId)
+      return new Response("Your session has ended. Please sign in again.", {
+        status: 401,
+      });
 
     const {
       messages,
@@ -54,6 +58,20 @@ export async function POST(req: Request) {
       return new Response("Bad request", { status: 400 });
 
     const tenantId = session.tenantId;
+
+    // Chat has no other cap, so one heavy user can't spend everyone's credit.
+    if (
+      session.role !== "SUPERADMIN" &&
+      (await overLimit(
+        `chat_${session.userId}`,
+        CHAT_PER_DAY,
+        24 * 60 * 60 * 1000,
+      ))
+    )
+      return new Response(
+        `You've asked Elimu ${CHAT_PER_DAY} questions today, which is the daily limit. You can ask more tomorrow. Your lesson plans and other work are not affected.`,
+        { status: 429 },
+      );
 
     // Messages are saved here, against the session id the client sends with each request,
     // so a new conversation's first exchange is never lost.
@@ -186,7 +204,7 @@ ${contextText}
         const result = streamText({
           model: aiModel("chat"),
           system: systemPrompt,
-          messages: await convertToModelMessages(messages.slice(-20)),
+          messages: await convertToModelMessages(messages.slice(-10)),
           onFinish: async ({ text, totalUsage }) => {
             // Logged like documents, so chat counts towards the school's allowance and staff see its cost.
             await db.generationLog
@@ -229,9 +247,9 @@ ${contextText}
     return createUIMessageStreamResponse({ stream });
   } catch (error: unknown) {
     console.error("Critical error in POST /api/chat:", error);
-    return new Response(JSON.stringify({ error: "Interaction failed" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(
+      "Elimu couldn't answer just now. Please try again in a minute.",
+      { status: 500 },
+    );
   }
 }
