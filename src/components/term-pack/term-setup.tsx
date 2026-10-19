@@ -1,18 +1,21 @@
 "use client";
 
-import { Info, Plus, Trash2 } from "lucide-react";
+import { CalendarCheck, Info, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { ChoiceChips } from "@/components/shared/choice-chips";
+import { BreaksEditor } from "@/components/term-pack/breaks-editor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
-import { saveTerm, saveTimetable } from "@/lib/actions/term-pack";
+import { resetTerm, saveTerm, saveTimetable } from "@/lib/actions/term-pack";
 import {
+  formatDay,
+  type Holiday,
   parseStreams,
   streamLabel,
   type TermDates,
@@ -20,17 +23,22 @@ import {
   teachingWeeks,
   termLabel,
   WEEKDAYS,
+  weekdayOf,
 } from "@/lib/term-pack";
 
-type TermOption = TermDates & { saved: boolean; estimate: boolean };
+/** `custom` when the teacher changed the school calendar's dates for this term. */
+type TermOption = TermDates & { custom: boolean; estimate: boolean };
 
-/** Term dates and breaks for one term at a time. */
+/** Term dates and breaks for one term at a time, starting from the school calendar. */
 export function TermDatesForm({
   options,
   initial,
+  holidays,
 }: {
   options: TermOption[];
   initial: string;
+  /** Public holidays from the school calendar, so the teacher sees which days are skipped. */
+  holidays: Holiday[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -60,11 +68,20 @@ export function TermDatesForm({
     };
   }, [form, valid]);
 
-  const setBreak = (i: number, patch: Partial<TermDates["breaks"][number]>) =>
-    setForm((f) => ({
-      ...f,
-      breaks: f.breaks.map((b, j) => (j === i ? { ...b, ...patch } : b)),
-    }));
+  const inTerm = holidays.filter(
+    (h) =>
+      h.date >= form.opensOn &&
+      h.date <= form.closesOn &&
+      weekdayOf(h.date) <= 5,
+  );
+
+  const reset = () =>
+    startTransition(async () => {
+      const result = await resetTerm({ year: form.year, term: form.term });
+      if (!result.success) return void toast.error(result.error);
+      toast.success(`${termLabel(form)} is back to the official dates`);
+      router.refresh();
+    });
 
   const submit = () =>
     startTransition(async () => {
@@ -89,18 +106,38 @@ export function TermDatesForm({
         onChange={([t]) => t && pick(t)}
       />
 
-      {option?.estimate && !option.saved && (
+      {option?.estimate && !option.custom && (
         <p className="flex gap-2 rounded-md bg-warning/10 p-3 text-sm">
           <Info className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
           These dates are an estimate. The Ministry hasn't published the{" "}
           {form.year} calendar yet, so check them with your school.
         </p>
       )}
-      {option && !option.estimate && !option.saved && (
+      {option && !option.estimate && !option.custom && (
         <p className="text-sm text-muted-foreground">
-          Filled in from the Ministry of Education calendar. Change them if your
-          school's dates differ.
+          These are the official term dates. Change them only if your school's
+          dates differ.
         </p>
+      )}
+      {option?.custom && (
+        <div className="flex flex-col gap-2 rounded-md bg-muted p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+          <p className="flex gap-2">
+            <CalendarCheck
+              className="mt-0.5 size-4 shrink-0 text-primary"
+              aria-hidden
+            />
+            You set your school's own dates for this term.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isPending}
+            onClick={reset}
+          >
+            Use the official dates
+          </Button>
+        </div>
       )}
 
       <Card>
@@ -133,83 +170,28 @@ export function TermDatesForm({
               <p className="text-sm font-medium">Breaks</p>
               <p className="text-xs text-muted-foreground">
                 Half-term, exam days and other days without lessons. Public
-                holidays are skipped for you, except Eid.
+                holidays are skipped for you.
               </p>
             </div>
-            {form.breaks.map((b, i) => {
-              const breakKey =
-                b.from && b.to
-                  ? `${b.from}-${b.to}-${b.label || "break"}`
-                  : `break-${i}`;
-
-              return (
-                <div key={breakKey} className="space-y-3 rounded-md border p-3">
-                  <div className="flex items-end gap-2">
-                    <div className="flex-1 space-y-2">
-                      <Label htmlFor={`break-${i}`}>Name</Label>
-                      <Input
-                        id={`break-${i}`}
-                        value={b.label}
-                        placeholder="Half-term break"
-                        maxLength={60}
-                        onChange={(e) => setBreak(i, { label: e.target.value })}
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-lg"
-                      aria-label={`Remove ${b.label || "this break"}`}
-                      onClick={() =>
-                        setForm((f) => ({
-                          ...f,
-                          breaks: f.breaks.filter((_, j) => j !== i),
-                        }))
-                      }
-                    >
-                      <Trash2 />
-                    </Button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label htmlFor={`break-from-${i}`}>From</Label>
-                      <Input
-                        id={`break-from-${i}`}
-                        type="date"
-                        value={b.from}
-                        onChange={(e) => setBreak(i, { from: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor={`break-to-${i}`}>To</Label>
-                      <Input
-                        id={`break-to-${i}`}
-                        type="date"
-                        value={b.to}
-                        onChange={(e) => setBreak(i, { to: e.target.value })}
-                        required
-                      />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-            {form.breaks.length < 10 && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() =>
-                  setForm((f) => ({
-                    ...f,
-                    breaks: [...f.breaks, { from: "", to: "", label: "" }],
-                  }))
-                }
-              >
-                <Plus /> Add a break
-              </Button>
-            )}
+            <BreaksEditor
+              idPrefix="term"
+              breaks={form.breaks}
+              onChange={(breaks) => setForm((f) => ({ ...f, breaks }))}
+            />
           </div>
+
+          {inTerm.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Public holidays this term</p>
+              <ul className="text-sm text-muted-foreground">
+                {inTerm.map((h) => (
+                  <li key={h.date}>
+                    {h.label} · {formatDay(h.date)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {summary && (
             <p className="rounded-md bg-muted p-3 text-sm">

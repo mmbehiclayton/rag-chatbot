@@ -4,6 +4,7 @@ import {
   BookOpen,
   Building2,
   CalendarDays,
+  CalendarRange,
   ClipboardList,
   Database,
   FileText,
@@ -114,6 +115,11 @@ export function adminNavGroups(
       label: "Platform",
       items: [
         { name: "Pilot", href: "/dashboard/pilot", icon: FlaskConical },
+        {
+          name: "School calendar",
+          href: "/dashboard/calendar",
+          icon: CalendarRange,
+        },
         curatorLink,
         {
           name: "Curriculum structure",
@@ -147,6 +153,7 @@ const TITLES: [string, string][] = [
   ["/dashboard/timetable", "This week"],
   ["/dashboard/profile/plan", "Term pass"],
   ["/dashboard/pilot", "Pilot"],
+  ["/dashboard/calendar", "School calendar"],
   ["/dashboard/classes", "My classes"],
   ["/dashboard/curriculum", "Curriculum maps"],
   ["/dashboard/designs", "Curriculum designs"],

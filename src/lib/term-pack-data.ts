@@ -1,3 +1,8 @@
+import {
+  calendarTerms,
+  getAcademicCalendar,
+  holidaysFor,
+} from "@/lib/academic-calendar";
 import { db, withDbRetry } from "@/lib/db";
 import {
   type LessonStatus,
@@ -16,6 +21,7 @@ import {
   type TermBreak,
   type TermDates,
   teachingWeeks,
+  termLabel,
   termNumber,
   todayInKenya,
 } from "@/lib/term-pack";
@@ -41,14 +47,49 @@ function toTermDates(row: {
   };
 }
 
-export async function getTeacherTerms(teacherId: string): Promise<TermDates[]> {
-  const rows = await withDbRetry(() =>
-    db.teacherTerm.findMany({
-      where: { teacherId },
-      orderBy: [{ year: "asc" }, { term: "asc" }],
+/** A term as the teacher uses it. `custom` when they changed the school calendar's dates for their school. */
+export type TeacherTermDates = TermDates & {
+  custom: boolean;
+  estimate: boolean;
+};
+
+/**
+ * The school calendar's terms, with the teacher's own dates in place of any term they changed.
+ * Every term carries its year's public holidays from the calendar.
+ */
+export async function getTeacherTerms(
+  teacherId: string,
+): Promise<TeacherTermDates[]> {
+  const [rows, calendar] = await Promise.all([
+    withDbRetry(() =>
+      db.teacherTerm.findMany({
+        where: { teacherId },
+        orderBy: [{ year: "asc" }, { term: "asc" }],
+      }),
+    ),
+    getAcademicCalendar(),
+  ]);
+  const own = new Map(
+    rows.map((r) => {
+      const t = toTermDates(r);
+      return [termLabel(t), t];
     }),
   );
-  return rows.map(toTermDates);
+  const terms: TeacherTermDates[] = calendarTerms(calendar).map((t) => {
+    const mine = own.get(termLabel(t));
+    if (!mine) return { ...t, custom: false };
+    own.delete(termLabel(t));
+    return { ...mine, holidays: t.holidays, custom: true, estimate: false };
+  });
+  // Terms the teacher set that the calendar doesn't have yet.
+  for (const t of own.values())
+    terms.push({
+      ...t,
+      holidays: holidaysFor(calendar, t.year).map((h) => h.date),
+      custom: true,
+      estimate: false,
+    });
+  return terms.sort((a, b) => a.year - b.year || a.term - b.term);
 }
 
 /** One lesson on the teacher's weekly timetable. `stream` is "" for a grade taught as one class. */

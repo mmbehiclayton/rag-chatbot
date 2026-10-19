@@ -8,40 +8,29 @@ import {
   TimetableForm,
 } from "@/components/term-pack/term-setup";
 import { Button } from "@/components/ui/button";
+import { getAcademicCalendar } from "@/lib/academic-calendar";
 import { auth } from "@/lib/auth";
 import { getTeacherClasses } from "@/lib/classes";
 import { getDesignLessonsPerWeek } from "@/lib/curriculum-map";
-import {
-  pickTerm,
-  SUGGESTED_TERMS,
-  termLabel,
-  todayInKenya,
-} from "@/lib/term-pack";
+import { pickTerm, termLabel, todayInKenya } from "@/lib/term-pack";
 import { getTeacherTerms, getTimetable } from "@/lib/term-pack-data";
 
 export default async function TermSetupPage() {
   const session = await auth();
   if (!session?.userId) redirect("/login");
 
-  const [saved, timetable, classes, designPerWeek] = await Promise.all([
-    getTeacherTerms(session.userId),
-    getTimetable(session.userId),
-    getTeacherClasses(session.userId),
-    getDesignLessonsPerWeek(),
-  ]);
+  const [terms, timetable, classes, designPerWeek, calendar] =
+    await Promise.all([
+      getTeacherTerms(session.userId),
+      getTimetable(session.userId),
+      getTeacherClasses(session.userId),
+      getDesignLessonsPerWeek(),
+      getAcademicCalendar(),
+    ]);
   const today = todayInKenya();
 
-  // Saved terms first, then suggested terms that haven't ended yet.
-  const options = saved.map((t) => ({ ...t, saved: true, estimate: false }));
-  for (const s of SUGGESTED_TERMS) {
-    if (
-      s.closesOn < today ||
-      options.some((o) => o.year === s.year && o.term === s.term)
-    )
-      continue;
-    options.push({ ...s, saved: false });
-  }
-  options.sort((a, b) => a.year - b.year || a.term - b.term);
+  // The school calendar's terms that haven't ended, and any term the teacher changed.
+  const options = terms.filter((t) => t.custom || t.closesOn >= today);
   const initial = pickTerm(options, today);
 
   return (
@@ -63,9 +52,12 @@ export default async function TermSetupPage() {
         <h2 className="text-base font-semibold">Term dates</h2>
         {initial ? (
           <TermDatesForm
-            key={saved.map(termLabel).join()}
+            key={options
+              .map((o) => `${termLabel(o)}${o.custom}${o.opensOn}${o.closesOn}`)
+              .join()}
             options={options}
             initial={termLabel(initial)}
+            holidays={calendar.flatMap((y) => y.holidays)}
           />
         ) : (
           <p className="text-sm text-muted-foreground">No terms to set up.</p>

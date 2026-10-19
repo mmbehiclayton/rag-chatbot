@@ -7,12 +7,13 @@ import { TestModeToggle } from "@/components/pilot/test-mode-toggle";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
+import { calendarTerms, getAcademicCalendar } from "@/lib/academic-calendar";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
 import { PRICE_LIMITS, plansOn, termPrice } from "@/lib/plans";
 import {
+  DEFAULT_TERMS,
   pickTerm,
-  SUGGESTED_TERMS,
   termLabel,
   todayInKenya,
 } from "@/lib/term-pack";
@@ -132,8 +133,9 @@ export default async function PilotPage() {
 
   const now = Date.now();
   const since = new Date(now - 8 * WEEK);
-  const fallbackCurrent = SUGGESTED_TERMS[SUGGESTED_TERMS.length - 1];
-  const current = pickTerm(SUGGESTED_TERMS, todayInKenya()) ?? fallbackCurrent;
+  const current =
+    pickTerm(calendarTerms(await getAcademicCalendar()), todayInKenya()) ??
+    DEFAULT_TERMS[DEFAULT_TERMS.length - 1];
 
   const [price, paying] = await Promise.all([termPrice(), plansOn()]);
   const [

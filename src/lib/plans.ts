@@ -1,7 +1,7 @@
 import { db, withDbRetry } from "@/lib/db";
 import {
+  DEFAULT_TERMS,
   pickTerm,
-  SUGGESTED_TERMS,
   termLabel,
   todayInKenya,
 } from "@/lib/term-pack";
@@ -75,18 +75,13 @@ export type Access = {
   } | null;
 };
 
-/** The term a pass is for: the teacher's own term dates first, else the Ministry calendar. */
+/** The term a pass is for: the teacher's term in progress or next to open (school calendar or their own dates). */
 async function sellingTerm(userId: string) {
   const today = todayInKenya();
-  const mine = (await getTeacherTerms(userId)).filter(
+  const terms = (await getTeacherTerms(userId)).filter(
     (t) => t.closesOn >= today,
   );
-  const fallbackTerm = SUGGESTED_TERMS[SUGGESTED_TERMS.length - 1];
-  const t =
-    pickTerm(
-      mine.length ? mine : SUGGESTED_TERMS.filter((s) => s.closesOn >= today),
-      today,
-    ) ?? fallbackTerm;
+  const t = pickTerm(terms, today) ?? DEFAULT_TERMS[DEFAULT_TERMS.length - 1];
   return { year: t.year, term: t.term, label: termLabel(t) };
 }
 

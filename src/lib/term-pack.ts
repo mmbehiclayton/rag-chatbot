@@ -11,14 +11,18 @@ export type TermDates = {
   opensOn: string;
   closesOn: string;
   breaks: TermBreak[];
+  /** Public holidays ("YYYY-MM-DD") from the school calendar. Without them, Kenya's fixed holidays are used. */
+  holidays?: string[];
 };
 
+export type Holiday = { date: string; label: string };
+
 /**
- * Dates offered when a teacher sets up a term. 2026 is from the Ministry of Education calendar
- * (circular of 9 October 2025). 2027 Term 1 is an estimate until the 2027 calendar is published:
- * replace it then. Teachers always confirm or change these for their school.
+ * Built-in term dates, used until Elimu staff save a school calendar for the year (School calendar page).
+ * 2026 is from the Ministry of Education calendar (circular of 9 October 2025). 2027 Term 1 is an
+ * estimate until the 2027 calendar is published.
  */
-export const SUGGESTED_TERMS: (TermDates & { estimate: boolean })[] = [
+export const DEFAULT_TERMS: (TermDates & { estimate: boolean })[] = [
   {
     year: 2026,
     term: 1,
@@ -106,33 +110,71 @@ export function termNumber(term: string) {
   return n >= 1 && n <= 3 ? n : null;
 }
 
-/**
- * Public holidays with fixed dates, plus Good Friday and Easter Monday for the years we know.
- * Eid dates move each year, so teachers add them as a break.
- */
-const FIXED_HOLIDAYS = [
-  "01-01",
-  "05-01",
-  "06-01",
-  "10-10",
-  "10-20",
-  "12-12",
-  "12-25",
-  "12-26",
+const FIXED_HOLIDAYS: [string, string][] = [
+  ["01-01", "New Year's Day"],
+  ["05-01", "Labour Day"],
+  ["06-01", "Madaraka Day"],
+  ["10-10", "Mazingira Day"],
+  ["10-20", "Mashujaa Day"],
+  ["12-12", "Jamhuri Day"],
+  ["12-25", "Christmas Day"],
+  ["12-26", "Boxing Day"],
 ];
-const EASTER_HOLIDAYS = [
-  "2026-04-03",
-  "2026-04-06",
-  "2027-03-26",
-  "2027-03-29",
-];
+const EASTER: Record<number, [string, string]> = {
+  2026: ["2026-04-03", "2026-04-06"],
+  2027: ["2027-03-26", "2027-03-29"],
+  2028: ["2028-04-14", "2028-04-17"],
+};
 
-export function isPublicHoliday(d: string) {
-  return FIXED_HOLIDAYS.includes(d.slice(5)) || EASTER_HOLIDAYS.includes(d);
+/**
+ * Kenya's public holidays in `year` that we can work out: the fixed ones, and Good Friday and
+ * Easter Monday for the years listed. A holiday on a Sunday is kept on the next free day.
+ * Eid dates are gazetted each year, so Elimu staff add them on the School calendar page.
+ */
+export function defaultHolidays(year: number): Holiday[] {
+  const list: Holiday[] = FIXED_HOLIDAYS.map(([md, label]) => ({
+    date: `${year}-${md}`,
+    label,
+  }));
+  const easter = EASTER[year];
+  if (easter)
+    list.push(
+      { date: easter[0], label: "Good Friday" },
+      { date: easter[1], label: "Easter Monday" },
+    );
+  const taken = new Set(list.map((h) => h.date));
+  for (const h of [...list]) {
+    if (weekdayOf(h.date) !== 7) continue;
+    let t = toTime(h.date) + DAY;
+    while (taken.has(toDate(t))) t += DAY;
+    taken.add(toDate(t));
+    list.push({ date: toDate(t), label: `${h.label} (observed)` });
+  }
+  return list.sort((a, b) => a.date.localeCompare(b.date));
 }
 
-function inBreak(d: string, breaks: TermBreak[]) {
-  return isPublicHoliday(d) || breaks.some((b) => d >= b.from && d <= b.to);
+const defaultSets = new Map<number, Set<string>>();
+function defaultHolidaySet(year: number) {
+  let set = defaultSets.get(year);
+  if (!set) {
+    set = new Set(defaultHolidays(year).map((h) => h.date));
+    defaultSets.set(year, set);
+  }
+  return set;
+}
+
+/** True on a public holiday: from the calendar's list when given, else the built-in one. */
+export function isPublicHoliday(d: string, holidays?: string[]) {
+  return holidays
+    ? holidays.includes(d)
+    : defaultHolidaySet(Number(d.slice(0, 4))).has(d);
+}
+
+function inBreak(d: string, term: TermDates) {
+  return (
+    isPublicHoliday(d, term.holidays) ||
+    term.breaks.some((b) => d >= b.from && d <= b.to)
+  );
 }
 
 /** School days (Monday to Friday) between opening and closing, minus breaks and public holidays. */
@@ -141,7 +183,7 @@ export function teachingDays(term: TermDates) {
   const end = toTime(term.closesOn);
   for (let t = toTime(term.opensOn); t <= end; t += DAY) {
     const d = toDate(t);
-    if (weekdayOf(d) <= 5 && !inBreak(d, term.breaks)) days.push(d);
+    if (weekdayOf(d) <= 5 && !inBreak(d, term)) days.push(d);
   }
   return days;
 }
@@ -179,7 +221,7 @@ export function lessonSlots(term: TermDates, periods: Period[]): Slot[] {
   for (const week of teachingWeeks(term)) {
     for (let t = toTime(week.from); t <= toTime(week.to); t += DAY) {
       const d = toDate(t);
-      if (inBreak(d, term.breaks) || weekdayOf(d) > 5) continue;
+      if (inBreak(d, term) || weekdayOf(d) > 5) continue;
       for (const period of byDay.get(weekdayOf(d)) ?? [])
         slots.push({ date: d, slot: period, week: week.number });
     }

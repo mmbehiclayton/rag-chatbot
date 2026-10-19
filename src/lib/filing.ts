@@ -2,8 +2,8 @@
 // New documents store their term and year; older ones are filed by the date they were made.
 
 import {
+  DEFAULT_TERMS,
   pickTerm,
-  SUGGESTED_TERMS,
   type TermDates,
   termNumber,
   todayInKenya,
@@ -17,9 +17,9 @@ export function filingLabel(f: Filing) {
   return `${f.term} ${f.year}`;
 }
 
-/** The teacher's own term dates, else the Ministry calendar. */
+/** The teacher's terms (school calendar plus their own changes), else the built-in dates. */
 function calendar(terms: TermDates[]) {
-  return terms.length ? terms : SUGGESTED_TERMS;
+  return terms.length ? terms : DEFAULT_TERMS;
 }
 
 /**

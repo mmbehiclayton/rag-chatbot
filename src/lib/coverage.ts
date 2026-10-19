@@ -2,7 +2,7 @@
  * Syllabus coverage: how much of a class's curriculum design the teacher has covered this school year.
  * Pure functions so the numbers are the same on every page. See docs/strategy/syllabus-coverage.md.
  */
-import { SUGGESTED_TERMS, type TermDates, teachingDays } from "@/lib/term-pack";
+import { DEFAULT_TERMS, type TermDates, teachingDays } from "@/lib/term-pack";
 
 export const COVERAGE_STATUSES = [
   "NOT_STARTED",
@@ -175,12 +175,12 @@ export function termElapsed(term: TermDates, today: string) {
   return days.filter((d) => d <= today).length / days.length;
 }
 
-/** The teacher's dates for each term of `year`, falling back to the Ministry calendar we know. */
+/** The teacher's dates for each term of `year`, falling back to the built-in dates. */
 export function yearTerms(terms: TermDates[], year: number) {
   return [1, 2, 3].map(
     (n) =>
       terms.find((t) => t.year === year && t.term === n) ??
-      SUGGESTED_TERMS.find((t) => t.year === year && t.term === n) ??
+      DEFAULT_TERMS.find((t) => t.year === year && t.term === n) ??
       null,
   );
 }

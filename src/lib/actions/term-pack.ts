@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { getAcademicCalendar, holidaysFor } from "@/lib/academic-calendar";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isIsoDate, teachingWeeks, todayInKenya } from "@/lib/term-pack";
@@ -65,7 +66,10 @@ export async function saveTerm(input: TermInputData): Promise<Result> {
         parsed.error.issues[0]?.message ?? "Check the dates and try again.",
     };
   const t = parsed.data;
-  if (teachingWeeks(t).length < 4)
+  const holidays = holidaysFor(await getAcademicCalendar(), t.year).map(
+    (h) => h.date,
+  );
+  if (teachingWeeks({ ...t, holidays }).length < 4)
     return {
       success: false,
       error: "That term has fewer than 4 teaching weeks. Check the dates.",
@@ -82,6 +86,20 @@ export async function saveTerm(input: TermInputData): Promise<Result> {
     },
     create: { teacherId: userId, year: t.year, term: t.term, ...data },
     update: data,
+  });
+  refresh();
+  return { success: true };
+}
+
+/** Go back to the school calendar's dates for one term, dropping the teacher's own. */
+export async function resetTerm(input: {
+  year: number;
+  term: number;
+}): Promise<Result> {
+  const userId = await teacherId();
+  if (!userId) return { success: false, error: "Please sign in again." };
+  await db.teacherTerm.deleteMany({
+    where: { teacherId: userId, year: input.year, term: input.term },
   });
   refresh();
   return { success: true };
