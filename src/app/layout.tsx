@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { DM_Sans } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import { siteUrl } from "@/lib/site-url";
 
 // One variable font file covers every weight, which keeps the first load small on mobile data.
 const dmSans = DM_Sans({
@@ -11,6 +12,7 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl()),
   title: "Elimu | Schemes of work and lesson plans for Kenyan teachers",
   description:
     "Schemes of work, lesson plans and lesson notes for your classes, based on the KICD curriculum designs. Ready in minutes, on your phone.",

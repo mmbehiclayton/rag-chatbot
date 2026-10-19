@@ -1,0 +1,61 @@
+import { Share2 } from "lucide-react";
+import Link from "next/link";
+import { Logo } from "@/components/shared/logo";
+import { Button } from "@/components/ui/button";
+
+/** Header for pages anyone can read without signing in. */
+export function PublicHeader() {
+  return (
+    <header className="border-b bg-card">
+      <div className="mx-auto flex h-14 max-w-4xl items-center justify-between gap-2 px-4">
+        <Logo />
+        <nav aria-label="Site" className="flex items-center gap-1">
+          <Button variant="ghost" render={<Link href="/designs" />}>
+            Designs
+          </Button>
+          <Button variant="ghost" render={<Link href="/login" />}>
+            Sign in
+          </Button>
+        </nav>
+      </div>
+    </header>
+  );
+}
+
+/** The sign-up box at the end of each public page. */
+export function SignUpPrompt({ title, body }: { title: string; body: string }) {
+  return (
+    <section className="space-y-3 rounded-xl border bg-card p-5">
+      <h2 className="text-lg font-semibold">{title}</h2>
+      <p className="text-sm text-muted-foreground">{body}</p>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Button size="lg" render={<Link href="/register" />}>
+          Create free account
+        </Button>
+        <Button size="lg" variant="outline" render={<Link href="/login" />}>
+          I already have an account
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+/** A WhatsApp share link for a public page. No script needed, so it costs no extra data. */
+export function WhatsAppShare({ url, text }: { url: string; text: string }) {
+  return (
+    <Button
+      variant="outline"
+      className="h-11"
+      render={
+        // biome-ignore lint/a11y/useAnchorContent: the Button supplies the content
+        <a
+          href={`https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+        />
+      }
+    >
+      <Share2 /> Share on WhatsApp
+    </Button>
+  );
+}

@@ -17,11 +17,15 @@ const publicRoutes = [
   "/reset-password",
   "/verify-email",
   "/api/uploadthing",
+  "/designs",
+  "/sitemap.xml",
+  "/robots.txt",
 ];
 const isPublicRoute = (path: string) =>
   publicRoutes.includes(path) ||
   path.startsWith("/_next") ||
   path.startsWith("/invite/") ||
+  path.startsWith("/designs/") ||
   path.startsWith("/api/paystack/");
 
 export async function proxy(request: NextRequest) {

@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 import { explainAIError } from "@/lib/ai-errors";
 import { auth } from "@/lib/auth";
@@ -8,6 +8,7 @@ import { getCurator, MAP_STATUS, writeMapDraft } from "@/lib/curriculum-map";
 import { getGradeOptions } from "@/lib/curriculum-options";
 import { db } from "@/lib/db";
 import { draftMapFromDesign } from "@/lib/map-drafting";
+import { DESIGNS_TAG } from "@/lib/public-designs";
 
 type Result = { success: true } | { success: false; error: string };
 
@@ -49,6 +50,7 @@ const MapInput = z.object({
 export type MapInputData = z.infer<typeof MapInput>;
 
 function paths(grade: string, subject: string) {
+  revalidateTag(DESIGNS_TAG, "max");
   revalidatePath("/dashboard/curriculum");
   revalidatePath(
     `/dashboard/curriculum/${encodeURIComponent(grade)}/${encodeURIComponent(subject)}`,

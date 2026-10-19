@@ -79,13 +79,18 @@ export default async function Home() {
       <header className="border-b bg-card">
         <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4">
           <Logo />
-          {signedIn ? (
-            <Button render={<Link href="/dashboard" />}>Open Elimu</Button>
-          ) : (
-            <Button variant="ghost" render={<Link href="/login" />}>
-              Sign in
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" render={<Link href="/designs" />}>
+              Designs
             </Button>
-          )}
+            {signedIn ? (
+              <Button render={<Link href="/dashboard" />}>Open Elimu</Button>
+            ) : (
+              <Button variant="ghost" render={<Link href="/login" />}>
+                Sign in
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -165,6 +170,25 @@ export default async function Home() {
               </li>
             ))}
           </ol>
+        </section>
+
+        <section className="border-t bg-card">
+          <div className="mx-auto max-w-4xl space-y-3 px-4 py-12">
+            <h2 className="text-xl font-semibold">
+              Read the curriculum designs, free
+            </h2>
+            <p className="max-w-2xl text-muted-foreground">
+              See the strands and sub-strands for each grade and learning area,
+              checked by teachers, then plan straight from them.
+            </p>
+            <Button
+              variant="outline"
+              size="lg"
+              render={<Link href="/designs" />}
+            >
+              Browse curriculum designs
+            </Button>
+          </div>
         </section>
 
         <section className="border-y bg-card">

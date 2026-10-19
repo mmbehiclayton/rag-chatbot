@@ -2,6 +2,7 @@ import { ArrowLeft, CalendarRange, NotebookPen } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { PageHeader } from "@/components/shared/page-header";
+import { WhatsAppShare } from "@/components/shared/public-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
@@ -12,6 +13,8 @@ import {
   subStrandsForTerm,
 } from "@/lib/curriculum-map";
 import { db, withDbRetry } from "@/lib/db";
+import { publicDesignHref } from "@/lib/public-designs";
+import { siteUrl } from "@/lib/site-url";
 import { cn } from "@/lib/utils";
 
 function decode(value: string) {
@@ -144,6 +147,11 @@ export default async function DesignPage({
           <NotebookPen /> Plan a lesson
         </Button>
       </div>
+
+      <WhatsAppShare
+        url={`${siteUrl()}${publicDesignHref(grade, subject)}`}
+        text={`${grade} ${subject} curriculum design on Elimu:`}
+      />
 
       <nav aria-label="Term" className="flex gap-2 overflow-x-auto pb-1">
         {[null, ...TERMS].map((t) => (
