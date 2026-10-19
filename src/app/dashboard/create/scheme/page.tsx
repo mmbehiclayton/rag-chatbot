@@ -5,6 +5,7 @@ import {
 } from "@/components/create/term-plan-form";
 import { PageHeader } from "@/components/shared/page-header";
 import { auth } from "@/lib/auth";
+import { getDesignLessonsPerWeek } from "@/lib/curriculum-map";
 import {
   getGradeOptions,
   getIndexedCurricula,
@@ -36,13 +37,15 @@ export default async function Page({
   if (!session?.userId) redirect("/login");
   const query = await searchParams;
 
-  const [profile, grades, curricula, terms, timetable] = await Promise.all([
-    getTeachingProfile(session.userId),
-    getGradeOptions(),
-    getIndexedCurricula(session.tenantId),
-    getTeacherTerms(session.userId),
-    getTimetable(session.userId),
-  ]);
+  const [profile, grades, curricula, terms, timetable, designPerWeek] =
+    await Promise.all([
+      getTeachingProfile(session.userId),
+      getGradeOptions(),
+      getIndexedCurricula(session.tenantId),
+      getTeacherTerms(session.userId),
+      getTimetable(session.userId),
+      getDesignLessonsPerWeek(),
+    ]);
 
   // For each term number, the teacher's term in progress or next to open, with lessons per class.
   // Streams share one scheme, so it is sized for the stream with the most lessons.
@@ -100,6 +103,7 @@ export default async function Page({
         mySubjects={preferClass(profile?.subjectsTaught, query.subject)}
         curricula={curricula}
         calendar={calendar}
+        designPerWeek={designPerWeek}
         initialTerm={current ? `Term ${current.term}` : undefined}
       />
     </div>

@@ -13,6 +13,13 @@ const WINDOW = 60_000;
 const WINDOW_OVERLAP = 2_000;
 
 const DraftSchema = z.object({
+  lessonsPerWeek: z
+    .number()
+    .int()
+    .nullable()
+    .describe(
+      "Number of lessons per week the design gives this learning area, or null if this text doesn't state it",
+    ),
   strands: z.array(
     z.object({
       name: z
@@ -54,7 +61,8 @@ Rules:
 - Leave out numbering such as "1.0", "1.1" or "a)".
 - If this part of the design only lists strand and sub-strand names (for example a summary table), return the names with empty lists.
 - Ignore the introduction, national goals, core competencies, values, PCIs, links to other subjects, assessment rubrics and appendices.
-- Return an empty list if this part has no strands.`;
+- Return an empty list if this part has no strands.
+- lessonsPerWeek: the design's time allocation for the learning area, e.g. "5 lessons per week". Use null unless the text states it.`;
 
 /** Joins a design's chunks back into its full text, removing the overlap the splitter added. */
 export function joinChunks(chunks: string[]) {
@@ -97,6 +105,18 @@ function addLines(into: string[], lines: string[]) {
       into.push(line);
     }
   }
+}
+
+/** The lessons a week the design states, taking the figure most parts agree on. */
+function pickLessonsPerWeek(parts: z.infer<typeof DraftSchema>[]) {
+  const counts = new Map<number, number>();
+  for (const p of parts)
+    if (p.lessonsPerWeek && p.lessonsPerWeek >= 1 && p.lessonsPerWeek <= 10)
+      counts.set(p.lessonsPerWeek, (counts.get(p.lessonsPerWeek) ?? 0) + 1);
+  let best: number | null = null;
+  for (const [n, c] of counts)
+    if (best === null || c > (counts.get(best) ?? 0)) best = n;
+  return best;
 }
 
 /** Merges the parts in design order. A strand or sub-strand found in several parts is combined. */
@@ -165,7 +185,7 @@ export async function extractStrands(
       return object;
     }),
   );
-  return merge(parts);
+  return { strands: merge(parts), lessonsPerWeek: pickLessonsPerWeek(parts) };
 }
 
 /** The indexed curriculum design for a class, if one has been uploaded. */
@@ -207,7 +227,11 @@ export async function draftMapFromDesign(
   const text = joinChunks(chunks.map((c) => c.chunkText));
   if (!text.trim()) throw new Error("The design has no readable text.");
 
-  const strands = await extractStrands(grade, subject, text);
+  const { strands, lessonsPerWeek } = await extractStrands(
+    grade,
+    subject,
+    text,
+  );
   if (strands.length === 0)
     throw new Error("Elimu couldn't find any strands in the design.");
 
@@ -218,9 +242,11 @@ export async function draftMapFromDesign(
   });
   await writeMapDraft(grade, subject, editorId, {
     sourceNote: `Drafted by Elimu from "${design.title}" on ${date}. Check every strand, sub-strand and outcome against the design before sending it for checking.`,
+    lessonsPerWeek,
     strands,
   });
   return {
+    lessonsPerWeek,
     strands: strands.length,
     subStrands: strands.reduce((n, s) => n + s.subStrands.length, 0),
   };

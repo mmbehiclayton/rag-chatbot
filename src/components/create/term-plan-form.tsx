@@ -82,6 +82,7 @@ export function TermPlanForm({
   mySubjects,
   curricula,
   calendar = {},
+  designPerWeek = {},
   initialTerm,
 }: {
   kind: "scheme" | "assessment";
@@ -90,6 +91,8 @@ export function TermPlanForm({
   mySubjects: string[];
   curricula: string[];
   calendar?: TermCalendar;
+  /** Lessons a week from the KICD design, keyed "grade|subject". */
+  designPerWeek?: Record<string, number>;
   initialTerm?: string;
 }) {
   const router = useRouter();
@@ -100,7 +103,8 @@ export function TermPlanForm({
   const [term, setTerm] = useState(initialTerm ?? "Term 1");
   const [weeks, setWeeks] = useState(12);
   const [breakWeeks, setBreakWeeks] = useState(1);
-  const [lessonsPerWeek, setLessonsPerWeek] = useState(5);
+  // Null until the teacher types a number, so it follows the design for whichever class is picked.
+  const [perWeekInput, setPerWeekInput] = useState<number | null>(null);
   const [duration, setDuration] = useState("40 min");
   const [forceFresh, setForceFresh] = useState(false);
   const [assessmentType, setAssessmentType] = useState("End of term");
@@ -109,6 +113,8 @@ export function TermPlanForm({
   const hasCurriculum = curricula.includes(`${target.grade}|${target.subject}`);
   const termDates = calendar[term];
   const classKey = `${target.grade}|${target.subject}`;
+  const designWeek = designPerWeek[classKey];
+  const lessonsPerWeek = perWeekInput ?? designWeek ?? 5;
   // With saved term dates and a timetable for this class, the lesson count comes from real dates.
   const fromCalendar =
     kind === "scheme" && termDates && termDates.lessons[classKey] > 0
@@ -203,7 +209,10 @@ export function TermPlanForm({
             myGrades={myGrades}
             mySubjects={mySubjects}
             value={target}
-            onChange={setTarget}
+            onChange={(t) => {
+              setTarget(t);
+              setPerWeekInput(null);
+            }}
           />
 
           {target.grade && target.subject && !hasCurriculum && (
@@ -240,6 +249,9 @@ export function TermPlanForm({
                     From your {fromCalendar.label} dates and timetable:{" "}
                     {fromCalendar.weeks} teaching weeks,{" "}
                     {fromCalendar.lessons[classKey]} lessons.{" "}
+                    {designWeek &&
+                      designWeek !== fromCalendar.perWeek[classKey] &&
+                      `Your timetable has ${fromCalendar.perWeek[classKey]} a week, but the KICD design gives ${designWeek}. `}
                     <Link
                       href="/dashboard/profile/term"
                       className="font-medium text-primary hover:underline"
@@ -281,8 +293,13 @@ export function TermPlanForm({
                   <NumberField
                     id="lessons"
                     label="Lessons per week"
+                    hint={
+                      designWeek
+                        ? `The KICD design gives ${designWeek}`
+                        : undefined
+                    }
                     value={lessonsPerWeek}
-                    onChange={setLessonsPerWeek}
+                    onChange={setPerWeekInput}
                     min={1}
                     max={10}
                   />

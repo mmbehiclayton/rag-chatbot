@@ -260,9 +260,12 @@ const classKey = (c: { grade: string; stream: string; subject: string }) =>
 export function TimetableForm({
   classes,
   entries,
+  designPerWeek = {},
 }: {
   classes: ClassOption[];
   entries: Entry[];
+  /** Lessons a week from the KICD design, keyed "grade|subject". */
+  designPerWeek?: Record<string, number>;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -437,18 +440,25 @@ export function TimetableForm({
         <ul className="divide-y rounded-xl border bg-card text-sm">
           {options
             .filter((o) => perWeek.has(o.key))
-            .map((o) => (
-              <li
-                key={o.key}
-                className="flex items-baseline justify-between gap-3 px-4 py-3"
-              >
-                <span>{o.label}</span>
-                <span className="shrink-0 text-muted-foreground">
-                  {perWeek.get(o.key)}{" "}
-                  {perWeek.get(o.key) === 1 ? "lesson" : "lessons"} a week
-                </span>
-              </li>
-            ))}
+            .map((o) => {
+              const count = perWeek.get(o.key) ?? 0;
+              const design = designPerWeek[`${o.grade}|${o.subject}`];
+              return (
+                <li key={o.key} className="space-y-0.5 px-4 py-3">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span>{o.label}</span>
+                    <span className="shrink-0 text-muted-foreground">
+                      {count} {count === 1 ? "lesson" : "lessons"} a week
+                    </span>
+                  </div>
+                  {design && design !== count && (
+                    <p className="text-xs text-warning">
+                      The KICD design gives {design} a week.
+                    </p>
+                  )}
+                </li>
+              );
+            })}
         </ul>
       )}
 

@@ -40,6 +40,7 @@ type SubStrand = {
 type Strand = { key: string; name: string; subStrands: SubStrand[] };
 type Initial = {
   sourceNote: string;
+  lessonsPerWeek: number | null;
   strands: {
     name: string;
     subStrands: {
@@ -118,6 +119,9 @@ export function MapEditor({
   const [pending, startTransition] = useTransition();
   const [dirty, setDirty] = useState(false);
   const [sourceNote, setSourceNote] = useState(initial.sourceNote);
+  const [perWeek, setPerWeek] = useState(
+    initial.lessonsPerWeek ? String(initial.lessonsPerWeek) : "",
+  );
   const [comment, setComment] = useState("");
   const [strands, setStrands] = useState<Strand[]>(() =>
     initial.strands.map((s) => ({
@@ -178,6 +182,7 @@ export function MapEditor({
   const save = () => {
     const data: MapInputData = {
       sourceNote,
+      lessonsPerWeek: perWeek ? Math.round(Number(perWeek)) : null,
       strands: strands.map((s) => ({
         name: s.name,
         subStrands: s.subStrands.map((u) => ({
@@ -207,6 +212,24 @@ export function MapEditor({
           value={sourceNote}
           onChange={(e) => {
             setSourceNote(e.target.value);
+            setDirty(true);
+          }}
+        />
+      </Field>
+
+      <Field
+        label="Lessons a week"
+        hint="The time allocation the design gives this learning area, e.g. 5. Teachers' schemes start from this number."
+      >
+        <Input
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={10}
+          className="w-24"
+          value={perWeek}
+          onChange={(e) => {
+            setPerWeek(e.target.value);
             setDirty(true);
           }}
         />

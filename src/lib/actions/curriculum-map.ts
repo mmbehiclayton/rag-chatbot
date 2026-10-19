@@ -15,6 +15,13 @@ const lines = z.array(z.string().trim().min(1).max(600)).max(40);
 
 const MapInput = z.object({
   sourceNote: z.string().trim().max(1000).optional(),
+  lessonsPerWeek: z
+    .number()
+    .int()
+    .min(1, "Lessons a week must be between 1 and 10.")
+    .max(10, "Lessons a week must be between 1 and 10.")
+    .nullable()
+    .optional(),
   strands: z
     .array(
       z.object({

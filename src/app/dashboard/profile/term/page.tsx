@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
 import { getTeacherClasses } from "@/lib/classes";
+import { getDesignLessonsPerWeek } from "@/lib/curriculum-map";
 import {
   pickTerm,
   SUGGESTED_TERMS,
@@ -22,10 +23,11 @@ export default async function TermSetupPage() {
   const session = await auth();
   if (!session?.userId) redirect("/login");
 
-  const [saved, timetable, classes] = await Promise.all([
+  const [saved, timetable, classes, designPerWeek] = await Promise.all([
     getTeacherTerms(session.userId),
     getTimetable(session.userId),
     getTeacherClasses(session.userId),
+    getDesignLessonsPerWeek(),
   ]);
   const today = todayInKenya();
 
@@ -95,6 +97,7 @@ export default async function TermSetupPage() {
               subject: c.subject,
             }))}
             entries={timetable}
+            designPerWeek={designPerWeek}
           />
         )}
       </section>

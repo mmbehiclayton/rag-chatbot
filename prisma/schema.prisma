@@ -369,12 +369,13 @@ model LevelLearningArea {
 // designs they legally hold. A second curator checks it before teachers' documents use it.
 
 model CurriculumMap {
-  id            String  @id @default(uuid())
-  grade         String
-  subject       String
-  status        String  @default("DRAFT") // "DRAFT" | "IN_REVIEW" | "PUBLISHED"
-  sourceNote    String? @db.Text // which design and edition the map was entered from
-  reviewComment String? @db.Text // the checker's note when sending it back
+  id             String  @id @default(uuid())
+  grade          String
+  subject        String
+  status         String  @default("DRAFT") // "DRAFT" | "IN_REVIEW" | "PUBLISHED"
+  sourceNote     String? @db.Text // which design and edition the map was entered from
+  lessonsPerWeek Int? // lessons a week the KICD design gives this learning area
+  reviewComment  String? @db.Text // the checker's note when sending it back
 
   editedById  String?
   editedBy    User?     @relation("MapEditor", fields: [editedById], references: [id], onDelete: SetNull)

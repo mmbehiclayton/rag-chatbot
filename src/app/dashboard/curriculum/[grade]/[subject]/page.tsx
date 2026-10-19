@@ -44,6 +44,7 @@ export default async function CurriculumMapPage({
       select: {
         status: true,
         sourceNote: true,
+        lessonsPerWeek: true,
         reviewComment: true,
         editedById: true,
         updatedAt: true,
@@ -147,6 +148,7 @@ export default async function CurriculumMapPage({
         canPublish={canPublish}
         initial={{
           sourceNote: map?.sourceNote ?? "",
+          lessonsPerWeek: map?.lessonsPerWeek ?? null,
           strands: map?.strands ?? [],
         }}
       />

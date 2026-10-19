@@ -49,7 +49,11 @@ export async function writeMapDraft(
   grade: string,
   subject: string,
   editorId: string | null,
-  data: { sourceNote?: string; strands: MapStrand[] },
+  data: {
+    sourceNote?: string;
+    lessonsPerWeek?: number | null;
+    strands: MapStrand[];
+  },
 ) {
   await db.$transaction(
     async (tx) => {
@@ -59,10 +63,12 @@ export async function writeMapDraft(
           grade,
           subject,
           sourceNote: data.sourceNote || null,
+          lessonsPerWeek: data.lessonsPerWeek ?? null,
           editedById: editorId,
         },
         update: {
           sourceNote: data.sourceNote || null,
+          lessonsPerWeek: data.lessonsPerWeek ?? null,
           editedById: editorId,
           status: MAP_STATUS.DRAFT,
           checkedById: null,
@@ -123,6 +129,24 @@ export async function getPublishedMapKeys() {
     }),
   );
   return maps.map((m) => `${m.grade}|${m.subject}`);
+}
+
+/**
+ * Lessons a week the KICD design gives each learning area, keyed "Grade|Learning area".
+ * Only checked maps count, so a wrong draft figure never reaches teachers.
+ */
+export async function getDesignLessonsPerWeek(): Promise<
+  Record<string, number>
+> {
+  const maps = await withDbRetry(() =>
+    db.curriculumMap.findMany({
+      where: { status: MAP_STATUS.PUBLISHED, lessonsPerWeek: { not: null } },
+      select: { grade: true, subject: true, lessonsPerWeek: true },
+    }),
+  );
+  return Object.fromEntries(
+    maps.map((m) => [`${m.grade}|${m.subject}`, m.lessonsPerWeek ?? 0]),
+  );
 }
 
 type Located = MapSubStrand & {
