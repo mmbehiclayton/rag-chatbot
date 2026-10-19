@@ -21,6 +21,7 @@ import {
   generateSchemeOfWork,
 } from "@/lib/actions/generation";
 import type { GradeOption } from "@/lib/curriculum-options";
+import { lessonMinutesFor } from "@/lib/term-pack";
 
 const TERMS = ["Term 1", "Term 2", "Term 3"];
 const ASSESSMENT_TYPES = ["Opener", "Mid-term", "End of term"];
@@ -84,6 +85,7 @@ export function TermPlanForm({
   calendar = {},
   designPerWeek = {},
   initialTerm,
+  initialAssessmentType,
 }: {
   kind: "scheme" | "assessment";
   grades: GradeOption[];
@@ -94,6 +96,8 @@ export function TermPlanForm({
   /** Lessons a week from the KICD design, keyed "grade|subject". */
   designPerWeek?: Record<string, number>;
   initialTerm?: string;
+  /** "Opener", "Mid-term" or "End of term", from where we are in the term. */
+  initialAssessmentType?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -105,9 +109,15 @@ export function TermPlanForm({
   const [breakWeeks, setBreakWeeks] = useState(1);
   // Null until the teacher types a number, so it follows the design for whichever class is picked.
   const [perWeekInput, setPerWeekInput] = useState<number | null>(null);
-  const [duration, setDuration] = useState("40 min");
+  // Null until the teacher picks a length, so it follows the grade.
+  const [durationInput, setDuration] = useState<string | null>(null);
+  const duration = durationInput ?? `${lessonMinutesFor(target.grade)} min`;
   const [forceFresh, setForceFresh] = useState(false);
-  const [assessmentType, setAssessmentType] = useState("End of term");
+  const [assessmentType, setAssessmentType] = useState(
+    initialAssessmentType && ASSESSMENT_TYPES.includes(initialAssessmentType)
+      ? initialAssessmentType
+      : "End of term",
+  );
   const [marks, setMarks] = useState("50");
 
   const hasCurriculum = curricula.includes(`${target.grade}|${target.subject}`);

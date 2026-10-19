@@ -104,6 +104,25 @@ export function termLabel(t: { year: number; term: number }) {
   return `Term ${t.term} ${t.year}`;
 }
 
+/** KICD lesson length for a grade: 30 minutes up to Grade 3, 35 in Grades 4–6, 40 from Grade 7. */
+export function lessonMinutesFor(grade: string) {
+  const n = Number.parseInt(grade.replace(/\D+/g, ""), 10);
+  if (!n || /pp|pre/i.test(grade)) return 30;
+  return n <= 3 ? 30 : n <= 6 ? 35 : 40;
+}
+
+/** The assessment usually due at this point in a term: opener early on, mid-term, then end of term. */
+export function assessmentTypeFor(
+  term: { opensOn: string; closesOn: string },
+  today: string,
+) {
+  const day = (d: string) => new Date(`${d}T00:00:00Z`).getTime();
+  const share =
+    (day(today) - day(term.opensOn)) /
+    Math.max(1, day(term.closesOn) - day(term.opensOn));
+  return share < 0.25 ? "Opener" : share < 0.65 ? "Mid-term" : "End of term";
+}
+
 /** "Term 2" → 2. */
 export function termNumber(term: string) {
   const n = Number.parseInt(term.replace(/\D+/g, ""), 10);

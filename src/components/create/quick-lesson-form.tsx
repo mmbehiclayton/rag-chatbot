@@ -9,13 +9,13 @@ import {
   defaultGradeSubject,
   GradeSubjectPicker,
 } from "@/components/create/grade-subject-picker";
+import { TopicPicker } from "@/components/create/topic-picker";
 import { ChoiceChips } from "@/components/shared/choice-chips";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { generateQuickLessonPlan } from "@/lib/actions/generation";
 import type { GradeOption } from "@/lib/curriculum-options";
+import { lessonMinutesFor } from "@/lib/term-pack";
 
 const DURATIONS = ["30 min", "35 min", "40 min"];
 
@@ -40,7 +40,9 @@ export function QuickLessonForm({
     defaultGradeSubject(grades, myGrades, mySubjects),
   );
   const [topic, setTopic] = useState(initialTopic);
-  const [duration, setDuration] = useState("40 min");
+  // Null until the teacher picks a length, so it follows the grade.
+  const [durationInput, setDuration] = useState<string | null>(null);
+  const duration = durationInput ?? `${lessonMinutesFor(target.grade)} min`;
 
   const key = `${target.grade}|${target.subject}`;
   const suggestions = topicSuggestions[key] ?? [];
@@ -105,37 +107,16 @@ export function QuickLessonForm({
             </p>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="topic">Topic or sub-strand</Label>
-            <Input
-              id="topic"
+          {target.grade && target.subject && (
+            <TopicPicker
+              grade={target.grade}
+              subject={target.subject}
               value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              placeholder="e.g. Fractions: adding like fractions"
-              maxLength={200}
-              autoComplete="off"
-              required
+              onChange={setTopic}
+              suggestions={suggestions}
+              startTyped={!!initialTopic}
             />
-            {suggestions.length > 0 && (
-              <div className="space-y-1.5 pt-1">
-                <p className="text-xs text-muted-foreground">
-                  From your schemes of work
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {suggestions.slice(0, 6).map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setTopic(s)}
-                      className="min-h-11 rounded-md border bg-card px-2.5 text-left text-xs hover:bg-muted"
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          )}
 
           <div className="space-y-2">
             <p className="text-sm font-medium">Lesson length</p>
