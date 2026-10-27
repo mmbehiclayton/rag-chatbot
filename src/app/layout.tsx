@@ -19,7 +19,14 @@ export const metadata: Metadata = {
     "Schemes of work, lesson plans and lesson notes for your classes, based on the KICD curriculum designs. Ready in minutes, on your phone.",
   applicationName: "Elimu",
   appleWebApp: { capable: true, title: "Elimu", statusBarStyle: "default" },
-  icons: { apple: "/apple-touch-icon.png" },
+  // favicon.ico is in app/; these add a sharp SVG for tabs and the home-screen sizes.
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
   // Google Search Console's HTML tag check, so the site can be verified without a custom domain.
   verification: process.env.GOOGLE_SITE_VERIFICATION
     ? { google: process.env.GOOGLE_SITE_VERIFICATION }
