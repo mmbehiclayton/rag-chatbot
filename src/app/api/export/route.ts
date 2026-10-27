@@ -373,7 +373,7 @@ function schemeBody(scheme: SchemeExport, weekDates?: Map<number, string>) {
         <th>Key inquiry questions</th>
         <th>Learning resources</th>
         <th>Assessment</th>
-        <th>Reflection</th>
+        <th>Reflection / remarks</th>
       </tr></thead>
       <tbody>${weekRows}</tbody>
     </table>

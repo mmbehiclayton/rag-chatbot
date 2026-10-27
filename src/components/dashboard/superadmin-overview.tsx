@@ -35,7 +35,7 @@ export async function SuperAdminOverview() {
 
   const cards = [
     {
-      title: "Curriculum Designs",
+      title: "Curriculum designs",
       value: num(chunks),
       desc: "Indexed sections Elimu can draw on",
       icon: BookOpen,

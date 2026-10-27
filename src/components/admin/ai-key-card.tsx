@@ -41,7 +41,7 @@ const SOURCE: Record<
   { label: string; variant: "success" | "secondary" | "warning" }
 > = {
   saved: { label: "Saved here", variant: "success" },
-  hosting: { label: "From Vercel settings", variant: "secondary" },
+  hosting: { label: "From server settings", variant: "secondary" },
   none: { label: "Not set", variant: "warning" },
 };
 
@@ -124,7 +124,7 @@ export function AIKeyCard({
           )}
           {source === "saved" && hostingLast4 && (
             <div className="flex justify-between gap-4">
-              <dt className="text-muted-foreground">Vercel fallback</dt>
+              <dt className="text-muted-foreground">Server fallback</dt>
               <dd>ends in {hostingLast4}</dd>
             </div>
           )}
@@ -216,8 +216,8 @@ export function AIKeyCard({
                   if (
                     window.confirm(
                       hostingLast4
-                        ? `Remove the saved ${info.name} key? Elimu goes back to the key in Vercel's settings (ends in ${hostingLast4}).`
-                        : `Remove the saved ${info.name} key? There is no key in Vercel's settings, so ${info.name} stops working.`,
+                        ? `Remove the saved ${info.name} key? Elimu goes back to the key in the server settings (ends in ${hostingLast4}).`
+                        : `Remove the saved ${info.name} key? There is no key in the server settings, so ${info.name} stops working.`,
                     )
                   )
                     run("remove", () => removeAIKey({ provider }));

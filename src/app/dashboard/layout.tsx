@@ -1,4 +1,4 @@
-import { MessageSquare } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppSidebar, MobileMenu } from "@/components/layout/app-sidebar";
@@ -64,7 +64,7 @@ export default async function DashboardLayout({
               className="h-11 md:h-10"
               render={<Link href="/dashboard/chat" />}
             >
-              <MessageSquare /> Ask
+              <Sparkles /> Ask
             </Button>
             <UserNav
               role={session.role}

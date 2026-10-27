@@ -8,11 +8,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import {
-  canSwitchWorkspace,
-  workspaceNav,
-} from "@/components/layout/nav-config";
-import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
 import { InviteShare } from "@/components/pilot/invite-share";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,7 +16,6 @@ import { getAllowance, kenyaMonth, PLAN_LABELS } from "@/lib/allowance";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
 import { getInviteCode, inviteUrl } from "@/lib/invites";
-import { getWorkspace } from "@/lib/workspace";
 
 const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL;
 
@@ -79,15 +73,6 @@ export default async function ProfilePage() {
   ]);
   if (!user) redirect("/login");
 
-  // On a phone the sidebar's groups live here, for whichever menus are open.
-  const role = session.role ?? null;
-  const workspace = await getWorkspace(role);
-  const adminGroups = workspaceNav(workspace, role, user.isCurator)
-    .groups.map((g) => ({
-      ...g,
-      items: g.items.filter((i) => i.href !== "/dashboard/profile"),
-    }))
-    .filter((g) => g.items.length > 0);
   const isTeacher = user.role === "TEACHER";
   const [inviteCode, joined, allowance] = isTeacher
     ? await Promise.all([
@@ -111,14 +96,6 @@ export default async function ProfilePage() {
         </h1>
         <p className="text-sm text-muted-foreground">{user.email}</p>
       </div>
-
-      {canSwitchWorkspace(role) && (
-        <WorkspaceSwitcher
-          role={role}
-          current={workspace}
-          className="md:hidden"
-        />
-      )}
 
       <section className="space-y-2">
         <div className="flex items-center justify-between">
@@ -270,26 +247,6 @@ export default async function ProfilePage() {
           </dl>
         )}
       </section>
-
-      {adminGroups.map((group) => (
-        <section key={group.label} className="space-y-2 md:hidden">
-          <h2 className="text-base font-semibold">{group.label}</h2>
-          <ul className="divide-y rounded-xl border bg-card">
-            {group.items.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className="flex min-h-12 items-center gap-3 px-4 text-sm hover:bg-muted"
-                >
-                  <item.icon className="size-4 text-muted-foreground" />
-                  <span className="flex-1">{item.name}</span>
-                  <ChevronRight className="size-4 text-muted-foreground" />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
 
       <section className="flex flex-col gap-2 sm:flex-row">
         {SUPPORT_EMAIL && (

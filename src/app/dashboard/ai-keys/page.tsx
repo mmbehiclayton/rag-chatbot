@@ -15,7 +15,7 @@ export default async function AIKeysPage() {
     <div className="mx-auto max-w-2xl space-y-6">
       <PageHeader
         title="AI keys"
-        description="The keys Elimu uses to write for teachers. A key saved here replaces the one in Vercel's settings straight away, with no new release. Only the last 4 characters are ever shown."
+        description="The keys Elimu uses to write for teachers. A key saved here replaces the one in the server settings straight away, with no new release. Only the last 4 characters are ever shown."
       />
       {statuses.map((s) => (
         <AIKeyCard

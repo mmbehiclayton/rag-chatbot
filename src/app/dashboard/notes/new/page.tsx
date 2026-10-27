@@ -69,7 +69,13 @@ export default async function NewNotesPage({
           title="Create a lesson plan first"
           description="Lesson notes are written from one of your lesson plans."
           action={
-            <Button render={<Link href="/dashboard/create/lesson" />}>
+            <Button
+              render={
+                <Link
+                  href={`/dashboard/create/lesson${only ? `?${new URLSearchParams({ grade: only.grade, subject: only.subject })}` : ""}`}
+                />
+              }
+            >
               Create lesson plan
             </Button>
           }

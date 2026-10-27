@@ -26,7 +26,7 @@ export default async function PublicDesignsPage() {
       <PublicHeader />
       <div className="mx-auto max-w-4xl space-y-8 px-4 py-8">
         <div className="max-w-2xl space-y-2">
-          <h1 className="text-2xl font-semibold">CBC Curriculum Designs</h1>
+          <h1 className="text-2xl font-semibold">CBC curriculum designs</h1>
           <p className="text-muted-foreground">
             The strands and sub-strands of each KICD design, checked by two
             teachers. {ready} learning areas are ready so far. Open one to see

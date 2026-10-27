@@ -24,7 +24,7 @@ const models = () => [
     model: `OpenAI ${modelName("write")}`,
   },
   {
-    use: "Ask Elimu and the lesson helper",
+    use: "Ask Elimu, on its page and on a lesson plan",
     model: `OpenAI ${modelName("chat")}`,
   },
   {

@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageSquare } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -41,7 +41,7 @@ export function CopilotButton({
         className="no-print w-full sm:w-auto"
         onClick={() => setOpen(true)}
       >
-        <MessageSquare /> Ask Elimu about this lesson
+        <Sparkles /> Ask Elimu about this lesson
       </Button>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
