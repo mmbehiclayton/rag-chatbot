@@ -79,15 +79,20 @@ export function DocHeader({
 
 export function ExportButton({
   href,
-  label = "Export PDF",
+  label = "Download PDF",
+  main = false,
 }: {
   href: string;
   label?: string;
+  /** The page's main action: filled, and full width on a phone. */
+  main?: boolean;
 }) {
   return (
     <Button
-      variant="outline"
+      variant={main ? "default" : "outline"}
+      className={main ? "w-full sm:w-auto" : undefined}
       // The link's own children would replace the icon and label, so it gets none.
+      // biome-ignore lint/a11y/useAnchorContent: base-ui renders the button's children into it.
       render={<a href={href} rel="noopener" target="_blank" />}
     >
       <Download /> {label}

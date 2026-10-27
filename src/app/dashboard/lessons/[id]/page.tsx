@@ -3,12 +3,12 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { CreateNotesButton } from "@/components/create/create-notes-button";
 import { CopilotButton } from "@/components/document/copilot-button";
+import { DocMoreMenu } from "@/components/document/doc-actions";
 import {
   asArray,
   BulletList,
   DocHeader,
   DocSection,
-  ExportButton,
   Field,
 } from "@/components/document/doc-parts";
 import { ImproveButton } from "@/components/document/improve-button";
@@ -154,29 +154,36 @@ export default async function LessonDetailPage({
         actions={
           <>
             <Button
+              className="w-full sm:w-auto"
+              render={<Link href={`/dashboard/lessons/${lesson.id}/present`} />}
+            >
+              <Presentation /> Present
+            </Button>
+            <Button
               variant="outline"
               render={<Link href={`/dashboard/lessons/${lesson.id}/edit`} />}
             >
               <Pencil /> Edit
             </Button>
             <ImproveButton kind="LESSON" id={lesson.id} canUndo={canUndo} />
-            <ExportButton href={`/api/export?type=lesson&id=${lesson.id}`} />
-            <Button
-              variant="outline"
-              render={<Link href={`/dashboard/lessons/${lesson.id}/present`} />}
-            >
-              <Presentation /> Present
-            </Button>
-            {note ? (
-              <Button
-                variant="outline"
-                render={<Link href={`/dashboard/notes/${note.id}`} />}
-              >
-                Lesson notes <ChevronRight />
-              </Button>
-            ) : (
-              <CreateNotesButton lessonPlanId={lesson.id} />
-            )}
+            <DocMoreMenu
+              type="lessons"
+              id={lesson.id}
+              downloadHref={`/api/export?type=lesson&id=${lesson.id}`}
+              links={
+                note
+                  ? [
+                      {
+                        label: "Lesson notes",
+                        href: `/dashboard/notes/${note.id}`,
+                      },
+                    ]
+                  : []
+              }
+              deleteNote={
+                note ? "Its lesson notes are deleted too." : undefined
+              }
+            />
           </>
         }
       />
@@ -321,6 +328,31 @@ export default async function LessonDetailPage({
           )}
         </div>
       </details>
+
+      <DocSection title="Lesson notes">
+        {note ? (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              Teacher's notes for this lesson: worked examples, questions to ask
+              and the board summary.
+            </p>
+            <Button
+              variant="outline"
+              render={<Link href={`/dashboard/notes/${note.id}`} />}
+            >
+              Open lesson notes <ChevronRight />
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              Make lesson notes from this plan: worked examples, questions to
+              ask and the board summary.
+            </p>
+            <CreateNotesButton lessonPlanId={lesson.id} />
+          </div>
+        )}
+      </DocSection>
 
       <DocSection title="Reflection">
         <ReflectionForm

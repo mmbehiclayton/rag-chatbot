@@ -1,6 +1,5 @@
-import { BookOpen } from "lucide-react";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { DocMoreMenu } from "@/components/document/doc-actions";
 import {
   asArray,
   BulletList,
@@ -9,7 +8,6 @@ import {
   ExportButton,
   parseTitle,
 } from "@/components/document/doc-parts";
-import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
 import { classHref } from "@/lib/classes";
 import { db, withDbRetry } from "@/lib/db";
@@ -92,18 +90,23 @@ export default async function AssessmentDetailPage({
         actions={
           <>
             <ExportButton
+              main
               href={`/api/export?type=assessment&id=${assessment.id}`}
             />
-            {assessment.scheme && (
-              <Button
-                variant="outline"
-                render={
-                  <Link href={`/dashboard/schemes/${assessment.scheme.id}`} />
-                }
-              >
-                <BookOpen /> Scheme of work
-              </Button>
-            )}
+            <DocMoreMenu
+              type="assessments"
+              id={assessment.id}
+              links={
+                assessment.scheme
+                  ? [
+                      {
+                        label: "Scheme of work",
+                        href: `/dashboard/schemes/${assessment.scheme.id}`,
+                      },
+                    ]
+                  : []
+              }
+            />
           </>
         }
       />

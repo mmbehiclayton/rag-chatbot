@@ -1,12 +1,12 @@
 import { AlertTriangle, CalendarDays, ClipboardCheck } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { DocMoreMenu } from "@/components/document/doc-actions";
 import {
   asArray,
   BulletList,
   DocHeader,
   DocSection,
-  ExportButton,
   Field,
   parseTitle,
 } from "@/components/document/doc-parts";
@@ -145,15 +145,20 @@ export default async function SchemeDetailPage({
         needsReview={needsReview}
         actions={
           <>
-            <ExportButton href={`/api/export?type=scheme&id=${scheme.id}`} />
-            <ImproveButton kind="SCHEME" id={scheme.id} canUndo={canUndo} />
             <Button
-              variant="outline"
+              className="w-full sm:w-auto"
               render={<Link href={`/dashboard/schemes/${scheme.id}/record`} />}
             >
               <ClipboardCheck /> Record of work
             </Button>
             {needsReview && <ApproveSchemeButton schemeId={scheme.id} />}
+            <ImproveButton kind="SCHEME" id={scheme.id} canUndo={canUndo} />
+            <DocMoreMenu
+              type="schemes"
+              id={scheme.id}
+              downloadHref={`/api/export?type=scheme&id=${scheme.id}`}
+              deleteNote="Its lesson plans are kept. Its record of work (lessons marked as taught) is deleted too."
+            />
           </>
         }
       />

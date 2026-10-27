@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { DocMoreMenu } from "@/components/document/doc-actions";
 import {
   asArray,
   BulletList,
@@ -125,8 +126,15 @@ export default async function NoteDetailPage({
         meta={meta}
         actions={
           <>
-            <ExportButton href={`/api/export?type=notes&id=${note.id}`} />
+            <ExportButton main href={`/api/export?type=notes&id=${note.id}`} />
             <ImproveButton kind="NOTES" id={note.id} canUndo={canUndo} />
+            <DocMoreMenu
+              type="notes"
+              id={note.id}
+              links={[
+                { label: "Lesson plan", href: `/dashboard/lessons/${plan.id}` },
+              ]}
+            />
           </>
         }
       />
