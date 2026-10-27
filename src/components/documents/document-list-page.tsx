@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ClassFilter } from "@/components/documents/class-filter";
+import { DOC_NAV } from "@/components/layout/nav-config";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import {
   PAGE_SIZE,
 } from "@/lib/doc-lists";
 import { getTeacherTerms } from "@/lib/term-pack-data";
+import { cn } from "@/lib/utils";
 
 type Params = { [key: string]: string | string[] | undefined };
 
@@ -104,6 +106,35 @@ export async function DocumentListPage({
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
+      <nav
+        aria-label="Documents"
+        className="grid grid-cols-4 gap-1 rounded-md bg-muted p-1"
+      >
+        {DOC_NAV.map((d) => {
+          const active = d.href === basePath;
+          return (
+            <Link
+              key={d.href}
+              href={
+                only
+                  ? `${d.href}?${new URLSearchParams({ class: classKey(only) })}`
+                  : d.href
+              }
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "flex min-h-11 items-center justify-center rounded-md px-1 text-xs font-medium sm:text-sm",
+                active
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <span className="sm:hidden">{d.short ?? d.name}</span>
+              <span className="hidden sm:inline">{d.name}</span>
+            </Link>
+          );
+        })}
+      </nav>
+
       <PageHeader title={config.title} description={config.description} />
 
       {classes.length > 1 && (

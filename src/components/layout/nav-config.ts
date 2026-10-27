@@ -36,9 +36,20 @@ export type NavItem = {
 };
 export type NavGroup = { label?: string; items: NavItem[] };
 
-/** The bottom bar and the top of the sidebar: Home, then the four documents teachers keep. */
+/** The top of the sidebar: the pages a teacher opens most days. */
 export const PRIMARY_NAV: NavItem[] = [
   { name: "Home", href: "/dashboard", icon: Home },
+  {
+    name: "My classes",
+    short: "Classes",
+    href: "/dashboard/classes",
+    icon: GraduationCap,
+  },
+  { name: "This week", href: "/dashboard/timetable", icon: CalendarDays },
+];
+
+/** The four documents teachers keep. On a phone they are tabs on one "Documents" page. */
+export const DOC_NAV: NavItem[] = [
   {
     name: "Schemes of work",
     short: "Schemes",
@@ -65,9 +76,36 @@ export const PRIMARY_NAV: NavItem[] = [
   },
 ];
 
-/** Used now and then: on the sidebar under "More", on Home and on the Profile page on a phone. */
+/** What a teacher can make: the Create button on the phone bar and "Make something" on Home. */
+export const CREATE_NAV: (NavItem & { note: string })[] = [
+  {
+    name: "Lesson plan",
+    href: "/dashboard/create/lesson",
+    icon: FileText,
+    note: "For tomorrow",
+  },
+  {
+    name: "Scheme of work",
+    href: "/dashboard/create/scheme",
+    icon: BookOpen,
+    note: "For the term",
+  },
+  {
+    name: "Lesson notes",
+    href: "/dashboard/notes/new",
+    icon: NotebookPen,
+    note: "From a lesson plan",
+  },
+  {
+    name: "Assessment",
+    href: "/dashboard/create/assessment",
+    icon: ClipboardList,
+    note: "With a marking scheme",
+  },
+];
+
+/** Used now and then: in the menu under "More". */
 export const MORE_NAV: NavItem[] = [
-  { name: "My classes", href: "/dashboard/classes", icon: GraduationCap },
   {
     name: "Syllabus coverage",
     href: "/dashboard/coverage",
@@ -78,7 +116,6 @@ export const MORE_NAV: NavItem[] = [
     href: "/dashboard/designs",
     icon: Library,
   },
-  { name: "This week", href: "/dashboard/timetable", icon: CalendarDays },
   { name: "Ask Elimu", href: "/dashboard/chat", icon: Sparkles },
   { name: "Staffroom", href: "/dashboard/staffroom", icon: MessagesSquare },
   { name: "Jobs", href: "/dashboard/jobs", icon: Briefcase },
@@ -183,6 +220,7 @@ export function workspaceNav(
   return {
     top: PRIMARY_NAV,
     groups: [
+      { label: "Documents", items: DOC_NAV },
       { label: "More", items: MORE_NAV },
       // Curators keep their one curriculum link; staff have it under their own menus.
       ...(isCurator && role !== "SUPERADMIN"
@@ -205,7 +243,7 @@ export function workspaceForPath(
   if (has(adminNavGroups(role).flatMap((g) => g.items))) return "admin";
   if (
     has(
-      [...PRIMARY_NAV, ...MORE_NAV].filter(
+      [...PRIMARY_NAV, ...DOC_NAV, ...MORE_NAV].filter(
         (i) => i.href !== "/dashboard/profile",
       ),
     )

@@ -13,6 +13,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { TeacherStats } from "@/components/dashboard/teacher-stats";
 import { parseTitle } from "@/components/document/doc-parts";
+import { CREATE_NAV } from "@/components/layout/nav-config";
 import { EmptyState } from "@/components/shared/empty-state";
 import { InstallAppCard } from "@/components/shared/install-app";
 import {
@@ -35,33 +36,6 @@ import { getIndexedCurricula } from "@/lib/curriculum-options";
 import { db, withDbRetry } from "@/lib/db";
 
 type Recent = LinkListItem & { updatedAt: Date };
-
-const MAKE = [
-  {
-    href: "/dashboard/create/lesson",
-    icon: FileText,
-    title: "Lesson plan",
-    note: "For tomorrow",
-  },
-  {
-    href: "/dashboard/create/scheme",
-    icon: BookOpen,
-    title: "Scheme of work",
-    note: "For the term",
-  },
-  {
-    href: "/dashboard/notes/new",
-    icon: NotebookPen,
-    title: "Lesson notes",
-    note: "From a lesson plan",
-  },
-  {
-    href: "/dashboard/create/assessment",
-    icon: ClipboardList,
-    title: "Assessment",
-    note: "With a marking scheme",
-  },
-];
 
 /** The other pages are in the menu; Home points teachers to each other. */
 const COMMUNITY = [
@@ -254,7 +228,7 @@ export async function TeacherOverview({
       <section id="make" className="scroll-mt-4 space-y-2">
         <SectionTitle title="Make something" />
         <ul className="grid grid-cols-2 gap-2">
-          {MAKE.map((m, i) => (
+          {CREATE_NAV.map((m, i) => (
             <li key={m.href}>
               <Link
                 href={m.href}
@@ -271,7 +245,7 @@ export async function TeacherOverview({
                   aria-hidden
                 />
                 <span>
-                  <span className="block text-sm font-semibold">{m.title}</span>
+                  <span className="block text-sm font-semibold">{m.name}</span>
                   <span
                     className={
                       i === 0
