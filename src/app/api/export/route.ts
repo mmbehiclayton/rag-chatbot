@@ -25,6 +25,7 @@ import {
 } from "@/lib/documents";
 import { DOCX_TYPE, htmlToDocx } from "@/lib/export-docx";
 import { filingLabel, filingOf } from "@/lib/filing";
+import { licenceFor, stampHTML } from "@/lib/licence";
 import {
   type ClassRef,
   coversClass,
@@ -74,7 +75,12 @@ export async function GET(req: NextRequest) {
         term,
       );
       if (!file) return new NextResponse("Not found", { status: 404 });
-      return new NextResponse(file, {
+      const licence = await licenceFor(
+        session.userId,
+        { type, title: htmlTitle(file) },
+        "print",
+      );
+      return new NextResponse(stampHTML(file, licence), {
         headers: { "Content-Type": "text/html; charset=utf-8" },
       });
     }
@@ -160,10 +166,19 @@ export async function GET(req: NextRequest) {
     const denied = cls && (await accessDenied(session.userId, cls));
     if (denied) return denied;
 
-    if (searchParams.get("format") === "docx") {
+    const docx = searchParams.get("format") === "docx";
+    const licence = await licenceFor(
+      session.userId,
+      { type, id, title: htmlTitle(html) },
+      docx ? "docx" : "print",
+    );
+    html = stampHTML(html, licence);
+
+    if (docx) {
       const { title, data } = await htmlToDocx(
         html,
         html.includes("A4 landscape"),
+        licence,
       );
       // Windows and phones refuse some characters in file names.
       const name = title.replace(/[\\/:*?"<>|]+/g, "").trim() || "Elimu";
@@ -247,6 +262,14 @@ const baseCSS = `
 
   @media print { .print-btn { display: none; } }
 `;
+
+/** The document's title, as the page gives it, for the download log. */
+function htmlTitle(html: string) {
+  return (html.match(/<title>([^<]*)<\/title>/)?.[1] ?? "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
 
 const printScript = `<button class="print-btn" onclick="window.print()">Print / Save PDF</button>`;
 

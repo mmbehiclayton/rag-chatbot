@@ -360,6 +360,72 @@ export async function markCommissionsPaid(input: {
   return { success: true };
 }
 
+export type TracedDownload = {
+  teacher: string;
+  email: string;
+  school: string | null;
+  docType: string;
+  title: string | null;
+  format: string;
+  at: string;
+  downloads30d: number;
+};
+
+/** Elimu staff look up the Ref code printed on a copy, to see which account it was downloaded from. */
+export async function traceDownload(input: {
+  code: string;
+}): Promise<
+  | { success: true; download: TracedDownload }
+  | { success: false; error: string }
+> {
+  const session = await auth();
+  if (!session?.userId || session.role !== "SUPERADMIN")
+    return { success: false, error: "Only Elimu staff can do this." };
+  const code = input.code
+    .replace(/^\s*ref\s*/i, "")
+    .replace(/\s+/g, "")
+    .toUpperCase();
+  const log = await db.downloadLog.findUnique({
+    where: { code },
+    select: {
+      userId: true,
+      docType: true,
+      title: true,
+      format: true,
+      createdAt: true,
+      user: {
+        select: {
+          name: true,
+          email: true,
+          schoolName: true,
+          tenant: { select: { name: true } },
+        },
+      },
+    },
+  });
+  if (!log)
+    return { success: false, error: `No download has the code ${code}.` };
+  const downloads30d = await db.downloadLog.count({
+    where: {
+      userId: log.userId,
+      createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+    },
+  });
+  return {
+    success: true,
+    download: {
+      teacher: log.user.name || log.user.email,
+      email: log.user.email,
+      school: log.user.schoolName || log.user.tenant?.name || null,
+      docType: log.docType,
+      title: log.title,
+      format: log.format,
+      at: log.createdAt.toISOString(),
+      downloads30d,
+    },
+  };
+}
+
 const Answer = z.enum(["ACCEPTED", "CHANGES", "NOT_YET"]);
 const Kind = z.enum(["SCHEME", "RECORD"]);
 

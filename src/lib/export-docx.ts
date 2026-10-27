@@ -1,4 +1,5 @@
 import HTMLtoDOCX from "@turbodocx/html-to-docx";
+import type { Licence } from "@/lib/licence";
 
 export const DOCX_TYPE =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -34,7 +35,11 @@ function colWidthsToHeader(html: string, pagePx: number) {
  * the cyber. Word ignores the page's CSS, so the few things it carries (borders, shading,
  * centring, page breaks, blank lines to write on) are put back inline first.
  */
-export async function htmlToDocx(html: string, landscape = false) {
+export async function htmlToDocx(
+  html: string,
+  landscape = false,
+  licence?: Licence,
+) {
   const title = (html.match(/<title>([^<]*)<\/title>/)?.[1] ?? "Elimu document")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
@@ -81,6 +86,8 @@ export async function htmlToDocx(html: string, landscape = false) {
     .replace(/<h1>/g, '<h1 style="text-align: center;">')
     .replace(/<p class="doc-detail">/g, '<p style="text-align: center;">')
     .replace(/<p class="draft">/g, '<p style="text-align: right;">')
+    // The licence goes in the page footer instead.
+    .replace(/<p class="licence">[\s\S]*?<\/p>/g, "")
     // A line break inside a cell ends the table in the converter; a new paragraph doesn't.
     .replace(
       /<td([^>]*)>([\s\S]*?)<\/td>/g,
@@ -96,33 +103,45 @@ export async function htmlToDocx(html: string, landscape = false) {
 
   // Twips: 1 mm is about 56.7. The print pages use 16 mm margins, 12 mm in landscape.
   const margin = landscape ? 680 : 907;
-  const file = await HTMLtoDOCX(body, null, {
-    orientation: landscape ? "landscape" : "portrait",
-    // A4 in twips, given upright: the converter turns it for landscape.
-    pageSize: { width: 11906, height: 16838 },
-    margins: { top: margin, right: margin, bottom: margin, left: margin },
-    title,
-    creator: "Elimu",
-    font: "Georgia",
-    fontSize: landscape ? 18 : 22,
-    heading: {
-      heading1: { fontSize: 32, bold: true },
-      heading2: {
-        fontSize: 26,
-        bold: true,
-        spacing: { before: 240, after: 80 },
+  const file = await HTMLtoDOCX(
+    body,
+    null,
+    {
+      orientation: landscape ? "landscape" : "portrait",
+      // A4 in twips, given upright: the converter turns it for landscape.
+      pageSize: { width: 11906, height: 16838 },
+      margins: { top: margin, right: margin, bottom: margin, left: margin },
+      title,
+      creator: "Elimu",
+      // Kept in the file's properties too, where deleting the footer doesn't reach.
+      ...(licence && {
+        description: licence.text,
+        keywords: [`Elimu ref ${licence.code}`],
+      }),
+      font: "Georgia",
+      fontSize: landscape ? 18 : 22,
+      heading: {
+        heading1: { fontSize: 32, bold: true },
+        heading2: {
+          fontSize: 26,
+          bold: true,
+          spacing: { before: 240, after: 80 },
+        },
+        heading3: {
+          fontSize: 23,
+          bold: true,
+          spacing: { before: 160, after: 40 },
+        },
       },
-      heading3: {
-        fontSize: 23,
-        bold: true,
-        spacing: { before: 160, after: 40 },
-      },
+      table: { row: { cantSplit: true } },
+      pageNumber: true,
+      footer: true,
+      lang: "en-KE",
     },
-    table: { row: { cantSplit: true } },
-    pageNumber: true,
-    footer: true,
-    lang: "en-KE",
-  });
+    licence
+      ? `<p style="font-size: 8pt; color: #555555; text-align: center;">${licence.text.replace(/&/g, "&amp;").replace(/</g, "&lt;")} · Page </p>`
+      : undefined,
+  );
   return {
     title,
     data:

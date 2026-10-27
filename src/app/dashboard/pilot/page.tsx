@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AllowanceForm } from "@/components/pilot/allowance-form";
 import { CommissionForm } from "@/components/pilot/commission-form";
 import { CommissionPayout } from "@/components/pilot/commission-payout";
+import { DownloadTrace } from "@/components/pilot/download-trace";
 import { PaymentReview } from "@/components/pilot/payment-review";
 import { PilotReadiness } from "@/components/pilot/pilot-readiness";
 import { PriceForm } from "@/components/pilot/price-form";
@@ -142,62 +143,87 @@ export default async function PilotPage() {
     pickTerm(calendarTerms(await getAcademicCalendar()), todayInKenya()) ??
     DEFAULT_TERMS[DEFAULT_TERMS.length - 1];
 
-  const [price, paying, limits, percent, commissions, commissionTotals] =
-    await Promise.all([
-      termPrice(),
-      plansOn(),
-      allowances(),
-      commissionPercent(),
-      withDbRetry(() =>
-        db.referralCommission.findMany({
-          where: { status: "PENDING" },
-          orderBy: { createdAt: "asc" },
-          select: {
-            id: true,
-            amount: true,
-            referrer: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                termPasses: {
-                  where: { phone: { not: null } },
-                  orderBy: { createdAt: "desc" },
-                  take: 1,
-                  select: { phone: true },
-                },
+  const [
+    price,
+    paying,
+    limits,
+    percent,
+    commissions,
+    commissionTotals,
+    topDownloads,
+  ] = await Promise.all([
+    termPrice(),
+    plansOn(),
+    allowances(),
+    commissionPercent(),
+    withDbRetry(() =>
+      db.referralCommission.findMany({
+        where: { status: "PENDING" },
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          amount: true,
+          referrer: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              termPasses: {
+                where: { phone: { not: null } },
+                orderBy: { createdAt: "desc" },
+                take: 1,
+                select: { phone: true },
               },
             },
           },
-        }),
-      ),
-      withDbRetry(() =>
-        db.referralCommission.groupBy({
-          by: ["status"],
-          _sum: { amount: true },
-        }),
-      ),
-    ]);
+        },
+      }),
+    ),
+    withDbRetry(() =>
+      db.referralCommission.groupBy({
+        by: ["status"],
+        _sum: { amount: true },
+      }),
+    ),
+    withDbRetry(() =>
+      db.downloadLog.groupBy({
+        by: ["userId"],
+        where: { createdAt: { gte: new Date(now - 30 * DAY) } },
+        _count: { _all: true },
+        orderBy: { _count: { userId: "desc" } },
+        take: 5,
+      }),
+    ),
+  ]);
+  const downloaders = await withDbRetry(() =>
+    db.user.findMany({
+      where: { id: { in: topDownloads.map((d) => d.userId) } },
+      select: { id: true, name: true, email: true },
+    }),
+  );
   // What each teacher is owed, biggest first.
   const owed = [
     ...commissions
-      .reduce((m, c) => {
-        const row = m.get(c.referrer.id) ?? {
-          referrer: c.referrer,
-          ids: [] as string[],
-          amount: 0,
-        };
-        row.ids.push(c.id);
-        row.amount += c.amount;
-        return m.set(c.referrer.id, row);
-      }, new Map<
-        string,
-        {
-          referrer: (typeof commissions)[number]["referrer"];
-          ids: string[];
-          amount: number;
-        }
-      >())
+      .reduce(
+        (m, c) => {
+          const row = m.get(c.referrer.id) ?? {
+            referrer: c.referrer,
+            ids: [] as string[],
+            amount: 0,
+          };
+          row.ids.push(c.id);
+          row.amount += c.amount;
+          return m.set(c.referrer.id, row);
+        },
+        new Map<
+          string,
+          {
+            referrer: (typeof commissions)[number]["referrer"];
+            ids: string[];
+            amount: number;
+          }
+        >(),
+      )
       .values(),
   ].sort((a, b) => b.amount - a.amount);
   const commissionSum = (status: string) =>
@@ -487,6 +513,45 @@ export default async function PilotPage() {
               </li>
             ))}
           </ul>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold">Shared copies</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Every download and print carries the teacher's name and a Ref code
+            at the foot of each page. If a copy turns up somewhere it shouldn't,
+            look the code up to see whose account it came from.
+          </p>
+        </div>
+        <div className="rounded-xl border bg-card p-4">
+          <DownloadTrace />
+        </div>
+        {topDownloads.length > 0 && (
+          <div className="rounded-xl border bg-card p-4">
+            <h3 className="text-sm font-medium">
+              Most downloads in the last 30 days
+            </h3>
+            <ul className="mt-2 divide-y text-sm">
+              {topDownloads.map((d) => {
+                const u = downloaders.find((x) => x.id === d.userId);
+                return (
+                  <li
+                    key={d.userId}
+                    className="flex justify-between gap-3 py-2"
+                  >
+                    <span className="min-w-0 truncate">
+                      {u?.name || u?.email || "Deleted account"}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {d._count._all}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         )}
       </section>
 

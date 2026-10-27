@@ -85,6 +85,7 @@ model User {
   curriculumAsks    CurriculumRequest[]
   commissionsEarned ReferralCommission[] @relation("CommissionReferrer")
   commissionsFrom   ReferralCommission[] @relation("CommissionReferred")
+  downloads         DownloadLog[]
 
   @@index([tenantId])
   @@index([invitedById])
@@ -683,4 +684,23 @@ model JobPost {
   updatedAt     DateTime  @updatedAt
 
   @@index([status, createdAt])
+}
+
+/**
+ * Every download or print page. The code is printed on the document ("Ref ABCD2345"), so a copy
+ * passed around can be traced back to the account it came from.
+ */
+model DownloadLog {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  docType   String // scheme | record | lesson | assessment | notes | term
+  docId     String? // the term file has none
+  title     String?
+  format    String // "print" | "docx"
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
 }
