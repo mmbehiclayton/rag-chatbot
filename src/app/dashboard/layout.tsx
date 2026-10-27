@@ -1,7 +1,7 @@
 import { MessageSquare } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AppSidebar } from "@/components/layout/app-sidebar";
+import { AppSidebar, MobileMenu } from "@/components/layout/app-sidebar";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { PageTitle } from "@/components/layout/page-title";
 import { UserNav } from "@/components/layout/user-nav";
@@ -49,7 +49,12 @@ export default async function DashboardLayout({
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="no-print z-10 flex h-14 shrink-0 items-center justify-between gap-4 border-b bg-card px-4 md:px-6">
-          <div className="flex min-w-0 items-center gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <MobileMenu
+              role={session.role}
+              isCurator={user?.isCurator ?? false}
+              workspace={workspace}
+            />
             <Logo href="/dashboard" className="md:hidden [&>span]:sr-only" />
             <PageTitle />
           </div>
