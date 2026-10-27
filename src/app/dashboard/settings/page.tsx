@@ -142,8 +142,8 @@ export default async function SettingsPage() {
             <CardHeader>
               <CardTitle>AI models</CardTitle>
               <CardDescription>
-                Change them in Vercel's environment settings: ELIMU_MODEL_WRITE,
-                ELIMU_MODEL_CHAT and ELIMU_MODEL_BACKUP.
+                Change them in the server's .env.production file, then deploy:
+                ELIMU_MODEL_WRITE, ELIMU_MODEL_CHAT and ELIMU_MODEL_BACKUP.
               </CardDescription>
             </CardHeader>
             <CardContent>

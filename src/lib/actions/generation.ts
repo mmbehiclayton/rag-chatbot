@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { explainAIError } from "@/lib/ai-errors";
 import { aiModel, modelUsed } from "@/lib/ai-models";
+import { allowanceMessage, getAllowance } from "@/lib/allowance";
 import { auth } from "@/lib/auth";
 import {
   allSubStrands,
@@ -138,15 +139,19 @@ ${JSON.stringify(after)}`
 // ─── Shared Guards ────────────────────────────────────────────────────────────
 
 async function checkGenerationGuards(
-  session: { userId: string; tenantId?: string | null },
+  session: { userId: string; tenantId?: string | null; role?: string | null },
   cls: ClassRef,
 ) {
   // 0. Plan: the free plan covers one class
-  if (await plansOn()) {
-    const access = await getAccess(session.userId);
-    if (!coversClass(access, cls))
-      throw new TeacherError(freePlanMessage(access));
-  }
+  const access =
+    session.role === "TEACHER" ? await getAccess(session.userId) : undefined;
+  if (access && (await plansOn()) && !coversClass(access, cls))
+    throw new TeacherError(freePlanMessage(access));
+
+  // 0b. The teacher's monthly allowance of documents
+  const allowance = await getAllowance(session.userId, session.role, access);
+  if (allowance && allowance.used >= allowance.limit)
+    throw new TeacherError(allowanceMessage(allowance));
 
   // 1. Rate limit: 20 documents per teacher per hour
   if (await overLimit(`gen_${session.userId}`, DOCS_PER_HOUR, 60 * 60 * 1000)) {

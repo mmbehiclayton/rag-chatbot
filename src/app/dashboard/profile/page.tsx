@@ -17,12 +17,20 @@ import { InviteShare } from "@/components/pilot/invite-share";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { logout } from "@/lib/actions/auth";
+import { getAllowance, kenyaMonth, PLAN_LABELS } from "@/lib/allowance";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
 import { getInviteCode, inviteUrl } from "@/lib/invites";
 import { getWorkspace } from "@/lib/workspace";
 
 const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL;
+
+const dayLabel = (d: Date) =>
+  d.toLocaleDateString("en-KE", {
+    timeZone: "Africa/Nairobi",
+    day: "numeric",
+    month: "long",
+  });
 
 function Row({
   label,
@@ -43,9 +51,7 @@ export default async function ProfilePage() {
   const session = await auth();
   if (!session?.userId) redirect("/login");
 
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
+  const monthStart = kenyaMonth().start;
 
   const [user, usage] = await Promise.all([
     withDbRetry(() =>
@@ -83,15 +89,19 @@ export default async function ProfilePage() {
     }))
     .filter((g) => g.items.length > 0);
   const isTeacher = user.role === "TEACHER";
-  const [inviteCode, joined] = isTeacher
+  const [inviteCode, joined, allowance] = isTeacher
     ? await Promise.all([
         getInviteCode(session.userId).catch(() => null),
         withDbRetry(() =>
           db.user.count({ where: { invitedById: session.userId } }),
         ).catch(() => 0),
+        getAllowance(session.userId, user.role).catch(() => null),
       ])
-    : [null, 0];
-  const month = monthStart.toLocaleDateString("en-KE", { month: "long" });
+    : [null, 0, null];
+  const month = monthStart.toLocaleDateString("en-KE", {
+    timeZone: "Africa/Nairobi",
+    month: "long",
+  });
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -218,12 +228,47 @@ export default async function ProfilePage() {
 
       <section className="space-y-2">
         <h2 className="text-base font-semibold">Usage in {month}</h2>
-        <dl className="divide-y rounded-xl border bg-card">
-          <Row label="Documents created">{usage._count}</Row>
-          <Row label="AI tokens used">
-            {(usage._sum.totalTokens ?? 0).toLocaleString("en-KE")}
-          </Row>
-        </dl>
+        {allowance ? (
+          <div className="space-y-3 rounded-xl border bg-card p-4">
+            <p className="text-sm">
+              <span className="font-semibold">{allowance.used}</span> of{" "}
+              {allowance.limit} documents on your {PLAN_LABELS[allowance.plan]}
+            </p>
+            <div
+              className="h-2 overflow-hidden rounded-md bg-muted"
+              role="progressbar"
+              aria-label="Documents used this month"
+              aria-valuemin={0}
+              aria-valuemax={allowance.limit}
+              aria-valuenow={Math.min(allowance.used, allowance.limit)}
+            >
+              <div
+                className={
+                  allowance.used >= allowance.limit
+                    ? "h-full bg-destructive"
+                    : allowance.used >= allowance.limit * 0.8
+                      ? "h-full bg-warning"
+                      : "h-full bg-primary"
+                }
+                style={{
+                  width: `${Math.min(100, (allowance.used / allowance.limit) * 100)}%`,
+                }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Starts again on {dayLabel(allowance.resetsOn)}. Reusing a lesson
+              plan is free. A long document, like a full scheme of work, can
+              count as more than one.
+            </p>
+          </div>
+        ) : (
+          <dl className="divide-y rounded-xl border bg-card">
+            <Row label="Documents created">{usage._count}</Row>
+            <Row label="AI tokens used">
+              {(usage._sum.totalTokens ?? 0).toLocaleString("en-KE")}
+            </Row>
+          </dl>
+        )}
       </section>
 
       {adminGroups.map((group) => (

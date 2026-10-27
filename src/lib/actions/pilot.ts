@@ -4,6 +4,11 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import {
+  ALLOWANCE_KEY,
+  ALLOWANCE_LIMITS,
+  type AllowancePlan,
+} from "@/lib/allowance";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { initializeCheckout, paystackOn } from "@/lib/paystack";
@@ -210,6 +215,39 @@ export async function setTermPrice(input: { price: number }): Promise<Result> {
   });
   revalidatePath("/dashboard/pilot");
   revalidatePath("/dashboard/profile/plan");
+  return { success: true };
+}
+
+/** Elimu staff set how many documents a month each plan gives. Applies straight away. */
+export async function setAllowances(
+  input: Record<AllowancePlan, number>,
+): Promise<Result> {
+  const session = await auth();
+  if (!session?.userId || session.role !== "SUPERADMIN")
+    return { success: false, error: "Only Elimu staff can do this." };
+  const plans: AllowancePlan[] = ["trial", "free", "paid"];
+  const value: Partial<Record<AllowancePlan, number>> = {};
+  for (const plan of plans) {
+    const n = Math.round(Number(input[plan]));
+    if (
+      !Number.isFinite(n) ||
+      n < ALLOWANCE_LIMITS.min ||
+      n > ALLOWANCE_LIMITS.max
+    )
+      return {
+        success: false,
+        error: `Enter a number between ${ALLOWANCE_LIMITS.min} and ${ALLOWANCE_LIMITS.max} for each plan.`,
+      };
+    value[plan] = n;
+  }
+  const json = JSON.stringify(value);
+  await db.platformSetting.upsert({
+    where: { key: ALLOWANCE_KEY },
+    create: { key: ALLOWANCE_KEY, value: json, updatedById: session.userId },
+    update: { value: json, updatedById: session.userId },
+  });
+  revalidatePath("/dashboard/pilot");
+  revalidatePath("/dashboard/profile");
   return { success: true };
 }
 

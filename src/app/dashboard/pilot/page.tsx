@@ -1,5 +1,6 @@
 import { Wallet } from "lucide-react";
 import { redirect } from "next/navigation";
+import { AllowanceForm } from "@/components/pilot/allowance-form";
 import { PaymentReview } from "@/components/pilot/payment-review";
 import { PilotReadiness } from "@/components/pilot/pilot-readiness";
 import { PriceForm } from "@/components/pilot/price-form";
@@ -8,6 +9,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { calendarTerms, getAcademicCalendar } from "@/lib/academic-calendar";
+import { ALLOWANCE_LIMITS, allowances, TOKENS_PER_DOC } from "@/lib/allowance";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
 import { PRICE_LIMITS, plansOn, termPrice } from "@/lib/plans";
@@ -137,7 +139,11 @@ export default async function PilotPage() {
     pickTerm(calendarTerms(await getAcademicCalendar()), todayInKenya()) ??
     DEFAULT_TERMS[DEFAULT_TERMS.length - 1];
 
-  const [price, paying] = await Promise.all([termPrice(), plansOn()]);
+  const [price, paying, limits] = await Promise.all([
+    termPrice(),
+    plansOn(),
+    allowances(),
+  ]);
   const [
     teachers,
     firstSchemes,
@@ -338,6 +344,27 @@ export default async function PilotPage() {
             price={price}
             min={PRICE_LIMITS.min}
             max={PRICE_LIMITS.max}
+          />
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold">Documents a month</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            How many documents each teacher can have Elimu write in a month. In
+            test mode teachers get the term pass number. Reused lesson plans are
+            free; a document that uses more than{" "}
+            {TOKENS_PER_DOC.toLocaleString("en-KE")} tokens counts once for each{" "}
+            {TOKENS_PER_DOC.toLocaleString("en-KE")}. Admins and staff have no
+            limit.
+          </p>
+        </div>
+        <div className="rounded-xl border bg-card p-4">
+          <AllowanceForm
+            limits={limits}
+            min={ALLOWANCE_LIMITS.min}
+            max={ALLOWANCE_LIMITS.max}
           />
         </div>
       </section>

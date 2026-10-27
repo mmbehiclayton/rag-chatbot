@@ -13,26 +13,30 @@ import {
 import { anthropic, getAIKey, openai } from "@/lib/ai-keys";
 
 /**
- * Which OpenAI model does which job. Change them in Vercel's environment settings, without a
- * code change: ELIMU_MODEL_WRITE for documents, ELIMU_MODEL_CHAT for Ask Elimu and the copilot.
+ * Which OpenAI model does which job. Change them in `.env.production`, without a code change:
+ * ELIMU_MODEL_WRITE for documents, ELIMU_MODEL_CHAT for Ask Elimu and the copilot.
+ * Chat answers are short and read once, so a small model does them at a fraction of the cost.
  */
 export type ModelJob = "write" | "chat";
 
 const DEFAULTS: Record<ModelJob, string> = {
   write: "gpt-4o",
-  chat: "gpt-4o",
+  chat: "gpt-4o-mini",
 };
 
 export function modelName(job: ModelJob): string {
   const set =
     job === "write"
       ? process.env.ELIMU_MODEL_WRITE
-      : (process.env.ELIMU_MODEL_CHAT ?? process.env.ELIMU_MODEL_WRITE);
+      : process.env.ELIMU_MODEL_CHAT;
   return set?.trim() || DEFAULTS[job];
 }
 
-/** The Claude model that takes over when OpenAI isn't working. Set ELIMU_MODEL_BACKUP to change it. */
-const BACKUP_DEFAULT = "claude-opus-5-5";
+/**
+ * The Claude model that takes over when OpenAI isn't working. Set ELIMU_MODEL_BACKUP to change it.
+ * Sonnet costs half of Opus and is plenty for lesson documents.
+ */
+const BACKUP_DEFAULT = "claude-sonnet-5-5";
 
 export function backupModelName(): string {
   return process.env.ELIMU_MODEL_BACKUP?.trim() || BACKUP_DEFAULT;
