@@ -1,0 +1,4 @@
+# Run on Linux (bash, nginx): keep LF even with core.autocrlf=true on Windows.
+*.sh text eol=lf
+Dockerfile text eol=lf
+deploy/** text eol=lf

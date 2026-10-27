@@ -19,6 +19,7 @@ const publicRoutes = [
   "/reset-password",
   "/verify-email",
   "/api/uploadthing",
+  "/api/health",
   "/designs",
   "/sitemap.xml",
   "/robots.txt",
