@@ -131,6 +131,7 @@ export default async function NoteDetailPage({
             <DocMoreMenu
               type="notes"
               id={note.id}
+              exportHref={`/api/export?type=notes&id=${note.id}`}
               links={[
                 { label: "Lesson plan", href: `/dashboard/lessons/${plan.id}` },
               ]}

@@ -156,7 +156,8 @@ export default async function SchemeDetailPage({
             <DocMoreMenu
               type="schemes"
               id={scheme.id}
-              downloadHref={`/api/export?type=scheme&id=${scheme.id}`}
+              exportHref={`/api/export?type=scheme&id=${scheme.id}`}
+              pdfInMenu
               deleteNote="Its lesson plans are kept. Its record of work (lessons marked as taught) is deleted too."
             />
           </>

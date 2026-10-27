@@ -96,6 +96,7 @@ export default async function AssessmentDetailPage({
             <DocMoreMenu
               type="assessments"
               id={assessment.id}
+              exportHref={`/api/export?type=assessment&id=${assessment.id}`}
               links={
                 assessment.scheme
                   ? [

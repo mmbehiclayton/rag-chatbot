@@ -11,6 +11,7 @@ import {
   docName,
   teacherContext,
 } from "@/lib/documents";
+import { DOCX_TYPE, htmlToDocx } from "@/lib/export-docx";
 import { filingLabel, filingOf } from "@/lib/filing";
 import {
   type ClassRef,
@@ -28,7 +29,7 @@ import {
 import { getSchemeSchedule, getTeacherTerms } from "@/lib/term-pack-data";
 
 // Returns a print-ready HTML document for a scheme, lesson plan, or assessment.
-// Usage: GET /api/export?type=scheme&id=<id>
+// Usage: GET /api/export?type=scheme&id=<id>, and &format=docx for a Word file.
 // A term file: GET /api/export?type=term&grade=Grade 7&subject=English&term=Term 2 2026
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -146,6 +147,21 @@ export async function GET(req: NextRequest) {
 
     const denied = cls && (await accessDenied(session.userId, cls));
     if (denied) return denied;
+
+    if (searchParams.get("format") === "docx") {
+      const { title, data } = await htmlToDocx(
+        html,
+        html.includes("A4 landscape"),
+      );
+      // Windows and phones refuse some characters in file names.
+      const name = title.replace(/[\\/:*?"<>|]+/g, "").trim() || "Elimu";
+      return new NextResponse(data, {
+        headers: {
+          "Content-Type": DOCX_TYPE,
+          "Content-Disposition": `attachment; filename="elimu.docx"; filename*=UTF-8''${encodeURIComponent(name)}.docx`,
+        },
+      });
+    }
 
     return new NextResponse(html, {
       headers: { "Content-Type": "text/html; charset=utf-8" },

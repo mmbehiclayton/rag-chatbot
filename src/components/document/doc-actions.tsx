@@ -1,6 +1,12 @@
 "use client";
 
-import { ArrowRight, Download, MoreHorizontal, Trash2 } from "lucide-react";
+import {
+  ArrowRight,
+  Download,
+  FileText,
+  MoreHorizontal,
+  Trash2,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -34,20 +40,23 @@ const NOUN: Record<DocType, string> = {
 };
 
 /**
- * The ⋯ button at the end of every document's actions: download, links to related documents,
+ * The ⋯ button at the end of every document's actions: PDF and Word, links to related documents,
  * and delete (after a confirm). The main actions stay as buttons beside it.
  */
 export function DocMoreMenu({
   type,
   id,
-  downloadHref,
+  exportHref,
+  pdfInMenu = false,
   links = [],
   deleteNote,
 }: {
   type: DocType;
   id: string;
-  /** Leave out when the page already has Download as its main button. */
-  downloadHref?: string;
+  /** The /api/export link for this document; the Word file adds &format=docx. */
+  exportHref: string;
+  /** False when the page already has Download PDF as its main button. */
+  pdfInMenu?: boolean;
   links?: { label: string; href: string }[];
   /** What else goes with it, e.g. "Its lesson notes are deleted too." */
   deleteNote?: string;
@@ -85,20 +94,26 @@ export function DocMoreMenu({
           <MoreHorizontal />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          {downloadHref && (
+          {pdfInMenu && (
             <DropdownMenuItem
               // biome-ignore lint/a11y/useAnchorContent: base-ui renders the item's children into it.
-              render={<a href={downloadHref} rel="noopener" target="_blank" />}
+              render={<a href={exportHref} rel="noopener" target="_blank" />}
             >
               <Download /> Download PDF
             </DropdownMenuItem>
           )}
+          <DropdownMenuItem
+            // biome-ignore lint/a11y/useAnchorContent: base-ui renders the item's children into it.
+            render={<a href={`${exportHref}&format=docx`} download />}
+          >
+            <FileText /> Download Word
+          </DropdownMenuItem>
           {links.map((l) => (
             <DropdownMenuItem key={l.href} render={<Link href={l.href} />}>
               <ArrowRight /> {l.label}
             </DropdownMenuItem>
           ))}
-          {(downloadHref || links.length > 0) && <DropdownMenuSeparator />}
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             variant="destructive"
             onClick={() => setConfirming(true)}

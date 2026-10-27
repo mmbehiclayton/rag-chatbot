@@ -169,7 +169,8 @@ export default async function LessonDetailPage({
             <DocMoreMenu
               type="lessons"
               id={lesson.id}
-              downloadHref={`/api/export?type=lesson&id=${lesson.id}`}
+              exportHref={`/api/export?type=lesson&id=${lesson.id}`}
+              pdfInMenu
               links={
                 note
                   ? [
