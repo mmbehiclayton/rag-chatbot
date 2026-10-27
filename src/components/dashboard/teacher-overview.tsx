@@ -1,18 +1,18 @@
 import { formatDistanceToNow } from "date-fns";
 import {
   BookOpen,
-  ChevronRight,
+  Briefcase,
   ClipboardList,
   FileText,
   GraduationCap,
   Info,
+  MessagesSquare,
   NotebookPen,
 } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { TeacherStats } from "@/components/dashboard/teacher-stats";
 import { parseTitle } from "@/components/document/doc-parts";
-import { MORE_NAV } from "@/components/layout/nav-config";
 import { EmptyState } from "@/components/shared/empty-state";
 import { InstallAppCard } from "@/components/shared/install-app";
 import {
@@ -63,10 +63,21 @@ const MAKE = [
   },
 ];
 
-/** The tools that aren't on the bottom bar, minus the ones Home already shows. */
-const TOOLS = MORE_NAV.filter(
-  (i) => !["/dashboard/classes", "/dashboard/profile"].includes(i.href),
-);
+/** The other pages are in the menu; Home points teachers to each other. */
+const COMMUNITY = [
+  {
+    href: "/dashboard/staffroom",
+    icon: MessagesSquare,
+    title: "Staffroom",
+    note: "Ask and share with teachers",
+  },
+  {
+    href: "/dashboard/jobs",
+    icon: Briefcase,
+    title: "Jobs",
+    note: "Teaching jobs near you",
+  },
+];
 
 export async function TeacherOverview({
   session,
@@ -240,43 +251,6 @@ export async function TeacherOverview({
         </p>
       )}
 
-      <Suspense fallback={<Skeleton className="h-40 rounded-xl" />}>
-        <TeacherStats teacherId={teacherId} />
-      </Suspense>
-
-      <TodayLessons teacherId={teacherId} hasSchemes={schemes.length > 0} />
-
-      {upNext.length > 0 && (
-        <section className="space-y-2">
-          <SectionTitle title="Next lessons to prepare" />
-          <ul className="space-y-2">
-            {upNext.map((n) => (
-              <li key={n.schemeId} className="rounded-xl border bg-card p-4">
-                <p className="text-xs text-muted-foreground">
-                  {n.label} · Week {n.weekNumber}, lesson {n.lessonNumber}
-                </p>
-                <p className="mt-0.5 truncate text-sm font-medium">{n.topic}</p>
-                <div className="mt-3 flex items-center justify-between gap-3">
-                  <span className="text-xs text-muted-foreground">
-                    {n.done} of {n.total} lesson plans ready
-                  </span>
-                  <Button
-                    size="sm"
-                    render={
-                      <Link
-                        href={`/dashboard/schemes/${n.schemeId}#week-${n.weekNumber}`}
-                      />
-                    }
-                  >
-                    Prepare week {n.weekNumber}
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
       <section id="make" className="scroll-mt-4 space-y-2">
         <SectionTitle title="Make something" />
         <ul className="grid grid-cols-2 gap-2">
@@ -313,6 +287,43 @@ export async function TeacherOverview({
           ))}
         </ul>
       </section>
+
+      <TodayLessons teacherId={teacherId} hasSchemes={schemes.length > 0} />
+
+      {upNext.length > 0 && (
+        <section className="space-y-2">
+          <SectionTitle title="Next lessons to prepare" />
+          <ul className="space-y-2">
+            {upNext.map((n) => (
+              <li key={n.schemeId} className="rounded-xl border bg-card p-4">
+                <p className="text-xs text-muted-foreground">
+                  {n.label} · Week {n.weekNumber}, lesson {n.lessonNumber}
+                </p>
+                <p className="mt-0.5 truncate text-sm font-medium">{n.topic}</p>
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <span className="text-xs text-muted-foreground">
+                    {n.done} of {n.total} lesson plans ready
+                  </span>
+                  <Button
+                    size="sm"
+                    render={
+                      <Link
+                        href={`/dashboard/schemes/${n.schemeId}#week-${n.weekNumber}`}
+                      />
+                    }
+                  >
+                    Prepare week {n.weekNumber}
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <Suspense fallback={<Skeleton className="h-40 rounded-xl" />}>
+        <TeacherStats teacherId={teacherId} />
+      </Suspense>
 
       <section className="space-y-2">
         <SectionTitle
@@ -369,23 +380,21 @@ export async function TeacherOverview({
       )}
 
       <section className="space-y-2">
-        <SectionTitle title="Tools" />
-        <ul className="divide-y rounded-xl border bg-card">
-          {TOOLS.map((t) => (
-            <li key={t.href}>
+        <SectionTitle title="Teachers on Elimu" />
+        <ul className="grid grid-cols-2 gap-2">
+          {COMMUNITY.map((c) => (
+            <li key={c.href}>
               <Link
-                href={t.href}
-                className="flex min-h-12 items-center gap-3 px-4 text-sm font-medium transition-colors hover:bg-muted/60"
+                href={c.href}
+                className="flex h-full min-h-20 flex-col justify-between gap-2 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/60"
               >
-                <t.icon
-                  className="size-5 shrink-0 text-muted-foreground"
-                  aria-hidden
-                />
-                <span className="flex-1">{t.name}</span>
-                <ChevronRight
-                  className="size-4 shrink-0 text-muted-foreground"
-                  aria-hidden
-                />
+                <c.icon className="size-5 text-primary" aria-hidden />
+                <span>
+                  <span className="block text-sm font-semibold">{c.title}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {c.note}
+                  </span>
+                </span>
               </Link>
             </li>
           ))}
