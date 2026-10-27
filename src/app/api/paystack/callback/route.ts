@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { confirmPayment } from "@/lib/paystack";
+import { siteUrl } from "@/lib/site-url";
 
 /** Paystack sends the teacher back here after checkout. Check the payment, then show the Term pass page. */
 export async function GET(req: NextRequest) {
@@ -11,6 +12,6 @@ export async function GET(req: NextRequest) {
     ? await confirmPayment(reference).catch(() => "failed" as const)
     : "failed";
   return NextResponse.redirect(
-    new URL(`/dashboard/profile/plan?payment=${result}`, req.url),
+    new URL(`/dashboard/profile/plan?payment=${result}`, siteUrl()),
   );
 }
