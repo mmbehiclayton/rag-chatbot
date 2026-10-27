@@ -23,6 +23,7 @@ import { auth } from "@/lib/auth";
 import { classHref } from "@/lib/classes";
 import { db, withDbRetry } from "@/lib/db";
 import { docMeta } from "@/lib/documents";
+import { todayInKenya } from "@/lib/term-pack";
 
 /** "Name: how" pairs, such as core competencies and how the lesson develops them. */
 function pairs(items: { name?: string; detail?: string }[]) {
@@ -169,6 +170,11 @@ export default async function LessonDetailPage({
             <DocMoreMenu
               type="lessons"
               id={lesson.id}
+              copy={{
+                term: lesson.term ?? lesson.scheme?.term ?? null,
+                year: lesson.year ?? lesson.scheme?.year ?? null,
+                thisYear: Number(todayInKenya().slice(0, 4)),
+              }}
               exportHref={`/api/export?type=lesson&id=${lesson.id}`}
               pdfInMenu
               links={

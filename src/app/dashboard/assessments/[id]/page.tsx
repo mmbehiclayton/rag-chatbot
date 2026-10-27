@@ -12,6 +12,7 @@ import { auth } from "@/lib/auth";
 import { classHref } from "@/lib/classes";
 import { db, withDbRetry } from "@/lib/db";
 import { docMeta } from "@/lib/documents";
+import { todayInKenya } from "@/lib/term-pack";
 
 type Question = {
   questionNumber?: number;
@@ -96,6 +97,11 @@ export default async function AssessmentDetailPage({
             <DocMoreMenu
               type="assessments"
               id={assessment.id}
+              copy={{
+                term: assessment.term,
+                year: assessment.year,
+                thisYear: Number(todayInKenya().slice(0, 4)),
+              }}
               exportHref={`/api/export?type=assessment&id=${assessment.id}`}
               links={
                 assessment.scheme

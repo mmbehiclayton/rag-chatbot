@@ -24,7 +24,12 @@ import { auth } from "@/lib/auth";
 import { classHref } from "@/lib/classes";
 import { db, withDbRetry } from "@/lib/db";
 import { docMeta } from "@/lib/documents";
-import { formatDay, formatRange, termLabel } from "@/lib/term-pack";
+import {
+  formatDay,
+  formatRange,
+  termLabel,
+  todayInKenya,
+} from "@/lib/term-pack";
 import { getSchemeSchedule } from "@/lib/term-pack-data";
 
 // Writing a document with AI can take a couple of minutes.
@@ -156,6 +161,12 @@ export default async function SchemeDetailPage({
             <DocMoreMenu
               type="schemes"
               id={scheme.id}
+              copy={{
+                term: scheme.term,
+                year: scheme.year,
+                thisYear: Number(todayInKenya().slice(0, 4)),
+                lessons: scheme.lessonPlans.length,
+              }}
               exportHref={`/api/export?type=scheme&id=${scheme.id}`}
               pdfInMenu
               deleteNote="Its lesson plans are kept. Its record of work (lessons marked as taught) is deleted too."
