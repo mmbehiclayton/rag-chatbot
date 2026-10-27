@@ -7,12 +7,14 @@ import { Logo } from "@/components/shared/logo";
 import { logout } from "@/lib/actions/auth";
 import { cn } from "@/lib/utils";
 import {
-  adminNavGroups,
+  canSwitchWorkspace,
   isActivePath,
-  MORE_NAV,
   type NavItem,
-  PRIMARY_NAV,
+  type Workspace,
+  workspaceForPath,
+  workspaceNav,
 } from "./nav-config";
+import { WorkspaceSwitcher } from "./workspace-switcher";
 
 function SidebarLink({ item, active }: { item: NavItem; active: boolean }) {
   const Icon = item.icon;
@@ -36,15 +38,16 @@ function SidebarLink({ item, active }: { item: NavItem; active: boolean }) {
 export function AppSidebar({
   role,
   isCurator = false,
+  workspace,
 }: {
   role: string | null;
   isCurator?: boolean;
+  workspace: Workspace;
 }) {
   const pathname = usePathname();
-  const groups = [
-    { label: "More", items: MORE_NAV },
-    ...adminNavGroups(role, isCurator),
-  ];
+  // A page from the other menus shows those menus, so the open page is always highlighted.
+  const shown = workspaceForPath(pathname, role) ?? workspace;
+  const { top, groups } = workspaceNav(shown, role, isCurator);
 
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-r bg-sidebar md:flex">
@@ -56,8 +59,11 @@ export function AppSidebar({
         aria-label="Main"
         className="flex-1 space-y-6 overflow-y-auto px-3 py-4"
       >
+        {canSwitchWorkspace(role) && (
+          <WorkspaceSwitcher role={role} current={shown} />
+        )}
         <div className="space-y-1">
-          {PRIMARY_NAV.map((item) => (
+          {top.map((item) => (
             <SidebarLink
               key={item.href}
               item={item}

@@ -140,6 +140,76 @@ export function adminNavGroups(
   return groups;
 }
 
+/**
+ * Admins and staff switch between their own menus and the teacher's, so neither is buried
+ * under the other. Teachers only have "teaching". The switch changes menus and Home, not access.
+ */
+export type Workspace = "teaching" | "admin";
+export const WORKSPACE_COOKIE = "elimu_workspace";
+
+export function canSwitchWorkspace(role: string | null) {
+  return role === "ADMIN" || role === "SUPERADMIN";
+}
+
+export function workspaceLabel(workspace: Workspace, role: string | null) {
+  if (workspace === "teaching") return "Teaching";
+  return role === "SUPERADMIN" ? "Elimu staff" : "School admin";
+}
+
+/** The saved choice, falling back to the admin menus for admins and staff. */
+export function parseWorkspace(
+  value: string | undefined,
+  role: string | null,
+): Workspace {
+  if (!canSwitchWorkspace(role)) return "teaching";
+  return value === "teaching" ? "teaching" : "admin";
+}
+
+/** The sidebar for a workspace: links at the top, then labelled groups. */
+export function workspaceNav(
+  workspace: Workspace,
+  role: string | null,
+  isCurator = false,
+): { top: NavItem[]; groups: NavGroup[] } {
+  if (workspace === "admin" && canSwitchWorkspace(role))
+    return {
+      top: [PRIMARY_NAV[0]],
+      groups: adminNavGroups(role, isCurator),
+    };
+  return {
+    top: PRIMARY_NAV,
+    groups: [
+      { label: "More", items: MORE_NAV },
+      // Curators keep their one curriculum link; staff have it under their own menus.
+      ...(isCurator && role !== "SUPERADMIN"
+        ? adminNavGroups("TEACHER", true)
+        : []),
+    ],
+  };
+}
+
+/** Which workspace a page belongs to, so the sidebar follows a link into the other one. */
+export function workspaceForPath(
+  pathname: string,
+  role: string | null,
+): Workspace | null {
+  if (!canSwitchWorkspace(role)) return null;
+  const has = (items: NavItem[]) =>
+    items.some(
+      (i) => i.href !== "/dashboard" && isActivePath(pathname, i.href),
+    );
+  if (has(adminNavGroups(role).flatMap((g) => g.items))) return "admin";
+  if (
+    has(
+      [...PRIMARY_NAV, ...MORE_NAV].filter(
+        (i) => i.href !== "/dashboard/profile",
+      ),
+    )
+  )
+    return "teaching";
+  return null;
+}
+
 export function isActivePath(pathname: string, href: string) {
   if (href === "/dashboard") return pathname === "/dashboard";
   return pathname === href || pathname.startsWith(`${href}/`);

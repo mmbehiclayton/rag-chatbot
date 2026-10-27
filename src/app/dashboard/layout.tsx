@@ -12,6 +12,7 @@ import { getAIOutage } from "@/lib/ai-health";
 import { hasBackup } from "@/lib/ai-models";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
+import { getWorkspace } from "@/lib/workspace";
 
 export default async function DashboardLayout({
   children,
@@ -21,7 +22,7 @@ export default async function DashboardLayout({
   const session = await auth();
   if (!session?.userId) redirect("/login");
 
-  const [user, outage, backup] = await Promise.all([
+  const [user, outage, backup, workspace] = await Promise.all([
     withDbRetry(() =>
       db.user.findUnique({
         where: { id: session.userId },
@@ -30,6 +31,7 @@ export default async function DashboardLayout({
     ),
     getAIOutage(),
     hasBackup(),
+    getWorkspace(session.role ?? null),
   ]);
 
   // New teachers set up their grades and learning areas once before using the app.
@@ -39,7 +41,11 @@ export default async function DashboardLayout({
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden bg-background">
       <div className="no-print flex shrink-0">
-        <AppSidebar role={session.role} isCurator={user?.isCurator ?? false} />
+        <AppSidebar
+          role={session.role}
+          isCurator={user?.isCurator ?? false}
+          workspace={workspace}
+        />
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="no-print z-10 flex h-14 shrink-0 items-center justify-between gap-4 border-b bg-card px-4 md:px-6">

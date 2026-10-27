@@ -8,7 +8,11 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { adminNavGroups, MORE_NAV } from "@/components/layout/nav-config";
+import {
+  canSwitchWorkspace,
+  workspaceNav,
+} from "@/components/layout/nav-config";
+import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
 import { InviteShare } from "@/components/pilot/invite-share";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +20,7 @@ import { logout } from "@/lib/actions/auth";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
 import { getInviteCode, inviteUrl } from "@/lib/invites";
+import { getWorkspace } from "@/lib/workspace";
 
 const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL;
 
@@ -68,13 +73,15 @@ export default async function ProfilePage() {
   ]);
   if (!user) redirect("/login");
 
-  const adminGroups = [
-    {
-      label: "More",
-      items: MORE_NAV.filter((i) => i.href !== "/dashboard/profile"),
-    },
-    ...adminNavGroups(session.role ?? null, user.isCurator),
-  ];
+  // On a phone the sidebar's groups live here, for whichever menus are open.
+  const role = session.role ?? null;
+  const workspace = await getWorkspace(role);
+  const adminGroups = workspaceNav(workspace, role, user.isCurator)
+    .groups.map((g) => ({
+      ...g,
+      items: g.items.filter((i) => i.href !== "/dashboard/profile"),
+    }))
+    .filter((g) => g.items.length > 0);
   const isTeacher = user.role === "TEACHER";
   const [inviteCode, joined] = isTeacher
     ? await Promise.all([
@@ -94,6 +101,14 @@ export default async function ProfilePage() {
         </h1>
         <p className="text-sm text-muted-foreground">{user.email}</p>
       </div>
+
+      {canSwitchWorkspace(role) && (
+        <WorkspaceSwitcher
+          role={role}
+          current={workspace}
+          className="md:hidden"
+        />
+      )}
 
       <section className="space-y-2">
         <div className="flex items-center justify-between">
