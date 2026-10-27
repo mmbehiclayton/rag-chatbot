@@ -42,7 +42,7 @@ const DOCUMENTS = [
   {
     icon: ClipboardCheck,
     title: "Assessments",
-    body: "Opener, mid-term and end-of-term papers with a marking guide.",
+    body: "Tests and quizzes with a marking guide, practical tasks with a rubric, and observation checklists.",
   },
 ];
 

@@ -10,6 +10,7 @@ import {
   defaultGradeSubject,
   GradeSubjectPicker,
 } from "@/components/create/grade-subject-picker";
+import { TopicPicker } from "@/components/create/topic-picker";
 import { ChoiceChips } from "@/components/shared/choice-chips";
 import { CurriculumNotice } from "@/components/shared/curriculum-notice";
 import { Button } from "@/components/ui/button";
@@ -21,12 +22,14 @@ import {
   generateAssessment,
   generateSchemeOfWork,
 } from "@/lib/actions/generation";
+import { ASSESSMENT_KINDS, type AssessmentKind } from "@/lib/assessment-kinds";
 import type { GradeOption } from "@/lib/curriculum-options";
 import { lessonMinutesFor } from "@/lib/term-pack";
 
 const TERMS = ["Term 1", "Term 2", "Term 3"];
 const ASSESSMENT_TYPES = ["Opener", "Mid-term", "End of term"];
 const MARKS = ["30", "50", "100"];
+const QUIZ_MARKS = ["10", "20"];
 
 function NumberField({
   id,
@@ -123,6 +126,14 @@ export function TermPlanForm({
       : "End of term",
   );
   const [marks, setMarks] = useState("50");
+  const [quizMarks, setQuizMarks] = useState("20");
+  const [assessmentKind, setAssessmentKind] =
+    useState<AssessmentKind>("written");
+  const [topic, setTopic] = useState("");
+  const kindInfo =
+    ASSESSMENT_KINDS.find((k) => k.id === assessmentKind) ??
+    ASSESSMENT_KINDS[0];
+  const needsTopic = kind === "assessment" && assessmentKind !== "written";
 
   const hasCurriculum = curricula.includes(`${target.grade}|${target.subject}`);
   const termDates = calendar[term];
@@ -144,7 +155,11 @@ export function TermPlanForm({
       lessonsPerWeek >= 1 &&
       lessonsPerWeek <= 10);
   const ready =
-    !!target.grade && !!target.subject && hasCurriculum && numbersValid;
+    !!target.grade &&
+    !!target.subject &&
+    hasCurriculum &&
+    numbersValid &&
+    (!needsTopic || !!topic.trim());
   const durationMinutes = Number.parseInt(duration, 10);
 
   const submit = () => {
@@ -174,8 +189,13 @@ export function TermPlanForm({
             ...target,
             term,
             type: `${assessmentType} assessment`,
-            totalMarks: Number.parseInt(marks, 10),
-            durationMinutes: 60,
+            totalMarks: Number.parseInt(
+              assessmentKind === "quiz" ? quizMarks : marks,
+              10,
+            ),
+            durationMinutes: assessmentKind === "quiz" ? 20 : 60,
+            kind: assessmentKind,
+            topic: needsTopic ? topic : undefined,
           });
           if (!result.ok) return void toast.error(result.error);
           toast.success("Assessment ready");
@@ -196,9 +216,9 @@ export function TermPlanForm({
         title={
           kind === "scheme"
             ? "Writing your scheme of work"
-            : "Writing your assessment"
+            : `Writing your ${kindInfo.label.toLowerCase()}`
         }
-        detail={`${target.grade} ${target.subject} · ${term}`}
+        detail={`${target.grade} ${target.subject} · ${needsTopic ? topic : term}`}
         estimate={
           kind === "scheme"
             ? "A full term takes 1 to 2 minutes. Please keep this page open."
@@ -349,30 +369,70 @@ export function TermPlanForm({
           ) : (
             <>
               <div className="space-y-2">
-                <p className="text-sm font-medium">Type</p>
+                <p className="text-sm font-medium">What kind?</p>
                 <ChoiceChips
-                  label="Assessment type"
-                  options={ASSESSMENT_TYPES}
-                  value={[assessmentType]}
-                  onChange={([t]) => t && setAssessmentType(t)}
+                  label="Kind of assessment"
+                  options={ASSESSMENT_KINDS.map((k) => k.label)}
+                  value={[kindInfo.label]}
+                  onChange={([l]) => {
+                    const k = ASSESSMENT_KINDS.find((x) => x.label === l);
+                    if (k) setAssessmentKind(k.id);
+                  }}
                 />
+                <p className="text-xs text-muted-foreground">{kindInfo.note}</p>
               </div>
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Total marks</p>
-                <ChoiceChips
-                  label="Total marks"
-                  options={MARKS}
-                  value={[marks]}
-                  onChange={([m]) => m && setMarks(m)}
-                />
-              </div>
+              {assessmentKind === "written" ? (
+                <>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Type</p>
+                    <ChoiceChips
+                      label="Assessment type"
+                      options={ASSESSMENT_TYPES}
+                      value={[assessmentType]}
+                      onChange={([t]) => t && setAssessmentType(t)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Total marks</p>
+                    <ChoiceChips
+                      label="Total marks"
+                      options={MARKS}
+                      value={[marks]}
+                      onChange={([m]) => m && setMarks(m)}
+                    />
+                  </div>
+                </>
+              ) : (
+                hasCurriculum && (
+                  <TopicPicker
+                    grade={target.grade}
+                    subject={target.subject}
+                    value={topic}
+                    onChange={setTopic}
+                    withFocus={false}
+                  />
+                )
+              )}
+              {assessmentKind === "quiz" && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Total marks</p>
+                  <ChoiceChips
+                    label="Total marks"
+                    options={QUIZ_MARKS}
+                    value={[quizMarks]}
+                    onChange={([m]) => m && setQuizMarks(m)}
+                  />
+                </div>
+              )}
             </>
           )}
         </CardContent>
       </Card>
 
       <Button type="submit" size="lg" className="w-full" disabled={!ready}>
-        {kind === "scheme" ? "Create scheme of work" : "Create assessment"}
+        {kind === "scheme"
+          ? "Create scheme of work"
+          : `Create ${kindInfo.label.toLowerCase()}`}
       </Button>
       <p className="text-center text-xs text-muted-foreground">
         Always review AI-generated content before you use it.

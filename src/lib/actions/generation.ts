@@ -12,6 +12,7 @@ import {
   withTrialModel,
 } from "@/lib/ai-models";
 import { allowanceMessage, getAllowance } from "@/lib/allowance";
+import type { AssessmentKind } from "@/lib/assessment-kinds";
 import { COGNITIVE_LEVELS } from "@/lib/assessment-specs";
 import { auth } from "@/lib/auth";
 import {
@@ -1166,15 +1167,106 @@ ${JSON.stringify(lessonPlan.content)}
   return notes;
 }
 
+const PracticalSchema = z.object({
+  title: z.string(),
+  subStrandsCovered: z.array(z.string()),
+  learningOutcomes: z
+    .array(z.string())
+    .describe(
+      "The specific learning outcomes assessed, as written in the curriculum design",
+    ),
+  task: z
+    .string()
+    .describe(
+      "What learners will do and make, written to the learners in simple English",
+    ),
+  materials: z.array(z.string()).describe("Locally available materials"),
+  steps: z.array(z.string()).describe("Steps for the learners, in order"),
+  teacherNotes: z
+    .string()
+    .describe("How to organise it: groups, time, safety, what to watch for"),
+  rubric: z
+    .array(
+      z.object({
+        criterion: z.string(),
+        learningOutcome: z.string(),
+        exceeding: z.string(),
+        meeting: z.string(),
+        approaching: z.string(),
+        below: z.string(),
+      }),
+    )
+    .describe(
+      "Three to five criteria, each with what a learner does at each level",
+    ),
+});
+
+const ChecklistSchema = z.object({
+  title: z.string(),
+  subStrandsCovered: z.array(z.string()),
+  activity: z
+    .string()
+    .describe("The class activity during which the teacher observes learners"),
+  items: z
+    .array(
+      z.object({
+        indicator: z
+          .string()
+          .describe(
+            "One thing the teacher can see a learner do, in a few words",
+          ),
+        learningOutcome: z.string(),
+      }),
+    )
+    .describe("Four to eight observable indicators"),
+});
+
+/** What each kind of assessment asks of the model, beyond the shared input. */
+function assessmentBrief(
+  kind: AssessmentKind,
+  p: { totalMarks: number; durationMinutes: number },
+) {
+  if (kind === "practical")
+    return `Write a practical or project task with a rubric.
+1. The task assesses the sub-strand's learning outcomes from the curriculum below, named exactly as written.
+2. Learners can do it in class or at home with materials found locally in Kenya. Say what they make or show at the end.
+3. Write the task and steps to the learners in simple English.
+4. Rubric: three to five criteria. For each, say what a learner does at each level: ${CBC_LEVELS.join(", ")}. Each criterion names the learning outcome it assesses.`;
+  if (kind === "checklist")
+    return `Write an observation checklist.
+1. Describe one class activity during which the teacher watches learners.
+2. List four to eight indicators: short, observable actions (e.g. "Measures length in centimetres"), each tied to a learning outcome from the curriculum below, named exactly as written.`;
+  return `Write ${kind === "quiz" ? "a short quiz" : "a formal assessment paper"} and marking scheme.
+1. ${kind === "quiz" ? "Cover the sub-strand's learning outcomes only." : "Cover the term's learning outcomes from the curriculum below."} Tag every question with the specific learning outcome it tests, as written in the design, and list the sub-strands covered.
+2. Tag every question with the cognitive level it tests: ${COGNITIVE_LEVELS.join(", ")}. Spread the marks across the levels to suit the grade, roughly 30% Knowledge, 30% Comprehension, 30% Application and 10% Higher order (more Knowledge and Comprehension in lower grades). Where the learning area calls for it, include a practical or real-life task with a rubric.
+3. Write section instructions to learners in simple English.
+4. Marks add up to exactly ${p.totalMarks}. Give a model answer for every question.${kind === "quiz" ? " Learners finish in about 20 minutes." : ""}
+5. Grading scale: exactly four bands from highest to lowest (${CBC_LEVELS.join(", ")}), each with a mark range out of ${p.totalMarks} and a short description of what a learner at that level can do.`;
+}
+
+const ASSESSMENT_TYPE: Record<Exclude<AssessmentKind, "written">, string> = {
+  quiz: "Quiz",
+  practical: "Practical task",
+  checklist: "Observation checklist",
+};
+
 async function generateAssessmentImpl(parameters: {
   grade: string;
   subject: string;
   term: string;
+  /** "End of term assessment" etc., for written tests. */
   type: string;
   totalMarks: number;
   durationMinutes: number;
+  kind?: AssessmentKind;
+  /** The sub-strand, for every kind but a written test. */
+  topic?: string;
 }) {
   const session = await requireSession();
+  const kind = parameters.kind ?? "written";
+  const topic = parameters.topic?.trim() ?? "";
+  if (kind !== "written" && !topic)
+    throw new TeacherError("Choose the sub-strand to assess.");
 
   const grounding = await termGrounding(
     parameters.grade,
@@ -1189,6 +1281,15 @@ async function generateAssessmentImpl(parameters: {
 
   await checkGenerationGuards(session, parameters);
 
+  // One sub-strand: the map's entry for it in full, rather than the whole term.
+  const topicMap =
+    kind !== "written" && grounding.source === "map"
+      ? await getPublishedMap(parameters.grade, parameters.subject)
+      : null;
+  const groundingText = topicMap
+    ? `${MAP_RULES}\n\nCURRICULUM MAP:\n${lessonGrounding(topicMap, topic)}`
+    : groundingBlock(grounding);
+
   const customRule = await db.generationRule.findUnique({
     where: { contentType: "ASSESSMENT" },
   });
@@ -1196,32 +1297,30 @@ async function generateAssessmentImpl(parameters: {
     ? `\n\nCUSTOM PLATFORM GUIDELINES (STRICTLY ENFORCE):\n${customRule.customPrompt}\n`
     : "";
 
-  const systemPrompt = `You are an expert assessment designer following KICD CBC guidelines.
-Generate a formal Assessment Paper and marking scheme.${customRuleText}
+  const type = kind === "written" ? parameters.type : ASSESSMENT_TYPE[kind];
+  const systemPrompt = `You are an expert assessment designer following KICD CBC guidelines.${customRuleText}
 
 INPUT DATA:
 - Grade: ${parameters.grade}
 - Learning area: ${parameters.subject}
 - Term: ${parameters.term}
-- Assessment type: ${parameters.type}
-- Total marks: ${parameters.totalMarks}
-- Time allowed: ${parameters.durationMinutes} minutes
+- Assessment type: ${type}${topic ? `\n- Sub-strand: ${topic}` : ""}${kind === "written" || kind === "quiz" ? `\n- Total marks: ${parameters.totalMarks}` : ""}${kind === "written" ? `\n- Time allowed: ${parameters.durationMinutes} minutes` : ""}
 
-MANDATORY REQUIREMENTS:
-1. Cover the term's learning outcomes from the curriculum below. Tag every question with the specific learning outcome it tests, as written in the design, and list the sub-strands covered.
-2. Tag every question with the cognitive level it tests: ${COGNITIVE_LEVELS.join(", ")}. Spread the marks across the levels to suit the grade, roughly 30% Knowledge, 30% Comprehension, 30% Application and 10% Higher order (more Knowledge and Comprehension in lower grades). Where the learning area calls for it, include a practical or real-life task with a rubric.
-3. Write section instructions to learners in simple English.
-4. Marks add up to exactly ${parameters.totalMarks}. Give a model answer for every question.
-5. Grading scale: exactly four bands from highest to lowest (${CBC_LEVELS.join(", ")}), each with a mark range out of ${parameters.totalMarks} and a short description of what a learner at that level can do.
+${assessmentBrief(kind, parameters)}
 
-${groundingBlock(grounding)}
+${groundingText}
 `;
 
   const { object, usage } = await generateObject({
     model: aiModel("write"),
-    schema: AssessmentSchema,
+    schema:
+      kind === "practical"
+        ? PracticalSchema
+        : kind === "checklist"
+          ? ChecklistSchema
+          : AssessmentSchema,
     system: systemPrompt,
-    prompt: `Generate the complete assessment paper with marking scheme now.`,
+    prompt: "Write the complete assessment now.",
   });
 
   // File it under the term, beside that term's scheme when the teacher has one.
@@ -1243,8 +1342,8 @@ ${groundingBlock(grounding)}
       title: object.title,
       grade: parameters.grade,
       subject: parameters.subject,
-      type: parameters.type,
-      content: object,
+      type,
+      content: { ...object, kind },
       ...filed,
       schemeId: scheme?.id,
       teacherId: session.userId,

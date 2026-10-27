@@ -1,5 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 import {
+  assessmentKind,
+  type ChecklistContent,
+  type PracticalContent,
+  RUBRIC_LEVELS,
+} from "@/lib/assessment-kinds";
+import {
   COGNITIVE_LEVELS,
   percent,
   type SpecTable,
@@ -834,6 +840,9 @@ type AssessmentExport = {
 
 /** The learners' paper first, then the teacher's marking scheme on a new page. */
 function assessmentBody(assessment: AssessmentExport) {
+  const kind = assessmentKind(assessment.content);
+  if (kind === "practical") return practicalBody(assessment);
+  if (kind === "checklist") return checklistBody(assessment);
   const c = (assessment.content ?? {}) as AssessmentContent;
   const sections = Array.isArray(c.sections) ? c.sections : [];
   const questionsOf = (section: AssessmentSection) =>
@@ -984,10 +993,119 @@ function specsPage(title: string | null, specs: SpecTable) {
   `;
 }
 
+/** The header for a task or checklist: no total marks, but the sub-strand it covers. */
+function taskHead(assessment: AssessmentExport, covered: string[]) {
+  return `${draftMark(assessment)}${docHead(
+    "assessment",
+    {
+      ...teacherContext(assessment.teacher),
+      grade: assessment.grade,
+      subject: assessment.subject,
+      term: assessment.term,
+      year: assessment.year,
+    },
+    cleanTitle(assessment.title),
+    [
+      ["Type", esc(assessment.type)],
+      ["Sub-strand", esc(covered.join(", "))],
+    ],
+  )}`;
+}
+
+/** The learners' task sheet, then the teacher's rubric on a new page. */
+function practicalBody(assessment: AssessmentExport) {
+  const c = (assessment.content ?? {}) as PracticalContent;
+  const title = cleanTitle(assessment.title);
+  const rubric = (Array.isArray(c.rubric) ? c.rubric : []).filter(
+    (r) => r?.criterion,
+  );
+  const steps = arr(c.steps).filter((x) => x.trim());
+  const materials = arr(c.materials).filter((x) => x.trim());
+  const rows = rubric
+    .map(
+      (r, i) => `
+      <tr>
+        <td><strong>${i + 1}. ${esc(r.criterion)}</strong>${r.learningOutcome ? `<br><small>${esc(r.learningOutcome)}</small>` : ""}</td>
+        ${RUBRIC_LEVELS.map((l) => `<td>${esc(r[l.key])}</td>`).join("")}
+        <td></td>
+      </tr>`,
+    )
+    .join("");
+  const cols = [22, 17, 17, 17, 17, 10]
+    .map((w) => `<col style="width: ${w}%">`)
+    .join("");
+
+  return `
+    ${taskHead(assessment, arr(c.subStrandsCovered))}
+    <table class="head">
+      <tr><th>Learner's name</th><td></td><th>Admission no.</th><td></td></tr>
+      <tr><th>Stream</th><td></td><th>Date</th><td></td></tr>
+    </table>
+    ${c.task ? `<div class="section"><h2>Your task</h2><p>${esc(c.task)}</p></div>` : ""}
+    ${materials.length ? `<div class="section"><h2>You will need</h2><ul>${materials.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+    ${steps.length ? `<div class="section"><h2>Steps</h2><ol>${steps.map((x) => `<li>${esc(x)}</li>`).join("")}</ol></div>` : ""}
+
+    <div class="page-break"></div>
+    <div class="center"><h1>Rubric</h1><p class="doc-detail">${esc(title)}</p></div>
+    ${
+      rows
+        ? `<table>
+      <colgroup>${cols}</colgroup>
+      <thead><tr><th>Criterion</th>${RUBRIC_LEVELS.map((l) => `<th class="center">${l.short} (${l.score})</th>`).join("")}<th class="center">Score</th></tr></thead>
+      <tbody>${rows}
+        <tr><th>Total</th><th></th><th></th><th></th><th></th><th class="center">/ ${rubric.length * 4}</th></tr>
+      </tbody>
+    </table>
+    <p><small>${RUBRIC_LEVELS.map((l) => `${l.short} (${l.score}): ${l.label}`).join(" · ")}. Score each criterion, then add up.</small></p>`
+        : ""
+    }
+    ${c.teacherNotes ? `<div class="section"><h2>Notes for the teacher</h2><p>${esc(c.teacherNotes)}</p></div>` : ""}
+  `;
+}
+
+/** Learners on the class list down the side, one column per thing to look for. Landscape. */
+function checklistBody(assessment: AssessmentExport) {
+  const c = (assessment.content ?? {}) as ChecklistContent;
+  const items = (Array.isArray(c.items) ? c.items : []).filter(
+    (i) => i?.indicator,
+  );
+  const share = Math.max(5, Math.floor(54 / Math.max(items.length, 1)));
+  const cols = [4, 20, ...items.map(() => share), 8, 14]
+    .map((w) => `<col style="width: ${w}%">`)
+    .join("");
+  const blank = `<td>&nbsp;</td>`;
+  const rows = Array.from(
+    { length: 40 },
+    (_, i) =>
+      `<tr><td class="center">${i + 1}</td>${blank}${items.map(() => blank).join("")}${blank}${blank}</tr>`,
+  ).join("");
+
+  return `
+    <style>
+      table.tick th { font-size: 10px; vertical-align: bottom; }
+      table.tick td { height: 20px; padding: 3px 6px; }
+    </style>
+    ${taskHead(assessment, arr(c.subStrandsCovered))}
+    ${c.activity ? `<p><strong>Activity:</strong> ${esc(c.activity)}</p>` : ""}
+    <p><small>Tick &#10003; when the learner shows it; leave it blank if not yet. Overall: EE, ME, AE or BE.</small></p>
+    <table class="tick">
+      <colgroup>${cols}</colgroup>
+      <thead><tr><th class="center">No.</th><th>Learner's name</th>${items.map((it, i) => `<th>${i + 1}. ${esc(it.indicator)}</th>`).join("")}<th class="center">Overall</th><th>Remarks</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${
+      items.some((it) => it.learningOutcome)
+        ? `<div class="section"><h2>What each column tests</h2><ol>${items.map((it) => `<li>${esc(it.indicator)}${it.learningOutcome ? ` – ${esc(it.learningOutcome)}` : ""}</li>`).join("")}</ol></div>`
+        : ""
+    }
+  `;
+}
+
 function buildAssessmentHTML(assessment: AssessmentExport) {
   return wrap(
     docName("assessment", assessment, assessment.title),
     assessmentBody(assessment),
+    assessmentKind(assessment.content) === "checklist",
   );
 }
 
@@ -1316,6 +1434,9 @@ async function buildTermFileHTML(
     ...recordSheets,
     ...termLessons.map((l) => ({ body: lessonBody(l) })),
     ...termNotes.map((n) => ({ body: notesBody(n) })),
-    ...termAssessments.map((a) => ({ body: assessmentBody(a) })),
+    ...termAssessments.map((a) => ({
+      body: assessmentBody(a),
+      wide: assessmentKind(a.content) === "checklist",
+    })),
   ]);
 }

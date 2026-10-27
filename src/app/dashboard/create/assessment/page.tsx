@@ -43,7 +43,7 @@ export default async function Page({
     <div className="mx-auto max-w-xl space-y-6">
       <PageHeader
         title="Assessment"
-        description="An assessment paper with a marking scheme, from the curriculum design."
+        description="A test, quiz, practical task or checklist, from the curriculum design."
       />
       <TermPlanForm
         kind="assessment"

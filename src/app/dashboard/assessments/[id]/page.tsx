@@ -9,6 +9,15 @@ import {
   parseTitle,
 } from "@/components/document/doc-parts";
 import { TableOfSpecs } from "@/components/document/table-of-specs";
+import {
+  ChecklistBody,
+  PracticalBody,
+} from "@/components/document/task-assessment";
+import {
+  assessmentKind,
+  type ChecklistContent,
+  type PracticalContent,
+} from "@/lib/assessment-kinds";
 import { specTable } from "@/lib/assessment-specs";
 import { auth } from "@/lib/auth";
 import { classHref } from "@/lib/classes";
@@ -58,6 +67,7 @@ export default async function AssessmentDetailPage({
   if (!assessment) notFound();
 
   const content = (assessment.content ?? {}) as Content;
+  const kind = assessmentKind(content);
   const sections = asArray<Section>(content.sections);
   const totalMarks =
     content.markingScheme?.totalMarks ??
@@ -68,6 +78,22 @@ export default async function AssessmentDetailPage({
   const covered = asArray(content.subStrandsCovered);
   const specs = specTable(sections);
   const { title, needsReview } = parseTitle(assessment.title);
+  const count = (n: number, one: string, many: string) =>
+    `${n} ${n === 1 ? one : many}`;
+  const size =
+    kind === "practical"
+      ? count(
+          asArray((content as PracticalContent).rubric).length,
+          "criterion",
+          "criteria",
+        )
+      : kind === "checklist"
+        ? count(
+            asArray((content as ChecklistContent).items).length,
+            "indicator",
+            "indicators",
+          )
+        : `${totalMarks} marks`;
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
@@ -89,7 +115,7 @@ export default async function AssessmentDetailPage({
             year: assessment.year,
           },
           assessment.type,
-          `${totalMarks} marks`,
+          size,
         )}
         needsReview={needsReview}
         actions={
@@ -126,6 +152,13 @@ export default async function AssessmentDetailPage({
         <DocSection title="Sub-strands covered">
           <BulletList items={covered} />
         </DocSection>
+      )}
+
+      {kind === "practical" && (
+        <PracticalBody content={content as PracticalContent} />
+      )}
+      {kind === "checklist" && (
+        <ChecklistBody content={content as ChecklistContent} />
       )}
 
       {sections.map((section, si) => {

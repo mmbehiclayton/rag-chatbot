@@ -39,13 +39,31 @@ export async function htmlToDocx(html: string, landscape = false) {
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&amp;/g, "&");
+  const pagePx = landscape ? 1032 : 673;
   const body = colWidthsToHeader(
     (html.match(/<body>([\s\S]*)<\/body>/)?.[1] ?? html)
       .replace(/<button class="print-btn"[\s\S]*?<\/button>/g, "")
       .replace(/<style>[\s\S]*?<\/style>/g, ""),
     // The printable width in pixels: A4 less the margins below, at 15 twips a pixel.
-    landscape ? 1032 : 673,
+    pagePx,
   )
+    // The converter drops <small> and its text.
+    .replace(/<small>/g, '<span style="font-size: 9pt;">')
+    .replace(/<\/small>/g, "</span>")
+    // Header tables have no column widths, so empty cells would shrink to nothing.
+    .replace(
+      /<table class="head">([\s\S]*?)<\/table>/g,
+      (_, rows: string) =>
+        `<table style="width: ${pagePx}px;">${rows
+          .replace(
+            /<th>/g,
+            `<th style="width: ${Math.round(pagePx * 0.18)}px;">`,
+          )
+          .replace(
+            /<td>/g,
+            `<td style="width: ${Math.round(pagePx * 0.32)}px;">`,
+          )}</table>`,
+    )
     .replace(
       /<div class="page-break"><\/div>/g,
       '<div style="page-break-after: always;"></div>',
