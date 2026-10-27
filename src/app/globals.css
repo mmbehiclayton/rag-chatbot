@@ -56,47 +56,50 @@
 }
 
 :root {
-  /* Elimu brand palette (Brand.md). Primary is a deeper Elimu Green so white
-     text on buttons meets WCAG AA; --brand is the bright logo green. */
-  --brand: #27ae60;
-  --background: #f5f7f8;
-  --foreground: #2c3e50;
+  /* EduPro's palette (edupro.co.ke, its src/app/globals.css), so the two apps
+     look like one family: EduPro blue primary on a cool-grey page with white
+     cards. Muted, muted-foreground, border and input are a step stronger than
+     EduPro's so muted panels show against the page and grey text meets WCAG AA.
+     Status colours stay the AA-safe ones (white text on them). */
+  --brand: hsl(213 94% 48%);
+  --background: oklch(0.97 0.004 255);
+  --foreground: oklch(0.145 0 0);
   --card: #ffffff;
-  --card-foreground: #2c3e50;
+  --card-foreground: oklch(0.145 0 0);
   --popover: #ffffff;
-  --popover-foreground: #2c3e50;
-  --primary: #1e8449;
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: hsl(213 94% 48%);
   --primary-foreground: #ffffff;
-  --secondary: #eef1f3;
-  --secondary-foreground: #2c3e50;
-  --muted: #eef1f3;
-  --muted-foreground: #5d6d7e;
-  --accent: #e9f6ef;
-  --accent-foreground: #196f3d;
-  --destructive: #c0392b;
+  --secondary: oklch(0.95 0.005 255);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.95 0.005 255);
+  --muted-foreground: oklch(0.52 0.015 255);
+  --accent: hsl(213 100% 95%);
+  --accent-foreground: hsl(213 94% 38%);
+  --destructive: oklch(0.577 0.245 27.325);
   --success: #1e8449;
   --success-foreground: #ffffff;
   --warning: #b9770e;
   --warning-foreground: #ffffff;
   --info: #2471a3;
   --info-foreground: #ffffff;
-  --border: #dde3e8;
-  --input: #cfd7de;
-  --ring: #27ae60;
-  --chart-1: #1e8449;
-  --chart-2: #2471a3;
+  --border: oklch(0.92 0.005 255);
+  --input: oklch(0.87 0.008 255);
+  --ring: hsl(213 94% 48%);
+  --chart-1: hsl(213 94% 48%);
+  --chart-2: #1e8449;
   --chart-3: #e67e22;
   --chart-4: #7d8c99;
-  --chart-5: #2c3e50;
-  --radius: 0.5rem;
+  --chart-5: hsl(218 55% 12%);
+  --radius: 0.625rem;
   --sidebar: #ffffff;
-  --sidebar-foreground: #2c3e50;
-  --sidebar-primary: #1e8449;
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: hsl(213 94% 48%);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e9f6ef;
-  --sidebar-accent-foreground: #196f3d;
-  --sidebar-border: #dde3e8;
-  --sidebar-ring: #27ae60;
+  --sidebar-accent: hsl(213 100% 95%);
+  --sidebar-accent-foreground: hsl(213 94% 38%);
+  --sidebar-border: oklch(0.92 0.005 255);
+  --sidebar-ring: hsl(213 94% 48%);
 }
 
 @layer base {

@@ -341,6 +341,11 @@ Style: Clean, simple, supporting role
 
 COLOR PALETTE:
 
+NOTE (2026-10): The live app no longer uses the green palette below. Elimu now
+shares EduPro's blue theme (primary #0D72EF, cool-grey page, white cards) so the
+two apps look like one family. The tokens are in src/app/globals.css; green stays
+only as the "success" status colour.
+
 PRIMARY COLORS:
 
 1. ELIMU GREEN (Primary Brand Color)
