@@ -1,4 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
+import {
+  COGNITIVE_LEVELS,
+  percent,
+  type SpecTable,
+  specTable,
+} from "@/lib/assessment-specs";
 import { auth } from "@/lib/auth";
 import { classLessonWhere } from "@/lib/classes";
 import { db } from "@/lib/db";
@@ -789,6 +795,7 @@ type AssessmentQuestion = {
   questionNumber?: string | number;
   questionText?: string;
   learningOutcome?: string;
+  level?: string;
   marks?: number | string;
   modelAnswer?: string;
   rubric?: string;
@@ -834,6 +841,7 @@ function assessmentBody(assessment: AssessmentExport) {
   const title = cleanTitle(assessment.title);
   const sectionName = (section: AssessmentSection, si: number) =>
     `Section ${si + 1}${section.sectionTitle ? `: ${esc(section.sectionTitle)}` : ""}`;
+  const specs = specTable(sections);
 
   const paper = sections
     .map((section, si) => {
@@ -865,6 +873,7 @@ function assessmentBody(assessment: AssessmentExport) {
         <td class="center">${esc(q.questionNumber ?? qi + 1)}</td>
         <td>${esc(q.modelAnswer)}${q.rubric ? `<br><small>${esc(q.rubric)}</small>` : ""}</td>
         <td>${esc(q.learningOutcome)}</td>
+        ${specs.hasLevels ? `<td>${esc(q.level)}</td>` : ""}
         <td class="center">${esc(q.marks)}</td>
       </tr>`,
         )
@@ -872,7 +881,7 @@ function assessmentBody(assessment: AssessmentExport) {
       return `
       <h3>${sectionName(section, si)}</h3>
       <table>
-        <thead><tr><th style="width:30px">#</th><th>Answer</th><th style="width:30%">Outcome tested</th><th style="width:50px">Marks</th></tr></thead>
+        <thead><tr><th style="width:30px">#</th><th>Answer</th><th style="width:30%">Outcome tested</th>${specs.hasLevels ? `<th style="width:15%">Level</th>` : ""}<th style="width:50px">Marks</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
     })
@@ -915,7 +924,7 @@ function assessmentBody(assessment: AssessmentExport) {
     ${paper}
 
     <div class="page-break"></div>
-    <div class="center"><h1>Marking scheme</h1><p>${esc(title)}</p></div>
+    <div class="center"><h1>Marking scheme</h1><p class="doc-detail">${esc(title)}</p></div>
     ${covered.length ? `<div class="section"><h2>Sub-strands covered</h2><ul>${covered.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
     <div class="section">${marking}</div>
     ${
@@ -927,6 +936,51 @@ function assessmentBody(assessment: AssessmentExport) {
     </div>`
         : ""
     }
+    ${specs.rows.length ? specsPage(title, specs) : ""}
+  `;
+}
+
+/** One page after the marking scheme: marks per learning outcome and cognitive level. */
+function specsPage(title: string | null, specs: SpecTable) {
+  const levels = specs.hasLevels ? COGNITIVE_LEVELS : [];
+  const cell = (marks: number) =>
+    `<td class="center">${marks ? marks : ""}</td>`;
+  const rows = specs.rows
+    .map(
+      (r) => `
+      <tr>
+        <td>${esc(r.outcome)}</td>
+        <td class="center">${esc(r.questions.join(", "))}</td>
+        ${levels.map((_, i) => cell(r.byLevel[i])).join("")}
+        <td class="center"><strong>${r.marks}</strong></td>
+        <td class="center">${percent(r.marks, specs.total)}</td>
+      </tr>`,
+    )
+    .join("");
+  const levelHeads = levels.map((l) => `<th class="center">${l}</th>`).join("");
+  const cols = [levels.length ? 33 : 65, 12, ...levels.map(() => 10), 8, 7]
+    .map((w) => `<col style="width: ${w}%">`)
+    .join("");
+  return `
+    <div class="page-break"></div>
+    <div class="center"><h1>Table of specifications</h1><p class="doc-detail">${esc(title)}</p></div>
+    <table>
+      <colgroup>${cols}</colgroup>
+      <thead><tr><th>Learning outcome</th><th class="center">Questions</th>${levelHeads}<th class="center">Marks</th><th class="center">%</th></tr></thead>
+      <tbody>${rows}
+        <tr>
+          <th>Total</th><th></th>
+          ${levels.map((_, i) => `<th class="center">${specs.byLevel[i]}</th>`).join("")}
+          <th class="center">${specs.total}</th><th class="center">100%</th>
+        </tr>
+        ${
+          levels.length
+            ? `<tr><th>Share of marks</th><th></th>${levels.map((_, i) => `<th class="center">${percent(specs.byLevel[i], specs.total)}</th>`).join("")}<th></th><th></th></tr>`
+            : ""
+        }
+      </tbody>
+    </table>
+    <p><small>Marks per learning outcome${levels.length ? " and per level (Knowledge, Comprehension, Application, Higher order)" : ""}. Check that the spread suits your class before you give the paper.</small></p>
   `;
 }
 

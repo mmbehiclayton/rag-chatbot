@@ -12,6 +12,7 @@ import {
   withTrialModel,
 } from "@/lib/ai-models";
 import { allowanceMessage, getAllowance } from "@/lib/allowance";
+import { COGNITIVE_LEVELS } from "@/lib/assessment-specs";
 import { auth } from "@/lib/auth";
 import {
   allSubStrands,
@@ -525,6 +526,9 @@ const AssessmentSchema = z.object({
             .describe(
               "The specific learning outcome this question tests, as written in the curriculum design",
             ),
+          level: z
+            .enum(COGNITIVE_LEVELS)
+            .describe("The cognitive level this question tests"),
           marks: z.number(),
           modelAnswer: z.string(),
           rubric: z
@@ -1205,7 +1209,7 @@ INPUT DATA:
 
 MANDATORY REQUIREMENTS:
 1. Cover the term's learning outcomes from the curriculum below. Tag every question with the specific learning outcome it tests, as written in the design, and list the sub-strands covered.
-2. Mix recall, understanding and application questions suited to the grade. Where the learning area calls for it, include a practical or real-life task with a rubric.
+2. Tag every question with the cognitive level it tests: ${COGNITIVE_LEVELS.join(", ")}. Spread the marks across the levels to suit the grade, roughly 30% Knowledge, 30% Comprehension, 30% Application and 10% Higher order (more Knowledge and Comprehension in lower grades). Where the learning area calls for it, include a practical or real-life task with a rubric.
 3. Write section instructions to learners in simple English.
 4. Marks add up to exactly ${parameters.totalMarks}. Give a model answer for every question.
 5. Grading scale: exactly four bands from highest to lowest (${CBC_LEVELS.join(", ")}), each with a mark range out of ${parameters.totalMarks} and a short description of what a learner at that level can do.

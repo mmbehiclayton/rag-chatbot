@@ -6,12 +6,17 @@ export const DOCX_TYPE =
 const TH = "background-color: #f0f0f0; border: 1px solid #bbbbbb;";
 const TD = "border: 1px solid #cccccc;";
 
-/** Word reads column widths from the header cells, not from <colgroup>. */
-function colWidthsToHeader(html: string) {
+/**
+ * Word reads column widths from the header cells, not from <colgroup>, and the converter only
+ * takes them in pixels, so percentages become pixels of the printable width.
+ */
+function colWidthsToHeader(html: string, pagePx: number) {
   return html.replace(
     /<colgroup>([\s\S]*?)<\/colgroup>(\s*<thead>\s*<tr>)([\s\S]*?<\/tr>)/g,
     (_, cols: string, open: string, row: string) => {
-      const widths = [...cols.matchAll(/width:\s*([\d.]+%)/g)].map((m) => m[1]);
+      const widths = [...cols.matchAll(/width:\s*([\d.]+)%/g)].map(
+        (m) => `${Math.round((Number(m[1]) * pagePx) / 100)}px`,
+      );
       let i = 0;
       return (
         open +
@@ -38,6 +43,8 @@ export async function htmlToDocx(html: string, landscape = false) {
     (html.match(/<body>([\s\S]*)<\/body>/)?.[1] ?? html)
       .replace(/<button class="print-btn"[\s\S]*?<\/button>/g, "")
       .replace(/<style>[\s\S]*?<\/style>/g, ""),
+    // The printable width in pixels: A4 less the margins below, at 15 twips a pixel.
+    landscape ? 1032 : 673,
   )
     .replace(
       /<div class="page-break"><\/div>/g,
@@ -48,6 +55,11 @@ export async function htmlToDocx(html: string, landscape = false) {
       "<p>________________________________________</p>",
     )
     .replace(/<div class="center">/g, '<div style="text-align: center;">')
+    .replace(
+      /<(td|th) class="center" style="/g,
+      '<$1 style="text-align: center; ',
+    )
+    .replace(/<(td|th) class="center">/g, '<$1 style="text-align: center;">')
     .replace(/<h1>/g, '<h1 style="text-align: center;">')
     .replace(/<p class="doc-detail">/g, '<p style="text-align: center;">')
     .replace(/<p class="draft">/g, '<p style="text-align: right;">')

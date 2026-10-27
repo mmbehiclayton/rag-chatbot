@@ -8,6 +8,8 @@ import {
   ExportButton,
   parseTitle,
 } from "@/components/document/doc-parts";
+import { TableOfSpecs } from "@/components/document/table-of-specs";
+import { specTable } from "@/lib/assessment-specs";
 import { auth } from "@/lib/auth";
 import { classHref } from "@/lib/classes";
 import { db, withDbRetry } from "@/lib/db";
@@ -18,6 +20,7 @@ type Question = {
   questionNumber?: number;
   questionText?: string;
   learningOutcome?: string;
+  level?: string;
   marks?: number;
   modelAnswer?: string;
   rubric?: string;
@@ -63,6 +66,7 @@ export default async function AssessmentDetailPage({
       .reduce((sum, q) => sum + (Number(q.marks) || 0), 0);
   const grading = asArray<Band>(content.markingScheme?.gradingScale);
   const covered = asArray(content.subStrandsCovered);
+  const specs = specTable(sections);
   const { title, needsReview } = parseTitle(assessment.title);
 
   return (
@@ -169,6 +173,7 @@ export default async function AssessmentDetailPage({
                           {q.learningOutcome && (
                             <p className="text-muted-foreground">
                               Tests: {q.learningOutcome}
+                              {q.level ? ` (${q.level})` : ""}
                             </p>
                           )}
                           {q.modelAnswer && (
@@ -191,6 +196,8 @@ export default async function AssessmentDetailPage({
           </DocSection>
         );
       })}
+
+      <TableOfSpecs specs={specs} />
 
       {grading.length > 0 && (
         <DocSection title="Grading">
