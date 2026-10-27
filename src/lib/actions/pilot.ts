@@ -11,6 +11,7 @@ import {
 } from "@/lib/allowance";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { TRIAL_MODELS, trialModelKey } from "@/lib/model-trial";
 import { initializeCheckout, paystackOn } from "@/lib/paystack";
 import {
   getAccess,
@@ -320,5 +321,26 @@ export async function answerHeadReview(input: {
   });
   revalidatePath(`/dashboard/schemes/${scheme.id}`);
   revalidatePath(`/dashboard/schemes/${scheme.id}/record`);
+  return { success: true };
+}
+
+/** Staff try a cheaper writing model on their own documents. null goes back to the normal model. */
+export async function setTrialModel(model: string | null): Promise<Result> {
+  const session = await auth();
+  if (!session?.userId || session.role !== "SUPERADMIN")
+    return { success: false, error: "Only Elimu staff can do this." };
+  const key = trialModelKey(session.userId);
+  if (!model) {
+    await db.platformSetting.deleteMany({ where: { key } });
+  } else {
+    if (!(TRIAL_MODELS as readonly string[]).includes(model))
+      return { success: false, error: "Pick one of the models in the list." };
+    await db.platformSetting.upsert({
+      where: { key },
+      create: { key, value: model, updatedById: session.userId },
+      update: { value: model, updatedById: session.userId },
+    });
+  }
+  revalidatePath("/dashboard/settings");
   return { success: true };
 }

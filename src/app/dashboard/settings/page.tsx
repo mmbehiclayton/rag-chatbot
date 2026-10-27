@@ -2,6 +2,7 @@ import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { NameForm } from "@/components/admin/name-form";
+import { TrialModelForm } from "@/components/settings/trial-model-form";
 import { PageHeader } from "@/components/shared/page-header";
 import {
   Card,
@@ -14,6 +15,7 @@ import { ROLE_LABELS, type Role } from "@/lib/access";
 import { backupModelName, modelName } from "@/lib/ai-models";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
+import { getTrialModel, TRIAL_MODELS } from "@/lib/model-trial";
 
 // What Elimu really uses now (src/lib/ai-models.ts and src/lib/rag.ts).
 const models = () => [
@@ -82,6 +84,9 @@ export default async function SettingsPage() {
 
   const isStaff = session.role === "SUPERADMIN";
   const isSchoolAdmin = session.role === "ADMIN";
+  const trial = isStaff
+    ? await getTrialModel(session.userId, session.role)
+    : null;
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -158,6 +163,20 @@ export default async function SettingsPage() {
                   </div>
                 ))}
               </dl>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Try a cheaper writing model</CardTitle>
+              <CardDescription>
+                Only your own documents use it; teachers keep the normal model.
+                Each document is written fresh (no reuse), so make the same
+                lesson both ways and compare. The cost of each shows on Usage.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TrialModelForm current={trial} models={TRIAL_MODELS} />
             </CardContent>
           </Card>
 

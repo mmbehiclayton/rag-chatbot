@@ -21,6 +21,7 @@ import {
   improveDocument,
   undoImprove,
 } from "@/lib/actions/generation";
+import { LESSON_PARTS, type LessonPart } from "@/lib/improve-parts";
 
 const IDEAS: Record<ImproveKind, string[]> = {
   LESSON: [
@@ -66,6 +67,7 @@ export function ImproveButton({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [instruction, setInstruction] = useState("");
+  const [part, setPart] = useState<LessonPart>("whole");
   const [isPending, startTransition] = useTransition();
   const [isUndoing, startUndo] = useTransition();
 
@@ -84,10 +86,16 @@ export function ImproveButton({
   const submit = () =>
     startTransition(async () => {
       try {
-        const result = await improveDocument({ kind, id, instruction });
+        const result = await improveDocument({
+          kind,
+          id,
+          instruction,
+          part: kind === "LESSON" ? part : undefined,
+        });
         if (!result.ok) return void toast.error(result.error);
         setOpen(false);
         setInstruction("");
+        setPart("whole");
         toast.success(`Your ${WHAT[kind]} has been changed`, {
           description: "Read it through before you use it.",
           action: { label: "Undo", onClick: undo },
@@ -120,6 +128,27 @@ export function ImproveButton({
               Tell Elimu what to change. Everything else stays the same.
             </DialogDescription>
           </DialogHeader>
+
+          {kind === "LESSON" && (
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">Which part?</legend>
+              <div className="flex flex-wrap gap-2">
+                {LESSON_PARTS.map((p) => (
+                  <Button
+                    key={p.part}
+                    type="button"
+                    variant={part === p.part ? "default" : "outline"}
+                    aria-pressed={part === p.part}
+                    className="min-h-11 rounded-md text-sm font-normal"
+                    disabled={isPending}
+                    onClick={() => setPart(p.part)}
+                  >
+                    {p.label}
+                  </Button>
+                ))}
+              </div>
+            </fieldset>
+          )}
 
           <div className="flex flex-wrap gap-2">
             {IDEAS[kind].map((idea) => (
@@ -163,7 +192,7 @@ export function ImproveButton({
             >
               {isPending ? <Spinner /> : <Sparkles />}
               {isPending
-                ? `Changing… about ${kind === "SCHEME" ? "a minute" : "30 seconds"}`
+                ? `Changing… about ${kind === "SCHEME" ? "a minute" : part !== "whole" ? "10 seconds" : "30 seconds"}`
                 : "Make the change"}
             </Button>
           </DialogFooter>

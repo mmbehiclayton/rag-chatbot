@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import {
   defaultSettingsMiddleware,
   type LanguageModelMiddleware,
@@ -24,7 +25,24 @@ const DEFAULTS: Record<ModelJob, string> = {
   chat: "gpt-4o-mini",
 };
 
+/**
+ * A staff member trying another writing model on their own documents (Settings), so they can
+ * compare it before switching everyone. Set per request by withTrialModel.
+ */
+const trialModel = new AsyncLocalStorage<string>();
+
+export function withTrialModel<T>(name: string | null, fn: () => T): T {
+  return name ? trialModel.run(name, fn) : fn();
+}
+
+/** The model being tried on this request, if any. Reuse is skipped then, so every try is fresh. */
+export function onTrialModel() {
+  return trialModel.getStore() ?? null;
+}
+
 export function modelName(job: ModelJob): string {
+  const trial = job === "write" ? onTrialModel() : null;
+  if (trial) return trial;
   const set =
     job === "write"
       ? process.env.ELIMU_MODEL_WRITE
