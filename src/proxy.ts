@@ -23,6 +23,8 @@ const publicRoutes = [
   "/designs",
   "/sitemap.xml",
   "/robots.txt",
+  "/manifest.webmanifest",
+  "/offline.html",
 ];
 const isPublicRoute = (path: string) =>
   publicRoutes.includes(path) ||

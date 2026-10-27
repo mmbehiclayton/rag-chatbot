@@ -14,6 +14,7 @@ import { TeacherStats } from "@/components/dashboard/teacher-stats";
 import { parseTitle } from "@/components/document/doc-parts";
 import { MORE_NAV } from "@/components/layout/nav-config";
 import { EmptyState } from "@/components/shared/empty-state";
+import { InstallAppCard } from "@/components/shared/install-app";
 import {
   LinkList,
   type LinkListItem,
@@ -224,6 +225,8 @@ export async function TeacherOverview({
             : "What are you teaching tomorrow?"}
         </p>
       </div>
+
+      <InstallAppCard />
 
       {noCurriculum && (
         <p className="flex gap-2 rounded-lg border bg-card p-3 text-sm">
