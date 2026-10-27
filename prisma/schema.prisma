@@ -60,29 +60,31 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  sessions         Session[]
-  schemesOfWork    SchemeOfWork[]
-  lessonPlans      LessonPlan[]
-  lessonNotes      LessonNote[]
-  assessments      Assessment[]
-  generationLogs   GenerationLog[]
-  chatSessions     ChatSession[]
-  mapsEdited       CurriculumMap[]     @relation("MapEditor")
-  mapsChecked      CurriculumMap[]     @relation("MapChecker")
-  terms            TeacherTerm[]
-  timetableSlots   TimetableSlot[]
-  lessonRecords    LessonRecord[]
-  coverage         SyllabusCoverage[]
-  coverageLessons  CoverageLesson[]
-  termPasses       TermPass[]          @relation("PassTeacher")
-  passesReviewed   TermPass[]          @relation("PassReviewer")
-  headReviews      HeadReview[]
-  staffroomPosts   StaffroomMessage[]  @relation("StaffroomAuthor")
-  staffroomReports StaffroomReport[]
-  jobPosts         JobPost[]           @relation("JobPoster")
-  jobsReviewed     JobPost[]           @relation("JobReviewer")
-  docVersions      DocumentVersion[]
-  curriculumAsks   CurriculumRequest[]
+  sessions          Session[]
+  schemesOfWork     SchemeOfWork[]
+  lessonPlans       LessonPlan[]
+  lessonNotes       LessonNote[]
+  assessments       Assessment[]
+  generationLogs    GenerationLog[]
+  chatSessions      ChatSession[]
+  mapsEdited        CurriculumMap[]      @relation("MapEditor")
+  mapsChecked       CurriculumMap[]      @relation("MapChecker")
+  terms             TeacherTerm[]
+  timetableSlots    TimetableSlot[]
+  lessonRecords     LessonRecord[]
+  coverage          SyllabusCoverage[]
+  coverageLessons   CoverageLesson[]
+  termPasses        TermPass[]           @relation("PassTeacher")
+  passesReviewed    TermPass[]           @relation("PassReviewer")
+  headReviews       HeadReview[]
+  staffroomPosts    StaffroomMessage[]   @relation("StaffroomAuthor")
+  staffroomReports  StaffroomReport[]
+  jobPosts          JobPost[]            @relation("JobPoster")
+  jobsReviewed      JobPost[]            @relation("JobReviewer")
+  docVersions       DocumentVersion[]
+  curriculumAsks    CurriculumRequest[]
+  commissionsEarned ReferralCommission[] @relation("CommissionReferrer")
+  commissionsFrom   ReferralCommission[] @relation("CommissionReferred")
 
   @@index([tenantId])
   @@index([invitedById])
@@ -179,24 +181,50 @@ model CurriculumChunk {
  * Without Paystack, the teacher pays by Paybill and enters the M-Pesa code, and Elimu staff activate it.
  */
 model TermPass {
-  id           String    @id @default(uuid())
+  id           String              @id @default(uuid())
   teacherId    String
-  teacher      User      @relation("PassTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  teacher      User                @relation("PassTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
   year         Int
   term         Int
   amount       Int
-  method       String    @default("PAYSTACK") // "PAYSTACK" | "MPESA_CODE"
-  reference    String    @unique // Paystack reference, or the M-Pesa code the teacher typed
+  method       String              @default("PAYSTACK") // "PAYSTACK" | "MPESA_CODE"
+  reference    String              @unique // Paystack reference, or the M-Pesa code the teacher typed
   phone        String?
-  status       String    @default("PENDING") // "PENDING" | "ACTIVE" | "REJECTED"
+  status       String              @default("PENDING") // "PENDING" | "ACTIVE" | "REJECTED"
   note         String?
   reviewedById String?
-  reviewedBy   User?     @relation("PassReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedBy   User?               @relation("PassReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   reviewedAt   DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  commission   ReferralCommission?
 
   @@unique([teacherId, year, term])
+  @@index([status])
+}
+
+/**
+ * What a teacher earns when someone they invited pays for a term: a share of that payment, at the
+ * rate Elimu staff set when it was paid. One per term pass. Staff pay it out by M-Pesa and mark it paid.
+ */
+model ReferralCommission {
+  id         String    @id @default(uuid())
+  referrerId String
+  referrer   User      @relation("CommissionReferrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referredId String
+  referred   User      @relation("CommissionReferred", fields: [referredId], references: [id], onDelete: Cascade)
+  passId     String    @unique
+  pass       TermPass  @relation(fields: [passId], references: [id], onDelete: Cascade)
+  passAmount Int // KES the referred teacher paid
+  percent    Int
+  amount     Int // KES owed to the referrer
+  status     String    @default("PENDING") // "PENDING" | "PAID"
+  payoutRef  String? // M-Pesa code of the payout
+  paidAt     DateTime?
+  paidById   String?
+  createdAt  DateTime  @default(now())
+
+  @@index([referrerId, status])
   @@index([status])
 }
 

@@ -16,6 +16,7 @@ import { getAllowance, kenyaMonth, PLAN_LABELS } from "@/lib/allowance";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
 import { getInviteCode, inviteUrl } from "@/lib/invites";
+import { commissionPercent, referralSummary } from "@/lib/referrals";
 
 const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL;
 
@@ -74,15 +75,16 @@ export default async function ProfilePage() {
   if (!user) redirect("/login");
 
   const isTeacher = user.role === "TEACHER";
-  const [inviteCode, joined, allowance] = isTeacher
+  const [inviteCode, referrals, percent, allowance] = isTeacher
     ? await Promise.all([
         getInviteCode(session.userId).catch(() => null),
-        withDbRetry(() =>
-          db.user.count({ where: { invitedById: session.userId } }),
-        ).catch(() => 0),
+        referralSummary(session.userId).catch(() => null),
+        commissionPercent(),
         getAllowance(session.userId, user.role).catch(() => null),
       ])
-    : [null, 0, null];
+    : [null, null, 0, null];
+  const joined = referrals?.joined ?? 0;
+  const kes = (n: number) => `KES ${n.toLocaleString("en-KE")}`;
   const month = monthStart.toLocaleDateString("en-KE", {
     timeZone: "Africa/Nairobi",
     month: "long",
@@ -194,10 +196,42 @@ export default async function ProfilePage() {
           <div className="space-y-3 rounded-xl border bg-card p-4">
             <p className="text-sm text-muted-foreground">
               Send this link to teachers in your school or subject panel.{" "}
+              {percent > 0 &&
+                `When a teacher who joined from your link pays for a term, you earn ${percent}% of what they pay, every term they pay. `}
               {joined > 0
                 ? `${joined} ${joined === 1 ? "colleague has" : "colleagues have"} joined so far.`
                 : "Nobody has joined from your link yet."}
             </p>
+            {referrals && (percent > 0 || referrals.total > 0) && (
+              <dl className="grid grid-cols-3 divide-x rounded-md border">
+                <div className="p-3">
+                  <dt className="text-xs text-muted-foreground">Paying</dt>
+                  <dd className="text-base font-semibold">
+                    {referrals.paying} of {joined}
+                  </dd>
+                </div>
+                <div className="p-3">
+                  <dt className="text-xs text-muted-foreground">Earned</dt>
+                  <dd className="text-base font-semibold">
+                    {kes(referrals.total)}
+                  </dd>
+                </div>
+                <div className="p-3">
+                  <dt className="text-xs text-muted-foreground">
+                    Still to come
+                  </dt>
+                  <dd className="text-base font-semibold">
+                    {kes(referrals.pending)}
+                  </dd>
+                </div>
+              </dl>
+            )}
+            {referrals && referrals.pending > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Elimu sends what you've earned by M-Pesa, to the number you paid
+                from.
+              </p>
+            )}
             <InviteShare url={inviteUrl(inviteCode)} />
           </div>
         </section>

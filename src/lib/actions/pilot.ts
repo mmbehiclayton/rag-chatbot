@@ -19,6 +19,11 @@ import {
   TERM_PRICE_KEY,
   TEST_MODE_KEY,
 } from "@/lib/plans";
+import {
+  COMMISSION_KEY,
+  COMMISSION_LIMITS,
+  recordCommission,
+} from "@/lib/referrals";
 
 type Result = { success: true } | { success: false; error: string };
 
@@ -282,6 +287,75 @@ export async function reviewPayment(input: {
       success: false,
       error: "Someone has already checked this payment.",
     };
+  if (input.approve) await recordCommission(input.id);
+  revalidatePath("/dashboard/pilot");
+  return { success: true };
+}
+
+/** Elimu staff set the share of each term payment that goes to the teacher who invited the payer. */
+export async function setCommissionPercent(input: {
+  percent: number;
+}): Promise<Result> {
+  const session = await auth();
+  if (!session?.userId || session.role !== "SUPERADMIN")
+    return { success: false, error: "Only Elimu staff can do this." };
+  const percent = Math.round(Number(input.percent));
+  if (
+    !Number.isFinite(percent) ||
+    percent < COMMISSION_LIMITS.min ||
+    percent > COMMISSION_LIMITS.max
+  )
+    return {
+      success: false,
+      error: `Enter a percentage between ${COMMISSION_LIMITS.min} and ${COMMISSION_LIMITS.max}.`,
+    };
+  await db.platformSetting.upsert({
+    where: { key: COMMISSION_KEY },
+    create: {
+      key: COMMISSION_KEY,
+      value: String(percent),
+      updatedById: session.userId,
+    },
+    update: { value: String(percent), updatedById: session.userId },
+  });
+  revalidatePath("/dashboard/pilot");
+  revalidatePath("/dashboard/profile");
+  return { success: true };
+}
+
+/**
+ * Elimu staff sent a teacher what they're owed: the commissions they saw are marked paid. Only those,
+ * so one earned while staff were sending the money stays owed.
+ */
+export async function markCommissionsPaid(input: {
+  referrerId: string;
+  ids: string[];
+  payoutRef: string;
+}): Promise<Result> {
+  const session = await auth();
+  if (!session?.userId || session.role !== "SUPERADMIN")
+    return { success: false, error: "Only Elimu staff can do this." };
+  const payoutRef = input.payoutRef.replace(/\s+/g, "").toUpperCase();
+  if (!/^[A-Z0-9]{6,20}$/.test(payoutRef))
+    return {
+      success: false,
+      error: "Enter the M-Pesa code of the payment you sent.",
+    };
+  const { count } = await db.referralCommission.updateMany({
+    where: {
+      id: { in: input.ids.slice(0, 500) },
+      referrerId: input.referrerId,
+      status: "PENDING",
+    },
+    data: {
+      status: "PAID",
+      payoutRef,
+      paidAt: new Date(),
+      paidById: session.userId,
+    },
+  });
+  if (count === 0)
+    return { success: false, error: "Nothing is owed to this teacher now." };
   revalidatePath("/dashboard/pilot");
   return { success: true };
 }

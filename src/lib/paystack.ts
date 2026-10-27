@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { db, withDbRetry } from "@/lib/db";
+import { recordCommission } from "@/lib/referrals";
 import { siteUrl } from "@/lib/site-url";
 
 /**
@@ -120,7 +121,7 @@ export async function confirmPayment(
   const pass = await withDbRetry(() =>
     db.termPass.findUnique({
       where: key,
-      select: { status: true, amount: true },
+      select: { id: true, status: true, amount: true },
     }),
   );
   if (pass?.status === "ACTIVE") return "paid";
@@ -139,5 +140,6 @@ export async function confirmPayment(
       reviewedAt: new Date(),
     },
   });
+  await recordCommission(pass.id);
   return "paid";
 }

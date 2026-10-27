@@ -1,6 +1,8 @@
 import { Wallet } from "lucide-react";
 import { redirect } from "next/navigation";
 import { AllowanceForm } from "@/components/pilot/allowance-form";
+import { CommissionForm } from "@/components/pilot/commission-form";
+import { CommissionPayout } from "@/components/pilot/commission-payout";
 import { PaymentReview } from "@/components/pilot/payment-review";
 import { PilotReadiness } from "@/components/pilot/pilot-readiness";
 import { PriceForm } from "@/components/pilot/price-form";
@@ -13,6 +15,7 @@ import { ALLOWANCE_LIMITS, allowances, TOKENS_PER_DOC } from "@/lib/allowance";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
 import { PRICE_LIMITS, plansOn, termPrice } from "@/lib/plans";
+import { COMMISSION_LIMITS, commissionPercent } from "@/lib/referrals";
 import {
   DEFAULT_TERMS,
   pickTerm,
@@ -139,11 +142,66 @@ export default async function PilotPage() {
     pickTerm(calendarTerms(await getAcademicCalendar()), todayInKenya()) ??
     DEFAULT_TERMS[DEFAULT_TERMS.length - 1];
 
-  const [price, paying, limits] = await Promise.all([
-    termPrice(),
-    plansOn(),
-    allowances(),
-  ]);
+  const [price, paying, limits, percent, commissions, commissionTotals] =
+    await Promise.all([
+      termPrice(),
+      plansOn(),
+      allowances(),
+      commissionPercent(),
+      withDbRetry(() =>
+        db.referralCommission.findMany({
+          where: { status: "PENDING" },
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            amount: true,
+            referrer: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                termPasses: {
+                  where: { phone: { not: null } },
+                  orderBy: { createdAt: "desc" },
+                  take: 1,
+                  select: { phone: true },
+                },
+              },
+            },
+          },
+        }),
+      ),
+      withDbRetry(() =>
+        db.referralCommission.groupBy({
+          by: ["status"],
+          _sum: { amount: true },
+        }),
+      ),
+    ]);
+  // What each teacher is owed, biggest first.
+  const owed = [
+    ...commissions
+      .reduce((m, c) => {
+        const row = m.get(c.referrer.id) ?? {
+          referrer: c.referrer,
+          ids: [] as string[],
+          amount: 0,
+        };
+        row.ids.push(c.id);
+        row.amount += c.amount;
+        return m.set(c.referrer.id, row);
+      }, new Map<
+        string,
+        {
+          referrer: (typeof commissions)[number]["referrer"];
+          ids: string[];
+          amount: number;
+        }
+      >())
+      .values(),
+  ].sort((a, b) => b.amount - a.amount);
+  const commissionSum = (status: string) =>
+    commissionTotals.find((t) => t.status === status)?._sum.amount ?? 0;
   const [
     teachers,
     firstSchemes,
@@ -367,6 +425,69 @@ export default async function PilotPage() {
             max={ALLOWANCE_LIMITS.max}
           />
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold">Referral commission</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            When a teacher pays for a term, the teacher who invited them earns
+            this share of the payment, every term they pay. A change applies to
+            new payments only. 0 switches it off.
+          </p>
+        </div>
+        <div className="rounded-xl border bg-card p-4">
+          <CommissionForm
+            percent={percent}
+            min={COMMISSION_LIMITS.min}
+            max={COMMISSION_LIMITS.max}
+          />
+        </div>
+        <dl className="grid grid-cols-2 divide-x rounded-xl border bg-card">
+          <div className="p-4">
+            <dt className="text-xs text-muted-foreground">To pay out</dt>
+            <dd className="text-lg font-semibold">
+              {kes(commissionSum("PENDING"))}
+            </dd>
+          </div>
+          <div className="p-4">
+            <dt className="text-xs text-muted-foreground">Paid out so far</dt>
+            <dd className="text-lg font-semibold">
+              {kes(commissionSum("PAID"))}
+            </dd>
+          </div>
+        </dl>
+        {owed.length === 0 ? (
+          <EmptyState
+            icon={Wallet}
+            title="Nothing to pay out"
+            description="Teachers owed commission show here. Send it by M-Pesa, then enter the code."
+          />
+        ) : (
+          <ul className="divide-y rounded-xl border bg-card">
+            {owed.map((o) => (
+              <li
+                key={o.referrer.id}
+                className="space-y-3 p-4 sm:flex sm:items-center sm:justify-between sm:gap-4 sm:space-y-0"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">
+                    {kes(o.amount)} · {o.referrer.name || o.referrer.email}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {o.referrer.termPasses[0]?.phone ?? o.referrer.email} ·{" "}
+                    {o.ids.length} {o.ids.length === 1 ? "payment" : "payments"}
+                  </p>
+                </div>
+                <CommissionPayout
+                  referrerId={o.referrer.id}
+                  ids={o.ids}
+                  amount={o.amount}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="space-y-3">
