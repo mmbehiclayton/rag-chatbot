@@ -283,7 +283,28 @@ function withBar(html: string, params: URLSearchParams) {
   const word = new URLSearchParams(exportQuery(params));
   word.set("format", "docx");
   const bar = `<nav class="print-bar" aria-label="Document"><a class="bar-back" href="${esc(docPagePath(params))}" onclick="if(history.length>1&&document.referrer.indexOf(location.origin)===0){history.back();return false}">&larr; Back</a><span class="bar-actions">${params.get("type") === "term" ? "" : `<a class="bar-btn" href="/api/export?${esc(word.toString())}">Word</a>`}<button class="bar-btn bar-main" onclick="window.print()">Print / Save PDF</button></span></nav>`;
-  return html.replace(printScript, bar);
+  // Save as PDF names the file after the page title. Some browsers (and the installed app's
+  // window) left it blank or choked on the dashes, so the title is set to a plain file name,
+  // and again just before printing.
+  const name = pdfName(htmlTitle(html));
+  // pdfName has already taken out "<", so the name can't close the script.
+  const script = `<script>var n=${JSON.stringify(name)};document.title=n;addEventListener("beforeprint",function(){document.title=n});</script>`;
+  return html
+    .replace(/<title>[^<]*<\/title>/, `<title>${esc(name)}</title>`)
+    .replace(printScript, bar + script);
+}
+
+/** A file name for Save as PDF, e.g. "Grade 1 Creative Activities - Scheme of work - Term 3". */
+function pdfName(title: string) {
+  return (
+    title
+      .replace(/\s*[–—]\s*/g, " - ")
+      .replace(/[\\/:*?"<>|#%&{}$!'@+`=]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 120)
+      .trim() || "Elimu document"
+  );
 }
 
 // Renders the body inside a fixed-size "paper" sheet so the on-screen preview
