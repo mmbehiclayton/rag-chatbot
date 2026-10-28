@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronRight, FolderOpen, Plus, X } from "lucide-react";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -35,8 +35,24 @@ const tabClass = (active: boolean) =>
     active ? "text-primary" : "text-muted-foreground",
   );
 
-function Tab({ item, active }: { item: NavItem; active: boolean }) {
+/** The tab's icon and name; it lights up as soon as it's tapped, while the page loads. */
+function TabLabel({ item }: { item: NavItem }) {
+  const { pending } = useLinkStatus();
   const Icon = item.icon;
+  return (
+    <>
+      <Icon
+        className={cn("size-5 shrink-0", pending && "text-primary")}
+        aria-hidden
+      />
+      <span className={cn("max-w-full truncate", pending && "text-primary")}>
+        {item.short ?? item.name}
+      </span>
+    </>
+  );
+}
+
+function Tab({ item, active }: { item: NavItem; active: boolean }) {
   return (
     <li className="min-w-0 flex-1">
       <Link
@@ -44,8 +60,7 @@ function Tab({ item, active }: { item: NavItem; active: boolean }) {
         aria-current={active ? "page" : undefined}
         className={tabClass(active)}
       >
-        <Icon className="size-5 shrink-0" aria-hidden />
-        <span className="max-w-full truncate">{item.short ?? item.name}</span>
+        <TabLabel item={item} />
       </Link>
     </li>
   );

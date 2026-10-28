@@ -8,6 +8,7 @@ import { UserNav } from "@/components/layout/user-nav";
 import { AIOutageBanner } from "@/components/shared/ai-outage-banner";
 import { LimitDialog } from "@/components/shared/limit-dialog";
 import { Logo } from "@/components/shared/logo";
+import { OfflineBar } from "@/components/shared/offline-bar";
 import { Button } from "@/components/ui/button";
 import { getAIOutage } from "@/lib/ai-health";
 import { hasBackup } from "@/lib/ai-models";
@@ -79,6 +80,7 @@ export default async function DashboardLayout({
             />
           </div>
         </header>
+        <OfflineBar />
 
         <main className="mx-auto w-full max-w-6xl flex-1 overflow-y-auto px-4 pt-4 pb-24 sm:px-6 md:pt-6 md:pb-8">
           {outage &&
