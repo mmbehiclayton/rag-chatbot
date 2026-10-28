@@ -1,6 +1,6 @@
 "use client";
 
-import { Sparkles, Undo2 } from "lucide-react";
+import { CircleAlert, Sparkles, Undo2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -69,6 +69,7 @@ export function ImproveButton({
   const [open, setOpen] = useState(false);
   const [instruction, setInstruction] = useState("");
   const [part, setPart] = useState<LessonPart>("whole");
+  const [error, setError] = useState<string>();
   const [isPending, startTransition] = useTransition();
   const [isUndoing, startUndo] = useTransition();
 
@@ -86,6 +87,7 @@ export function ImproveButton({
 
   const submit = () =>
     startTransition(async () => {
+      setError(undefined);
       try {
         const result = await improveDocument({
           kind,
@@ -95,7 +97,9 @@ export function ImproveButton({
         });
         if (!result.ok) {
           if (result.limit) setOpen(false);
-          return void showGenerationError(result);
+          return void showGenerationError(result, (message) =>
+            setError(`${message} Nothing was changed.`),
+          );
         }
         setOpen(false);
         setInstruction("");
@@ -106,7 +110,7 @@ export function ImproveButton({
         });
         router.refresh();
       } catch {
-        toast.error(OFFLINE);
+        setError(OFFLINE);
       }
     });
 
@@ -184,6 +188,19 @@ export function ImproveButton({
             <p className="text-xs text-muted-foreground">
               Lesson plans you have already made from this scheme stay as they
               are.
+            </p>
+          )}
+
+          {error && (
+            <p
+              role="alert"
+              className="flex gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3"
+            >
+              <CircleAlert
+                className="mt-0.5 size-4 shrink-0 text-destructive"
+                aria-hidden
+              />
+              <span>{error}</span>
             </p>
           )}
 

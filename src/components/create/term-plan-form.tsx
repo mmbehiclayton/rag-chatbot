@@ -13,6 +13,7 @@ import {
 import { TopicPicker } from "@/components/create/topic-picker";
 import { ChoiceChips } from "@/components/shared/choice-chips";
 import { CurriculumNotice } from "@/components/shared/curriculum-notice";
+import { FormError, LOST_CONTACT } from "@/components/shared/form-error";
 import { showGenerationError } from "@/components/shared/limit-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -131,6 +132,7 @@ export function TermPlanForm({
   const [assessmentKind, setAssessmentKind] =
     useState<AssessmentKind>("written");
   const [topic, setTopic] = useState("");
+  const [error, setError] = useState<{ message: string; lost?: boolean }>();
   const kindInfo =
     ASSESSMENT_KINDS.find((k) => k.id === assessmentKind) ??
     ASSESSMENT_KINDS[0];
@@ -171,6 +173,8 @@ export function TermPlanForm({
   const durationMinutes = Number.parseInt(duration, 10);
 
   const submit = () => {
+    setError(undefined);
+    const inline = (message: string) => setError({ message });
     startTransition(async () => {
       try {
         if (kind === "scheme") {
@@ -189,7 +193,7 @@ export function TermPlanForm({
                 }
               : { weeks, holidays: breakWeeks, lessonsPerWeek }),
           });
-          if (!result.ok) return void showGenerationError(result);
+          if (!result.ok) return void showGenerationError(result, inline);
           toast.success("Scheme of work ready");
           router.push(`/dashboard/schemes/${result.id}`);
         } else {
@@ -205,15 +209,13 @@ export function TermPlanForm({
             kind: assessmentKind,
             topic: needsTopic ? topic : undefined,
           });
-          if (!result.ok) return void showGenerationError(result);
+          if (!result.ok) return void showGenerationError(result, inline);
           toast.success("Assessment ready");
           router.push(`/dashboard/assessments/${result.id}`);
         }
       } catch {
         // Only reached when the request itself fails, e.g. the connection dropped.
-        toast.error(
-          "We lost contact with Elimu. It may still have finished, so check your Library before you try again.",
-        );
+        setError({ message: LOST_CONTACT, lost: true });
       }
     });
   };
@@ -437,6 +439,14 @@ export function TermPlanForm({
         </CardContent>
       </Card>
 
+      {error && (
+        <FormError
+          title={`Your ${kind === "scheme" ? "scheme of work" : kindInfo.label.toLowerCase()} wasn't made`}
+          message={error.message}
+          onRetry={submit}
+          showDocuments={error.lost}
+        />
+      )}
       <Button
         type="submit"
         size="lg"

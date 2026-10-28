@@ -22,25 +22,32 @@ export function CreateNotesButton({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  return (
-    <Button
-      variant={variant}
-      disabled={isPending}
-      onClick={() =>
-        startTransition(async () => {
-          try {
-            const result = await generateLessonNotes(lessonPlanId);
-            if (!result.ok) return void showGenerationError(result);
-            toast.success("Lesson notes ready");
-            router.push(`/dashboard/notes/${result.id}`);
-          } catch {
-            toast.error(
-              "We lost contact with Elimu. Reload this page in a minute: the notes may still have been made.",
-            );
-          }
-        })
+  // There's no room for a message beside the button, so failures get a toast that stays
+  // until the teacher closes it, with Try again.
+  const failed = (message: string) =>
+    toast.error(message, {
+      duration: Number.POSITIVE_INFINITY,
+      closeButton: true,
+      action: { label: "Try again", onClick: run },
+    });
+
+  const run = () =>
+    startTransition(async () => {
+      try {
+        const result = await generateLessonNotes(lessonPlanId);
+        if (!result.ok) return void showGenerationError(result, failed);
+        toast.success("Lesson notes ready");
+        router.push(`/dashboard/notes/${result.id}`);
+      } catch {
+        toast.error(
+          "We lost contact with Elimu. Reload this page in a minute: the notes may still have been made.",
+          { duration: Number.POSITIVE_INFINITY, closeButton: true },
+        );
       }
-    >
+    });
+
+  return (
+    <Button variant={variant} disabled={isPending} onClick={run}>
       {isPending ? <Spinner /> : <NotebookPen />}
       {isPending ? "Writing notes… about 30 seconds" : label}
     </Button>

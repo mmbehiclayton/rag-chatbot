@@ -30,12 +30,16 @@ function subscribe(l: () => void) {
   return () => void listeners.delete(l);
 }
 
-/** Shows why a document couldn't be made: the used-up dialog for the monthly limit, a toast otherwise. */
-export function showGenerationError(result: {
-  error: string;
-  limit?: LimitInfo;
-}) {
+/**
+ * Shows why a document couldn't be made: the used-up dialog for the monthly limit; otherwise
+ * `inline` (a message kept in the form), or a toast when there's nowhere to put one.
+ */
+export function showGenerationError(
+  result: { error: string; limit?: LimitInfo },
+  inline?: (message: string) => void,
+) {
   if (result.limit) setLimit(result.limit);
+  else if (inline) inline(result.error);
   else toast.error(result.error);
 }
 

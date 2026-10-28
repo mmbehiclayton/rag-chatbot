@@ -12,6 +12,7 @@ import { ReusePanel } from "@/components/create/reuse-panel";
 import { TopicPicker } from "@/components/create/topic-picker";
 import { ChoiceChips } from "@/components/shared/choice-chips";
 import { CurriculumNotice } from "@/components/shared/curriculum-notice";
+import { FormError, LOST_CONTACT } from "@/components/shared/form-error";
 import { showGenerationError } from "@/components/shared/limit-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -47,6 +48,7 @@ export function QuickLessonForm({
   const [topic, setTopic] = useState(initialTopic);
   // Null until the teacher picks a length, so it follows the grade.
   const [durationInput, setDuration] = useState<string | null>(null);
+  const [error, setError] = useState<{ message: string; lost?: boolean }>();
   const duration = durationInput ?? `${lessonMinutesFor(target.grade)} min`;
 
   const key = `${target.grade}|${target.subject}`;
@@ -63,6 +65,7 @@ export function QuickLessonForm({
   const ready = !missing;
 
   const submit = () => {
+    setError(undefined);
     startTransition(async () => {
       try {
         const result = await generateQuickLessonPlan({
@@ -71,7 +74,10 @@ export function QuickLessonForm({
           topic,
           durationMinutes: Number.parseInt(duration, 10),
         });
-        if (!result.ok) return void showGenerationError(result);
+        if (!result.ok)
+          return void showGenerationError(result, (message) =>
+            setError({ message }),
+          );
         toast.success(
           result.reused
             ? "Another teacher already made this lesson, so you got your own copy straight away. Use Improve to change it."
@@ -79,9 +85,7 @@ export function QuickLessonForm({
         );
         router.push(`/dashboard/lessons/${result.id}`);
       } catch {
-        toast.error(
-          "We lost contact with Elimu. It may still have finished, so check your Library before you try again.",
-        );
+        setError({ message: LOST_CONTACT, lost: true });
       }
     });
   };
@@ -155,6 +159,14 @@ export function QuickLessonForm({
         />
       )}
 
+      {error && (
+        <FormError
+          title="Your lesson plan wasn't made"
+          message={error.message}
+          onRetry={submit}
+          showDocuments={error.lost}
+        />
+      )}
       <Button
         type="submit"
         size="lg"
