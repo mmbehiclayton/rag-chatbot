@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { QuickLessonForm } from "@/components/create/quick-lesson-form";
+import { DocumentsLeft } from "@/components/shared/documents-left";
 import { PageHeader } from "@/components/shared/page-header";
 import { auth } from "@/lib/auth";
 import {
@@ -64,6 +66,9 @@ export default async function CreateLessonPage({
         title="Lesson plan"
         description="Choose the class and topic. Elimu writes a full CBC lesson plan for you to review."
       />
+      <Suspense fallback={null}>
+        <DocumentsLeft userId={session.userId} role={session.role} />
+      </Suspense>
       <QuickLessonForm
         grades={grades}
         myGrades={preferClass(profile?.gradesTaught, query.grade)}

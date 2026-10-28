@@ -14,6 +14,7 @@ import { Suspense } from "react";
 import { TeacherStats } from "@/components/dashboard/teacher-stats";
 import { parseTitle } from "@/components/document/doc-parts";
 import { CREATE_NAV } from "@/components/layout/nav-config";
+import { DocumentsLeft } from "@/components/shared/documents-left";
 import { EmptyState } from "@/components/shared/empty-state";
 import { InstallAppCard } from "@/components/shared/install-app";
 import {
@@ -56,7 +57,7 @@ const COMMUNITY = [
 export async function TeacherOverview({
   session,
 }: {
-  session: { userId: string; tenantId?: string | null };
+  session: { userId: string; tenantId?: string | null; role?: string | null };
 }) {
   const teacherId = session.userId;
   const [user, classes, schemes, lessons, notes, assessments, curricula] =
@@ -227,6 +228,9 @@ export async function TeacherOverview({
 
       <section id="make" className="scroll-mt-4 space-y-2">
         <SectionTitle title="Make something" />
+        <Suspense fallback={null}>
+          <DocumentsLeft userId={teacherId} role={session.role} />
+        </Suspense>
         <ul className="grid grid-cols-2 gap-2">
           {CREATE_NAV.map((m, i) => (
             <li key={m.href}>
