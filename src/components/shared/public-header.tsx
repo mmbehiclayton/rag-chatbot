@@ -57,10 +57,10 @@ export function SignUpPrompt({ title, body }: { title: string; body: string }) {
       <p className="text-sm text-muted-foreground">{body}</p>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Button size="lg" render={<Link href="/register" />}>
-          Create free account
+          Sign up
         </Button>
         <Button size="lg" variant="outline" render={<Link href="/login" />}>
-          I already have an account
+          Sign in
         </Button>
       </div>
     </section>
