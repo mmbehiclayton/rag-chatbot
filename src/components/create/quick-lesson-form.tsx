@@ -12,6 +12,7 @@ import { ReusePanel } from "@/components/create/reuse-panel";
 import { TopicPicker } from "@/components/create/topic-picker";
 import { ChoiceChips } from "@/components/shared/choice-chips";
 import { CurriculumNotice } from "@/components/shared/curriculum-notice";
+import { showGenerationError } from "@/components/shared/limit-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { generateQuickLessonPlan } from "@/lib/actions/generation";
@@ -62,7 +63,7 @@ export function QuickLessonForm({
           topic,
           durationMinutes: Number.parseInt(duration, 10),
         });
-        if (!result.ok) return void toast.error(result.error);
+        if (!result.ok) return void showGenerationError(result);
         toast.success(
           result.reused
             ? "Another teacher already made this lesson, so you got your own copy straight away. Use Improve to change it."

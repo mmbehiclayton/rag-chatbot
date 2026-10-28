@@ -12,7 +12,7 @@ import {
   specTable,
 } from "@/lib/assessment-specs";
 import { auth } from "@/lib/auth";
-import { classHref, classLessonWhere } from "@/lib/classes";
+import { classLessonWhere } from "@/lib/classes";
 import { db } from "@/lib/db";
 import {
   cleanTitle,
@@ -23,7 +23,12 @@ import {
   docName,
   teacherContext,
 } from "@/lib/documents";
-import { downloadAccess, exportQuery, parseDocRef } from "@/lib/downloads";
+import {
+  docPagePath,
+  downloadAccess,
+  exportQuery,
+  parseDocRef,
+} from "@/lib/downloads";
 import { DOCX_TYPE, htmlToDocx } from "@/lib/export-docx";
 import { filingLabel, filingOf } from "@/lib/filing";
 import { licenceFor, stampHTML } from "@/lib/licence";
@@ -252,27 +257,6 @@ function htmlTitle(html: string) {
 
 // Marks where the bar goes on screen (withBar); the Word file drops it.
 const printScript = `<button class="print-btn" onclick="window.print()">Print / Save PDF</button>`;
-
-/** The document's own page in Elimu, where the print view's Back goes. */
-function docPagePath(params: URLSearchParams) {
-  const id = encodeURIComponent(params.get("id") ?? "");
-  switch (params.get("type")) {
-    case "scheme":
-      return `/dashboard/schemes/${id}`;
-    case "record":
-      return `/dashboard/schemes/${id}/record`;
-    case "lesson":
-      return `/dashboard/lessons/${id}`;
-    case "notes":
-      return `/dashboard/notes/${id}`;
-    case "assessment":
-      return `/dashboard/assessments/${id}`;
-    case "term":
-      return classHref(params.get("grade") ?? "", params.get("subject") ?? "");
-    default:
-      return "/dashboard";
-  }
-}
 
 /**
  * Swaps the print button for a bar across the top: back to the document in Elimu, the Word file,

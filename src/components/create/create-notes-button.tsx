@@ -4,6 +4,7 @@ import { NotebookPen } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
+import { showGenerationError } from "@/components/shared/limit-dialog";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { generateLessonNotes } from "@/lib/actions/generation";
@@ -29,7 +30,7 @@ export function CreateNotesButton({
         startTransition(async () => {
           try {
             const result = await generateLessonNotes(lessonPlanId);
-            if (!result.ok) return void toast.error(result.error);
+            if (!result.ok) return void showGenerationError(result);
             toast.success("Lesson notes ready");
             router.push(`/dashboard/notes/${result.id}`);
           } catch {

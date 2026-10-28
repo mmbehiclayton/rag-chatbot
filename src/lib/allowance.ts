@@ -111,11 +111,31 @@ const dayLabel = (d: Date) =>
     month: "long",
   });
 
-/** What a teacher sees when the month's allowance is used up. */
-export function allowanceMessage(a: Allowance) {
-  const more =
-    a.plan === "paid"
-      ? ""
-      : ` A term pass gives you ${a.paidLimit} a month: Me, then Term pass.`;
-  return `You've used this month's ${a.limit} documents on your ${PLAN_LABELS[a.plan]}. It starts again on ${dayLabel(a.resetsOn)}. Everything you've already made still opens and prints.${more}`;
+/** What a teacher sees when the month's allowance is used up: a dialog on screen, this text elsewhere. */
+export type LimitInfo = {
+  plan: AllowancePlan;
+  limit: number;
+  /** When the count starts again, e.g. "1 November". */
+  resetsOn: string;
+  /** The term pass on offer, for teachers on the free plan. */
+  pass: { price: number; term: string; limit: number } | null;
+};
+
+export function limitInfo(a: Allowance, access?: Access): LimitInfo {
+  return {
+    plan: a.plan,
+    limit: a.limit,
+    resetsOn: dayLabel(a.resetsOn),
+    pass:
+      a.plan === "free" && access
+        ? { price: access.price, term: access.term.label, limit: a.paidLimit }
+        : null,
+  };
+}
+
+export function allowanceMessage(info: LimitInfo) {
+  const more = info.pass
+    ? ` A term pass gives you ${info.pass.limit} a month.`
+    : "";
+  return `You've used this month's ${info.limit} documents on your ${PLAN_LABELS[info.plan]}. More open on ${info.resetsOn}. Everything you've already made still opens.${more}`;
 }

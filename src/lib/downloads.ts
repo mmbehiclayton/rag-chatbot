@@ -1,3 +1,4 @@
+import { classHref } from "@/lib/classes";
 import { db, withDbRetry } from "@/lib/db";
 import { DOC_LABELS, type DocKind, docName } from "@/lib/documents";
 import { type Access, getAccess, plansOn } from "@/lib/plans";
@@ -99,6 +100,27 @@ export function exportQuery(p: Params) {
     if (v) q.set(key, v);
   }
   return q.toString();
+}
+
+/** The document's own page in Elimu, where Back goes from its download and print views. */
+export function docPagePath(p: Params) {
+  const id = encodeURIComponent(param(p, "id") ?? "");
+  switch (param(p, "type")) {
+    case "scheme":
+      return `/dashboard/schemes/${id}`;
+    case "record":
+      return `/dashboard/schemes/${id}/record`;
+    case "lesson":
+      return `/dashboard/lessons/${id}`;
+    case "notes":
+      return `/dashboard/notes/${id}`;
+    case "assessment":
+      return `/dashboard/assessments/${id}`;
+    case "term":
+      return classHref(param(p, "grade") ?? "", param(p, "subject") ?? "");
+    default:
+      return "/dashboard";
+  }
 }
 
 /** The teacher's own document and a name for it, or null when it isn't theirs. */

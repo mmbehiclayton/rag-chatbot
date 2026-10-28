@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createContext, use, useState, useTransition } from "react";
 import { toast } from "sonner";
+import { showGenerationError } from "@/components/shared/limit-dialog";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { generateLessonPlan, reviewScheme } from "@/lib/actions/generation";
@@ -65,6 +66,7 @@ export function WeekLessons({
     new Promise<void>((resolve) =>
       startTransition(async () => {
         let failed = 0;
+        let limited = false;
         for (const row of targets) {
           setStates((s) => ({
             ...s,
@@ -91,13 +93,18 @@ export function WeekLessons({
               [row.lessonNumber]: { status: "failed", error: result.error },
             }));
             // Stop early on limits that would fail every remaining lesson too.
-            if (/last hour|allowance/i.test(result.error)) {
+            if ("limit" in result && result.limit) {
+              limited = true;
+              showGenerationError(result);
+              break;
+            }
+            if (/last hour/i.test(result.error)) {
               toast.error(result.error);
               break;
             }
           }
         }
-        if (failed)
+        if (failed && !limited)
           toast.error(
             `${failed} lesson plan${failed === 1 ? "" : "s"} could not be created. Tap Retry to try again.`,
           );

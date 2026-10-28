@@ -107,48 +107,9 @@ export default async function TermPassPage({
         </p>
       )}
 
-      <section className="space-y-2">
-        <h2 className="text-base font-semibold">What you get</h2>
-        <ul className="divide-y rounded-xl border bg-card text-sm">
-          <li className="px-4 py-3">
-            <p className="font-medium">Free</p>
-            <p className="mt-0.5 text-muted-foreground">
-              Make up to {limits.free} documents a month for any class and read
-              them in full here. Your first download is free.
-            </p>
-          </li>
-          <li className="px-4 py-3">
-            <p className="font-medium">Pay per download</p>
-            <p className="mt-0.5 text-muted-foreground">
-              Paid once for each document, then download and print it as often
-              as you like, as PDF or Word.
-            </p>
-            <ul className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
-              {DOWNLOAD_KINDS.map((kind) => (
-                <li key={kind} className="flex justify-between gap-2">
-                  <span className="text-muted-foreground">
-                    {DOC_LABELS[kind]}
-                  </span>
-                  <span className="font-medium tabular-nums">
-                    KES {prices[kind]}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </li>
-          <li className="px-4 py-3">
-            <p className="font-medium">Term pass · KES {price}</p>
-            <p className="mt-0.5 text-muted-foreground">
-              Every download for all your classes for the whole of {term.label},
-              and up to {limits.paid} new documents a month.
-            </p>
-          </li>
-        </ul>
-      </section>
-
       {!paid && (
         <section className="space-y-3">
-          <h2 className="text-base font-semibold">Pay with M-Pesa</h2>
+          <h2 className="text-base font-semibold">Get your term pass</h2>
           {paystackOn() ? (
             <Card>
               <CardContent className="space-y-4">
@@ -191,6 +152,58 @@ export default async function TermPassPage({
           )}
         </section>
       )}
+      <section className="space-y-2">
+        <h2 className="text-base font-semibold">Ways to use Elimu</h2>
+        <ul className="divide-y rounded-xl border bg-card text-sm">
+          <li className="space-y-1 px-4 py-3">
+            <PlanRow name="Free" price="KES 0" />
+            <p className="text-muted-foreground">
+              Make up to {limits.free} documents a month for any class and read
+              them in full here. Your first download is free.
+            </p>
+          </li>
+          <li className="space-y-1 px-4 py-3">
+            <PlanRow
+              name="Pay per download"
+              price={`from KES ${Math.min(...Object.values(prices))}`}
+            />
+            <p className="text-muted-foreground">
+              Paid once for each document, then download and print it as often
+              as you like, as PDF or Word.
+            </p>
+            <ul className="mt-2 grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
+              {DOWNLOAD_KINDS.map((kind) => (
+                <li key={kind} className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">
+                    {DOC_LABELS[kind]}
+                  </span>
+                  <span className="font-medium whitespace-nowrap tabular-nums">
+                    KES {prices[kind]}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </li>
+          <li className="space-y-1 px-4 py-3">
+            <PlanRow name="Term pass" price={`KES ${price}`} />
+            <p className="text-muted-foreground">
+              Every download for all your classes for the whole of {term.label},
+              and up to {limits.paid} new documents a month.
+            </p>
+          </li>
+        </ul>
+      </section>
     </div>
+  );
+}
+
+function PlanRow({ name, price }: { name: string; price: string }) {
+  return (
+    <p className="flex items-baseline justify-between gap-3">
+      <span className="font-medium">{name}</span>
+      <span className="font-semibold whitespace-nowrap tabular-nums">
+        {price}
+      </span>
+    </p>
   );
 }

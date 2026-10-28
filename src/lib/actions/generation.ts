@@ -11,7 +11,12 @@ import {
   onTrialModel,
   withTrialModel,
 } from "@/lib/ai-models";
-import { allowanceMessage, getAllowance } from "@/lib/allowance";
+import {
+  allowanceMessage,
+  getAllowance,
+  type LimitInfo,
+  limitInfo,
+} from "@/lib/allowance";
 import type { AssessmentKind } from "@/lib/assessment-kinds";
 import { COGNITIVE_LEVELS } from "@/lib/assessment-specs";
 import { auth } from "@/lib/auth";
@@ -51,9 +56,17 @@ import { getTeacherTerms } from "@/lib/term-pack-data";
 // generators return their outcome instead. TeacherError messages are shown as written.
 class TeacherError extends Error {}
 
+// The month's documents are used up. The result carries the details for the dialog that says
+// what the teacher can do next.
+class LimitError extends TeacherError {
+  constructor(readonly limit: LimitInfo) {
+    super(allowanceMessage(limit));
+  }
+}
+
 export type GenerationResult =
   | { ok: true; id: string; reused?: boolean }
-  | { ok: false; error: string };
+  | { ok: false; error: string; limit?: LimitInfo };
 
 function explain(label: string, e: unknown): string {
   return e instanceof TeacherError ? e.message : explainAIError(label, e);
@@ -72,6 +85,8 @@ async function asResult(
     const { id, reused } = await withTrialModel(trial, fn);
     return reused ? { ok: true, id, reused } : { ok: true, id };
   } catch (e) {
+    if (e instanceof LimitError)
+      return { ok: false, error: e.message, limit: e.limit };
     return { ok: false, error: explain(label, e) };
   }
 }
@@ -160,7 +175,7 @@ async function checkGenerationGuards(session: {
     session.role === "TEACHER" ? await getAccess(session.userId) : undefined;
   const allowance = await getAllowance(session.userId, session.role, access);
   if (allowance && allowance.used >= allowance.limit)
-    throw new TeacherError(allowanceMessage(allowance));
+    throw new LimitError(limitInfo(allowance, access));
 
   // 1. Rate limit: 20 documents per teacher per hour
   if (await overLimit(`gen_${session.userId}`, DOCS_PER_HOUR, 60 * 60 * 1000)) {

@@ -6,6 +6,7 @@ import { BottomNav } from "@/components/layout/bottom-nav";
 import { PageTitle } from "@/components/layout/page-title";
 import { UserNav } from "@/components/layout/user-nav";
 import { AIOutageBanner } from "@/components/shared/ai-outage-banner";
+import { LimitDialog } from "@/components/shared/limit-dialog";
 import { Logo } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
 import { getAIOutage } from "@/lib/ai-health";
@@ -90,6 +91,7 @@ export default async function DashboardLayout({
           {children}
         </main>
       </div>
+      <LimitDialog />
       <div className="no-print">
         <BottomNav />
       </div>

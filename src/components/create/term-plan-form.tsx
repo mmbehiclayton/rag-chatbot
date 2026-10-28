@@ -13,6 +13,7 @@ import {
 import { TopicPicker } from "@/components/create/topic-picker";
 import { ChoiceChips } from "@/components/shared/choice-chips";
 import { CurriculumNotice } from "@/components/shared/curriculum-notice";
+import { showGenerationError } from "@/components/shared/limit-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -181,7 +182,7 @@ export function TermPlanForm({
                 }
               : { weeks, holidays: breakWeeks, lessonsPerWeek }),
           });
-          if (!result.ok) return void toast.error(result.error);
+          if (!result.ok) return void showGenerationError(result);
           toast.success("Scheme of work ready");
           router.push(`/dashboard/schemes/${result.id}`);
         } else {
@@ -197,7 +198,7 @@ export function TermPlanForm({
             kind: assessmentKind,
             topic: needsTopic ? topic : undefined,
           });
-          if (!result.ok) return void toast.error(result.error);
+          if (!result.ok) return void showGenerationError(result);
           toast.success("Assessment ready");
           router.push(`/dashboard/assessments/${result.id}`);
         }

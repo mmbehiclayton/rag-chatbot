@@ -4,6 +4,7 @@ import { Sparkles, Undo2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { showGenerationError } from "@/components/shared/limit-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -92,7 +93,10 @@ export function ImproveButton({
           instruction,
           part: kind === "LESSON" ? part : undefined,
         });
-        if (!result.ok) return void toast.error(result.error);
+        if (!result.ok) {
+          if (result.limit) setOpen(false);
+          return void showGenerationError(result);
+        }
         setOpen(false);
         setInstruction("");
         setPart("whole");
