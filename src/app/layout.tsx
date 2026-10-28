@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { DM_Sans } from "next/font/google";
 import "./globals.css";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ServiceWorkerRegister } from "@/components/shared/install-app";
 import { Toaster } from "@/components/ui/sonner";
 import { siteUrl } from "@/lib/site-url";
@@ -49,6 +50,7 @@ export default function RootLayout({
       >
         <main className="flex-1 flex flex-col">{children}</main>
         <Toaster position="top-center" richColors />
+        <ConfirmDialog />
         <ServiceWorkerRegister />
       </body>
     </html>

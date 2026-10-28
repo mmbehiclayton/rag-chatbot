@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { confirmAction } from "@/components/shared/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,15 +39,24 @@ export function CommissionForm({
   return (
     <form
       className="flex flex-col gap-3 sm:flex-row sm:items-end"
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
         if (
           changed &&
-          window.confirm(
+          (await confirmAction(
             next
-              ? `Pay ${next}% of every term payment to the teacher who invited the payer?`
-              : "Stop paying commission on new payments?",
-          )
+              ? {
+                  title: `Pay ${next}% commission?`,
+                  body: `The teacher who invited the payer gets ${next}% of every term payment.`,
+                  confirm: "Save",
+                }
+              : {
+                  title: "Stop paying commission?",
+                  body: "New payments won't earn commission.",
+                  confirm: "Stop commission",
+                  destructive: true,
+                },
+          ))
         )
           save();
       }}

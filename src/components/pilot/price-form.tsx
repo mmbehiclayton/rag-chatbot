@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { confirmAction } from "@/components/shared/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,13 +37,15 @@ export function PriceForm({
   return (
     <form
       className="flex flex-col gap-3 sm:flex-row sm:items-end"
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
         if (
           changed &&
-          window.confirm(
-            `Change the term pass from KES ${price} to KES ${next} for all teachers?`,
-          )
+          (await confirmAction({
+            title: `Change the term pass to KES ${next}?`,
+            body: `It goes from KES ${price} to KES ${next} for all teachers.`,
+            confirm: "Change price",
+          }))
         )
           save();
       }}

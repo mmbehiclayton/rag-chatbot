@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
+import { confirmAction } from "@/components/shared/confirm-dialog";
 import { setTestMode } from "@/lib/actions/pilot";
 import { cn } from "@/lib/utils";
 
@@ -10,14 +11,20 @@ const OPTIONS = [
   {
     on: true,
     label: "Test mode: free for everyone",
-    confirm:
-      "Turn test mode on? Every teacher can use every class without paying.",
+    confirm: {
+      title: "Turn test mode on?",
+      body: "Every teacher can use every class without paying.",
+      confirm: "Turn test mode on",
+    },
   },
   {
     on: false,
     label: "Payments on: pass required",
-    confirm:
-      "Turn payments on? Teachers keep making documents free, get one free download, then pay per document or buy a term pass.",
+    confirm: {
+      title: "Turn payments on?",
+      body: "Teachers keep making documents free, get one free download, then pay per document or buy a term pass.",
+      confirm: "Turn payments on",
+    },
   },
 ] as const;
 
@@ -25,8 +32,8 @@ export function TestModeToggle({ on }: { on: boolean }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const choose = (option: (typeof OPTIONS)[number]) => {
-    if (option.on === on || !window.confirm(option.confirm)) return;
+  const choose = async (option: (typeof OPTIONS)[number]) => {
+    if (option.on === on || !(await confirmAction(option.confirm))) return;
     startTransition(async () => {
       const result = await setTestMode({ on: option.on });
       if (!result.success) return void toast.error(result.error);

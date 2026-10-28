@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { confirmAction } from "@/components/shared/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { deleteJob, reviewJob } from "@/lib/actions/jobs";
@@ -73,8 +74,15 @@ export function JobDelete({ id }: { id: string }) {
       variant="ghost"
       className="text-destructive"
       disabled={isPending}
-      onClick={() => {
-        if (confirm("Take this job down?"))
+      onClick={async () => {
+        if (
+          await confirmAction({
+            title: "Take this job down?",
+            body: "Teachers won't see it in the staffroom any more.",
+            confirm: "Take down",
+            destructive: true,
+          })
+        )
           run(() => deleteJob(id), "Job taken down");
       }}
     >

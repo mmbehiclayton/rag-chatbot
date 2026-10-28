@@ -3,6 +3,7 @@
 import { UserMinus } from "lucide-react";
 import { useTransition } from "react";
 import { toast } from "sonner";
+import { confirmAction } from "@/components/shared/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { removeTeacher } from "@/lib/actions/invites";
 
@@ -16,11 +17,14 @@ export function RemoveTeacher({
 }) {
   const [pending, startTransition] = useTransition();
 
-  const remove = () => {
+  const remove = async () => {
     if (
-      !window.confirm(
-        `Remove ${name} from your school? They keep their account and everything they made, but you won't see them here and they stop using the school's AI limit.`,
-      )
+      !(await confirmAction({
+        title: `Remove ${name} from your school?`,
+        body: "They keep their account and everything they made, but you won't see them here and they stop using the school's AI limit.",
+        confirm: "Remove",
+        destructive: true,
+      }))
     )
       return;
     startTransition(async () => {

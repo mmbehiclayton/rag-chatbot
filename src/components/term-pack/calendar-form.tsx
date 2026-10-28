@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { ChoiceChips } from "@/components/shared/choice-chips";
+import { confirmAction } from "@/components/shared/confirm-dialog";
 import { BreaksEditor } from "@/components/term-pack/breaks-editor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -134,13 +135,15 @@ export function CalendarForm({
   return (
     <form
       className="space-y-5"
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
         if (
           valid &&
-          window.confirm(
-            `Save the ${draft.year} calendar? Teachers who haven't set their own dates will use it straight away.`,
-          )
+          (await confirmAction({
+            title: `Save the ${draft.year} calendar?`,
+            body: "Teachers who haven't set their own dates will use it straight away.",
+            confirm: "Save calendar",
+          }))
         )
           save();
       }}
@@ -279,12 +282,16 @@ export function CalendarForm({
               variant="ghost"
               size="icon-sm"
               aria-label="Fill in Kenya's fixed public holidays again"
-              onClick={() =>
-                window.confirm(
-                  "Replace this list with Kenya's fixed public holidays?",
-                ) &&
-                setDraft({ ...draft, holidays: defaultHolidays(draft.year) })
-              }
+              onClick={async () => {
+                if (
+                  await confirmAction({
+                    title: "Fill in the public holidays again?",
+                    body: "This list is replaced with Kenya's fixed public holidays.",
+                    confirm: "Replace list",
+                  })
+                )
+                  setDraft({ ...draft, holidays: defaultHolidays(draft.year) });
+              }}
             >
               <RotateCcw />
             </Button>
@@ -368,11 +375,17 @@ export function CalendarForm({
             size="lg"
             className="w-full sm:w-auto"
             disabled={isPending}
-            onClick={() =>
-              window.confirm(
-                `Remove the saved ${draft.year} calendar? Elimu goes back to its built-in dates for that year, if it has any.`,
-              ) && remove()
-            }
+            onClick={async () => {
+              if (
+                await confirmAction({
+                  title: `Remove the saved ${draft.year} calendar?`,
+                  body: "Elimu goes back to its built-in dates for that year, if it has any.",
+                  confirm: "Remove",
+                  destructive: true,
+                })
+              )
+                remove();
+            }}
           >
             Remove saved {draft.year}
           </Button>

@@ -4,6 +4,7 @@ import { RefreshCw } from "lucide-react";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import { InviteShare } from "@/components/pilot/invite-share";
+import { confirmAction } from "@/components/shared/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { resetSchoolInviteLink } from "@/lib/actions/invites";
 
@@ -19,11 +20,13 @@ export function SchoolInvite({
 }) {
   const [pending, startTransition] = useTransition();
 
-  const reset = () => {
+  const reset = async () => {
     if (
-      !window.confirm(
-        "Make a new link? The old link will stop working, but teachers who already joined stay in the school.",
-      )
+      !(await confirmAction({
+        title: "Make a new link?",
+        body: "The old link will stop working, but teachers who already joined stay in the school.",
+        confirm: "Make new link",
+      }))
     )
       return;
     startTransition(async () => {
