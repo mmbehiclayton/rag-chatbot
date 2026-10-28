@@ -223,6 +223,7 @@ const baseCSS = `
   .bar-actions { display: flex; gap: 8px; }
   .bar-btn { background: #fff; color: #111; border: 1px solid #d1d5db; }
   .bar-main { background: #076fed; color: #fff; border: 1px solid #076fed; }
+  .turn-hint { display: none; margin: 0; padding: 8px 12px; background: #fff7e6; color: #111; border-bottom: 1px solid #d1d5db; font: 14px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   .page-break { page-break-before: always; break-before: page; }
   .doc-detail { font-size: 15px; margin: 8px 0 0; }
   .draft { text-align: right; font-size: 11px; margin: 0 0 6px; }
@@ -244,7 +245,7 @@ const baseCSS = `
   table.scheme td.assess div { font-weight: bold; margin: 3px 0; }
   table.scheme td.assess div::before { content: "\\2713  "; }
 
-  @media print { .print-bar { display: none; } }
+  @media print { .print-bar, .turn-hint { display: none !important; } }
 `;
 
 /** The document's title, as the page gives it, for the download log. */
@@ -275,8 +276,22 @@ function withBar(html: string, params: URLSearchParams) {
   const script = `<script>var n=${JSON.stringify(name)};document.title=n;addEventListener("beforeprint",function(){document.title=n});</script>`;
   return html
     .replace(/<title>[^<]*<\/title>/, `<title>${esc(name)}</title>`)
-    .replace(printScript, bar + script);
+    .replace(printScript, bar + FIT_TO_SCREEN + script);
 }
+
+/**
+ * On a phone the A4 sheets are wider than the screen, so each is shrunk to fit instead of
+ * scrolling sideways (the teacher can still pinch to zoom). Landscape sheets also ask the teacher
+ * to turn the phone. The shrinking comes off while printing, so the printout doesn't change.
+ */
+const FIT_TO_SCREEN = `<p class="turn-hint" role="note">Turn your phone sideways to read this table more easily.</p><style>@media screen and (max-width: 640px) { body { padding: 8px 0; } .page { margin-bottom: 8px; } }</style><script>(function(){
+function pages(){return document.querySelectorAll(".page")}
+function fit(){var w=document.documentElement.clientWidth,wide=false;
+pages().forEach(function(p){p.style.zoom="";var f=p.offsetWidth;if(f>w)p.style.zoom=String((w-16)/f);if(p.classList.contains("wide"))wide=true});
+var h=document.querySelector(".turn-hint");if(h)h.style.display=wide&&w<600&&innerHeight>innerWidth?"block":"none"}
+addEventListener("resize",fit);addEventListener("afterprint",fit);
+addEventListener("beforeprint",function(){pages().forEach(function(p){p.style.zoom=""})});
+if(document.readyState==="loading")addEventListener("DOMContentLoaded",fit);else fit()})()</script>`;
 
 /** A file name for Save as PDF, e.g. "Grade 1 Creative Activities - Scheme of work - Term 3". */
 function pdfName(title: string) {
@@ -307,7 +322,7 @@ function wrap(title: string, body: string, landscape = false) {
       @page { size: ${SIZE}; margin: ${PAD}; }
     }
   `;
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)}</title><style>${baseCSS}${paper}</style></head><body>${printScript}<div class="page">${body}</div></body></html>`;
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)}</title><style>${baseCSS}${paper}</style></head><body>${printScript}<div class="page${landscape ? " wide" : ""}">${body}</div></body></html>`;
 }
 
 /**
