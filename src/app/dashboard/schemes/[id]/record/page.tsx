@@ -8,6 +8,7 @@ import { MarkLesson } from "@/components/term-pack/mark-lesson";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
+import { downloadNote } from "@/lib/downloads";
 import {
   formatDay,
   formatRange,
@@ -28,6 +29,11 @@ export default async function RecordOfWorkPage({
   if (!session?.userId) redirect("/login");
 
   const { id } = await params;
+  // What a download costs, looked up alongside the page's own queries.
+  const download = downloadNote(
+    session.userId,
+    `/api/export?type=record&id=${id}`,
+  );
   const query = await searchParams;
   const scheme = await withDbRetry(() =>
     db.schemeOfWork.findFirst({
@@ -121,6 +127,7 @@ export default async function RecordOfWorkPage({
           <ExportButton
             href={`/api/export?${new URLSearchParams({ type: "record", id: scheme.id, ...(stream ? { stream } : {}) })}`}
             label="Print for signing"
+            note={await download}
           />
         )}
       </div>

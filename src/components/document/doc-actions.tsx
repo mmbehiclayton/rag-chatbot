@@ -77,6 +77,7 @@ export function DocMoreMenu({
   links = [],
   copy,
   deleteNote,
+  downloadNote,
 }: {
   type: DocType;
   id: string;
@@ -89,7 +90,14 @@ export function DocMoreMenu({
   copy?: CopyFrom;
   /** What else goes with it, e.g. "Its lesson notes are deleted too." */
   deleteNote?: string;
+  /** What a download costs or that it's paid, from downloadNote. */
+  downloadNote?: string | null;
 }) {
+  const note = downloadNote && (
+    <span className="ml-auto text-xs text-muted-foreground">
+      {downloadNote}
+    </span>
+  );
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [copying, setCopying] = useState(false);
@@ -130,6 +138,7 @@ export function DocMoreMenu({
               render={<a href={exportHref} />}
             >
               <Download /> Download PDF
+              {note}
             </DropdownMenuItem>
           )}
           <DropdownMenuItem
@@ -139,6 +148,7 @@ export function DocMoreMenu({
             render={<a href={`${exportHref}&format=docx`} />}
           >
             <FileText /> Download Word
+            {note}
           </DropdownMenuItem>
           {links.map((l) => (
             <DropdownMenuItem key={l.href} render={<Link href={l.href} />}>

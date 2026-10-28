@@ -81,11 +81,14 @@ export function ExportButton({
   href,
   label = "Download PDF",
   main = false,
+  note,
 }: {
   href: string;
   label?: string;
   /** The page's main action: filled, and full width on a phone. */
   main?: boolean;
+  /** What the download costs or that it's paid, from downloadNote. */
+  note?: string | null;
 }) {
   return (
     <Button
@@ -96,6 +99,7 @@ export function ExportButton({
       render={<a href={href} />}
     >
       <Download /> {label}
+      {note && <span className="font-normal opacity-80">· {note}</span>}
     </Button>
   );
 }

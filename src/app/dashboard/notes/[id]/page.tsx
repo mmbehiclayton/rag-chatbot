@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
 import { docMeta } from "@/lib/documents";
+import { downloadNote } from "@/lib/downloads";
 
 type Notes = {
   learningOutcomes?: string[];
@@ -54,6 +55,11 @@ export default async function NoteDetailPage({
   if (!session?.userId) redirect("/login");
 
   const { id } = await params;
+  // What a download costs, looked up alongside the page's own queries.
+  const download = downloadNote(
+    session.userId,
+    `/api/export?type=notes&id=${id}`,
+  );
   const note = await withDbRetry(() =>
     db.lessonNote.findFirst({
       where: { id, teacherId: session.userId },
@@ -126,12 +132,17 @@ export default async function NoteDetailPage({
         meta={meta}
         actions={
           <>
-            <ExportButton main href={`/api/export?type=notes&id=${note.id}`} />
+            <ExportButton
+              main
+              href={`/api/export?type=notes&id=${note.id}`}
+              note={await download}
+            />
             <ImproveButton kind="NOTES" id={note.id} canUndo={canUndo} />
             <DocMoreMenu
               type="notes"
               id={note.id}
               exportHref={`/api/export?type=notes&id=${note.id}`}
+              downloadNote={await download}
               links={[
                 { label: "Lesson plan", href: `/dashboard/lessons/${plan.id}` },
               ]}

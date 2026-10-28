@@ -190,7 +190,7 @@ export async function downloadAccess(
   ref: DocRef,
   access?: Access,
 ): Promise<
-  | { open: true }
+  | { open: true; unlocked?: boolean }
   | { open: false; price: number; freeLeft: boolean; access: Access }
 > {
   if (!(await plansOn())) return { open: true };
@@ -206,6 +206,28 @@ export async function downloadAccess(
     freeDownloadUsed(userId),
     downloadPrices(),
   ]);
-  if (unlock?.status === "ACTIVE") return { open: true };
+  if (unlock?.status === "ACTIVE") return { open: true, unlocked: true };
   return { open: false, price: prices[ref.type], freeLeft: !used, access: a };
+}
+
+/**
+ * A word for the download button so the teacher knows before tapping: "Free" (their free
+ * download is unused), the price, "Paid" (bought already), or null when downloads are open
+ * anyway (a term pass, test mode). Never throws; a lookup that fails just leaves the button plain.
+ */
+export async function downloadNote(
+  userId: string,
+  exportHref: string,
+): Promise<string | null> {
+  const ref = parseDocRef(
+    new URLSearchParams(exportHref.slice(exportHref.indexOf("?") + 1)),
+  );
+  if (!ref) return null;
+  try {
+    const state = await downloadAccess(userId, ref);
+    if (state.open) return state.unlocked ? "Paid" : null;
+    return state.freeLeft ? "Free" : `KES ${state.price}`;
+  } catch {
+    return null;
+  }
 }

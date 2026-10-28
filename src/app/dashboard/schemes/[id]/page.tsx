@@ -24,6 +24,7 @@ import { auth } from "@/lib/auth";
 import { classHref } from "@/lib/classes";
 import { db, withDbRetry } from "@/lib/db";
 import { docMeta } from "@/lib/documents";
+import { downloadNote } from "@/lib/downloads";
 import {
   formatDay,
   formatRange,
@@ -64,6 +65,11 @@ export default async function SchemeDetailPage({
   if (!session?.userId) redirect("/login");
 
   const { id } = await params;
+  // What a download costs, looked up alongside the page's own queries.
+  const download = downloadNote(
+    session.userId,
+    `/api/export?type=scheme&id=${id}`,
+  );
   const scheme = await withDbRetry(() =>
     db.schemeOfWork.findFirst({
       where: { id, teacherId: session.userId },
@@ -168,6 +174,7 @@ export default async function SchemeDetailPage({
                 lessons: scheme.lessonPlans.length,
               }}
               exportHref={`/api/export?type=scheme&id=${scheme.id}`}
+              downloadNote={await download}
               pdfInMenu
               deleteNote="Its lesson plans are kept. Its record of work (lessons marked as taught) is deleted too."
             />

@@ -32,6 +32,7 @@ import {
   getIndexedCurricula,
 } from "@/lib/curriculum-options";
 import { db, withDbRetry } from "@/lib/db";
+import { downloadNote } from "@/lib/downloads";
 import { type Filing, filingLabel, filingOf, filingOn } from "@/lib/filing";
 import { todayInKenya } from "@/lib/term-pack";
 import { getTeacherTerms } from "@/lib/term-pack-data";
@@ -242,6 +243,12 @@ export default async function ClassPage({
             <ExportButton
               href={`/api/export?${new URLSearchParams({ type: "term", grade, subject, term: selected })}`}
               label="Download term file"
+              note={
+                await downloadNote(
+                  teacherId,
+                  `/api/export?${new URLSearchParams({ type: "term", grade, subject, term: selected })}`,
+                )
+              }
             />
             <p className="text-xs text-muted-foreground">
               Your scheme, record of work, lesson plans, notes and assessments

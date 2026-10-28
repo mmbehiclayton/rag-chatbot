@@ -23,6 +23,7 @@ import { auth } from "@/lib/auth";
 import { classHref } from "@/lib/classes";
 import { db, withDbRetry } from "@/lib/db";
 import { docMeta } from "@/lib/documents";
+import { downloadNote } from "@/lib/downloads";
 import { todayInKenya } from "@/lib/term-pack";
 
 type Question = {
@@ -58,6 +59,11 @@ export default async function AssessmentDetailPage({
   if (!session?.userId) redirect("/login");
 
   const { id } = await params;
+  // What a download costs, looked up alongside the page's own queries.
+  const download = downloadNote(
+    session.userId,
+    `/api/export?type=assessment&id=${id}`,
+  );
   const assessment = await withDbRetry(() =>
     db.assessment.findFirst({
       where: { id, teacherId: session.userId },
@@ -123,6 +129,7 @@ export default async function AssessmentDetailPage({
             <ExportButton
               main
               href={`/api/export?type=assessment&id=${assessment.id}`}
+              note={await download}
             />
             <DocMoreMenu
               type="assessments"
@@ -133,6 +140,7 @@ export default async function AssessmentDetailPage({
                 thisYear: Number(todayInKenya().slice(0, 4)),
               }}
               exportHref={`/api/export?type=assessment&id=${assessment.id}`}
+              downloadNote={await download}
               links={
                 assessment.scheme
                   ? [

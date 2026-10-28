@@ -23,6 +23,7 @@ import { auth } from "@/lib/auth";
 import { classHref } from "@/lib/classes";
 import { db, withDbRetry } from "@/lib/db";
 import { docMeta } from "@/lib/documents";
+import { downloadNote } from "@/lib/downloads";
 import { todayInKenya } from "@/lib/term-pack";
 
 /** "Name: how" pairs, such as core competencies and how the lesson develops them. */
@@ -63,6 +64,11 @@ export default async function LessonDetailPage({
   if (!session?.userId) redirect("/login");
 
   const { id } = await params;
+  // What a download costs, looked up alongside the page's own queries.
+  const download = downloadNote(
+    session.userId,
+    `/api/export?type=lesson&id=${id}`,
+  );
   const lesson = await withDbRetry(() =>
     db.lessonPlan.findFirst({
       where: { id, teacherId: session.userId },
@@ -176,6 +182,7 @@ export default async function LessonDetailPage({
                 thisYear: Number(todayInKenya().slice(0, 4)),
               }}
               exportHref={`/api/export?type=lesson&id=${lesson.id}`}
+              downloadNote={await download}
               pdfInMenu
               links={
                 note
