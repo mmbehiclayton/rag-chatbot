@@ -87,7 +87,6 @@ export function LimitDialog() {
               variant="outline"
               size="lg"
               onClick={close}
-              nativeButton={false}
               render={<Link href="/dashboard/lessons" />}
             >
               <FolderOpen /> My documents
@@ -97,7 +96,6 @@ export function LimitDialog() {
                 ref={main}
                 size="lg"
                 onClick={close}
-                nativeButton={false}
                 render={<Link href="/dashboard/profile/plan" />}
               >
                 Get a term pass

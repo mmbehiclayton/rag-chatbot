@@ -22,11 +22,12 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-10 gap-2 px-4 text-sm",
+        // Phones get 44px touch targets; mouse screens keep the tighter size.
+        default: "h-11 gap-2 px-4 text-sm md:h-10",
         xs: "h-7 gap-1 px-3 text-xs",
         sm: "h-11 gap-1.5 px-3 text-sm md:h-9",
         lg: "h-12 gap-2 px-6 text-base",
-        icon: "w-10 h-10",
+        icon: "w-11 h-11 md:w-10 md:h-10",
         "icon-xs": "w-7 h-7",
         "icon-sm": "w-11 h-11 md:w-9 md:h-9",
         "icon-lg": "w-12 h-12",
@@ -43,12 +44,15 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  nativeButton,
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
   return (
     <ButtonPrimitive
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
+      // A button rendered as a link (render={<Link />}) isn't a native <button>.
+      nativeButton={nativeButton ?? !props.render}
       {...props}
     />
   );

@@ -130,7 +130,6 @@ export function DownloadChoices({
             variant="outline"
             size="lg"
             className="w-full sm:w-auto"
-            nativeButton={false}
             render={<Link href="/dashboard/profile/plan" />}
           >
             See the term pass
