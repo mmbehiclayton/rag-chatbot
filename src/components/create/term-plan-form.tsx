@@ -155,12 +155,19 @@ export function TermPlanForm({
       breakWeeks < weeks &&
       lessonsPerWeek >= 1 &&
       lessonsPerWeek <= 10);
-  const ready =
-    !!target.grade &&
-    !!target.subject &&
-    hasCurriculum &&
-    numbersValid &&
-    (!needsTopic || !!topic.trim());
+  // What's still needed, said under the greyed-out button.
+  const missing = !target.grade
+    ? "Choose a grade to continue."
+    : !target.subject
+      ? "Choose a subject to continue."
+      : !hasCurriculum
+        ? "Elimu doesn't have this subject's curriculum design yet."
+        : !numbersValid
+          ? "Check the weeks and lessons per week."
+          : needsTopic && !topic.trim()
+            ? "Type a topic to continue."
+            : null;
+  const ready = !missing;
   const durationMinutes = Number.parseInt(duration, 10);
 
   const submit = () => {
@@ -430,11 +437,25 @@ export function TermPlanForm({
         </CardContent>
       </Card>
 
-      <Button type="submit" size="lg" className="w-full" disabled={!ready}>
+      <Button
+        type="submit"
+        size="lg"
+        className="w-full"
+        disabled={!ready}
+        aria-describedby={missing ? "create-missing" : undefined}
+      >
         {kind === "scheme"
           ? "Create scheme of work"
           : `Create ${kindInfo.label.toLowerCase()}`}
       </Button>
+      {missing && (
+        <p
+          id="create-missing"
+          className="text-center text-sm text-muted-foreground"
+        >
+          {missing}
+        </p>
+      )}
       <p className="text-center text-xs text-muted-foreground">
         Always review AI-generated content before you use it.
       </p>

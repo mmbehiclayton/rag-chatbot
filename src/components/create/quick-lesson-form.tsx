@@ -52,7 +52,15 @@ export function QuickLessonForm({
   const key = `${target.grade}|${target.subject}`;
   const suggestions = topicSuggestions[key] ?? [];
   const hasCurriculum = curricula.includes(key);
-  const ready = !!target.grade && !!target.subject && topic.trim().length > 1;
+  // What's still needed, said under the greyed-out button.
+  const missing = !target.grade
+    ? "Choose a grade to continue."
+    : !target.subject
+      ? "Choose a subject to continue."
+      : topic.trim().length <= 1
+        ? "Type the topic to continue."
+        : null;
+  const ready = !missing;
 
   const submit = () => {
     startTransition(async () => {
@@ -147,9 +155,23 @@ export function QuickLessonForm({
         />
       )}
 
-      <Button type="submit" size="lg" className="w-full" disabled={!ready}>
+      <Button
+        type="submit"
+        size="lg"
+        className="w-full"
+        disabled={!ready}
+        aria-describedby={missing ? "create-missing" : undefined}
+      >
         Create lesson plan
       </Button>
+      {missing && (
+        <p
+          id="create-missing"
+          className="text-center text-sm text-muted-foreground"
+        >
+          {missing}
+        </p>
+      )}
       <p className="text-center text-xs text-muted-foreground">
         Always review AI-generated content before you teach with it.
       </p>
