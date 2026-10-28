@@ -12,7 +12,7 @@ import {
   specTable,
 } from "@/lib/assessment-specs";
 import { auth } from "@/lib/auth";
-import { classLessonWhere } from "@/lib/classes";
+import { classHref, classLessonWhere } from "@/lib/classes";
 import { db } from "@/lib/db";
 import {
   cleanTitle,
@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
         { type, title: htmlTitle(file) },
         "print",
       );
-      return new NextResponse(stampHTML(file, licence), {
+      return new NextResponse(withBar(stampHTML(file, licence), searchParams), {
         headers: { "Content-Type": "text/html; charset=utf-8" },
       });
     }
@@ -171,7 +171,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    return new NextResponse(html, {
+    return new NextResponse(withBar(html, searchParams), {
       headers: { "Content-Type": "text/html; charset=utf-8" },
     });
   } catch (error: unknown) {
@@ -212,7 +212,12 @@ const baseCSS = `
   li { margin: 3px 0; }
   .section { margin-bottom: 20px; }
   .badge { display: inline-block; background: #f3f4f6; color: #111; border: 1px solid #d1d5db; border-radius: 4px; padding: 2px 7px; font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: .04em; margin: 2px 3px 2px 0; }
-  .print-btn { position: fixed; top: 16px; right: 16px; background: #111; color: #fff; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold; z-index: 50; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+  .print-bar { position: sticky; top: 0; z-index: 50; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 12px; background: #fff; border-bottom: 1px solid #d1d5db; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .print-bar a, .print-bar button { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: 6px; font: inherit; font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer; white-space: nowrap; }
+  .bar-back { color: #111; padding-left: 4px !important; }
+  .bar-actions { display: flex; gap: 8px; }
+  .bar-btn { background: #fff; color: #111; border: 1px solid #d1d5db; }
+  .bar-main { background: #076fed; color: #fff; border: 1px solid #076fed; }
   .page-break { page-break-before: always; break-before: page; }
   .doc-detail { font-size: 15px; margin: 8px 0 0; }
   .draft { text-align: right; font-size: 11px; margin: 0 0 6px; }
@@ -234,7 +239,7 @@ const baseCSS = `
   table.scheme td.assess div { font-weight: bold; margin: 3px 0; }
   table.scheme td.assess div::before { content: "\\2713  "; }
 
-  @media print { .print-btn { display: none; } }
+  @media print { .print-bar { display: none; } }
 `;
 
 /** The document's title, as the page gives it, for the download log. */
@@ -245,7 +250,41 @@ function htmlTitle(html: string) {
     .replace(/&amp;/g, "&");
 }
 
+// Marks where the bar goes on screen (withBar); the Word file drops it.
 const printScript = `<button class="print-btn" onclick="window.print()">Print / Save PDF</button>`;
+
+/** The document's own page in Elimu, where the print view's Back goes. */
+function docPagePath(params: URLSearchParams) {
+  const id = encodeURIComponent(params.get("id") ?? "");
+  switch (params.get("type")) {
+    case "scheme":
+      return `/dashboard/schemes/${id}`;
+    case "record":
+      return `/dashboard/schemes/${id}/record`;
+    case "lesson":
+      return `/dashboard/lessons/${id}`;
+    case "notes":
+      return `/dashboard/notes/${id}`;
+    case "assessment":
+      return `/dashboard/assessments/${id}`;
+    case "term":
+      return classHref(params.get("grade") ?? "", params.get("subject") ?? "");
+    default:
+      return "/dashboard";
+  }
+}
+
+/**
+ * Swaps the print button for a bar across the top: back to the document in Elimu, the Word file,
+ * and Print. Back returns to the page the teacher came from when there is one, so their place is
+ * kept. Hidden when printing.
+ */
+function withBar(html: string, params: URLSearchParams) {
+  const word = new URLSearchParams(exportQuery(params));
+  word.set("format", "docx");
+  const bar = `<nav class="print-bar" aria-label="Document"><a class="bar-back" href="${esc(docPagePath(params))}" onclick="if(history.length>1&&document.referrer.indexOf(location.origin)===0){history.back();return false}">&larr; Back</a><span class="bar-actions">${params.get("type") === "term" ? "" : `<a class="bar-btn" href="/api/export?${esc(word.toString())}">Word</a>`}<button class="bar-btn bar-main" onclick="window.print()">Print / Save PDF</button></span></nav>`;
+  return html.replace(printScript, bar);
+}
 
 // Renders the body inside a fixed-size "paper" sheet so the on-screen preview
 // matches the printed output exactly, with consistent edge margins on both.

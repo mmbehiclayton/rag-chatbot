@@ -93,7 +93,7 @@ export function ExportButton({
       className={main ? "w-full sm:w-auto" : undefined}
       // The link's own children would replace the icon and label, so it gets none.
       // biome-ignore lint/a11y/useAnchorContent: base-ui renders the button's children into it.
-      render={<a href={href} rel="noopener" target="_blank" />}
+      render={<a href={href} />}
     >
       <Download /> {label}
     </Button>

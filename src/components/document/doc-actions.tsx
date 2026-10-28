@@ -127,7 +127,7 @@ export function DocMoreMenu({
           {pdfInMenu && (
             <DropdownMenuItem
               // biome-ignore lint/a11y/useAnchorContent: base-ui renders the item's children into it.
-              render={<a href={exportHref} rel="noopener" target="_blank" />}
+              render={<a href={exportHref} />}
             >
               <Download /> Download PDF
             </DropdownMenuItem>
