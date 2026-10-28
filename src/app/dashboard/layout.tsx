@@ -8,6 +8,7 @@ import { UserNav } from "@/components/layout/user-nav";
 import { AIOutageBanner } from "@/components/shared/ai-outage-banner";
 import { LimitDialog } from "@/components/shared/limit-dialog";
 import { Logo } from "@/components/shared/logo";
+import { MakingIndicator } from "@/components/shared/making";
 import { OfflineBar } from "@/components/shared/offline-bar";
 import { Button } from "@/components/ui/button";
 import { getAIOutage } from "@/lib/ai-health";
@@ -73,6 +74,7 @@ export default async function DashboardLayout({
             >
               <Sparkles /> Ask
             </Button>
+            <MakingIndicator />
             <UserNav
               role={session.role}
               name={user?.name}

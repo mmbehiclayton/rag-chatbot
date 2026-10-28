@@ -2,9 +2,9 @@
 
 import { NotebookPen } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { showGenerationError } from "@/components/shared/limit-dialog";
+import { makeDocument, useStillHere } from "@/components/shared/making";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { generateLessonNotes } from "@/lib/actions/generation";
@@ -20,31 +20,31 @@ export function CreateNotesButton({
   label?: string;
 }) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setPending] = useState(false);
+  const here = useStillHere();
 
   // There's no room for a message beside the button, so failures get a toast that stays
   // until the teacher closes it, with Try again.
-  const failed = (message: string) =>
+  const failed = ({ message, lost }: { message: string; lost?: boolean }) =>
     toast.error(message, {
       duration: Number.POSITIVE_INFINITY,
       closeButton: true,
-      action: { label: "Try again", onClick: run },
+      action: lost ? undefined : { label: "Try again", onClick: run },
     });
 
-  const run = () =>
-    startTransition(async () => {
-      try {
-        const result = await generateLessonNotes(lessonPlanId);
-        if (!result.ok) return void showGenerationError(result, failed);
-        toast.success("Lesson notes ready");
-        router.push(`/dashboard/notes/${result.id}`);
-      } catch {
-        toast.error(
-          "We lost contact with Elimu. Reload this page in a minute: the notes may still have been made.",
-          { duration: Number.POSITIVE_INFINITY, closeButton: true },
-        );
-      }
+  const run = async () => {
+    setPending(true);
+    await makeDocument({
+      what: "lesson notes",
+      run: () => generateLessonNotes(lessonPlanId),
+      href: (id) => `/dashboard/notes/${id}`,
+      router,
+      here,
+      onError: failed,
+      readyMessage: () => "Your lesson notes are ready",
     });
+    setPending(false);
+  };
 
   return (
     <Button variant={variant} disabled={isPending} onClick={run}>

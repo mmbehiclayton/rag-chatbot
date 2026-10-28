@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { ClassFilter } from "@/components/documents/class-filter";
 import { DOC_NAV } from "@/components/layout/nav-config";
 import { EmptyState } from "@/components/shared/empty-state";
+import { MakingList } from "@/components/shared/making";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -136,6 +137,8 @@ export async function DocumentListPage({
       </nav>
 
       <PageHeader title={config.title} description={config.description} />
+
+      <MakingList />
 
       {classes.length > 1 && (
         <ClassFilter

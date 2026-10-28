@@ -3,8 +3,7 @@
 import { CalendarDays } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
+import { useState } from "react";
 import { GenerationProgress } from "@/components/create/generation-progress";
 import {
   defaultGradeSubject,
@@ -13,8 +12,8 @@ import {
 import { TopicPicker } from "@/components/create/topic-picker";
 import { ChoiceChips } from "@/components/shared/choice-chips";
 import { CurriculumNotice } from "@/components/shared/curriculum-notice";
-import { FormError, LOST_CONTACT } from "@/components/shared/form-error";
-import { showGenerationError } from "@/components/shared/limit-dialog";
+import { FormError } from "@/components/shared/form-error";
+import { makeDocument, useStillHere } from "@/components/shared/making";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -109,7 +108,8 @@ export function TermPlanForm({
   initialAssessmentType?: string;
 }) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setPending] = useState(false);
+  const here = useStillHere();
   const [target, setTarget] = useState(() =>
     defaultGradeSubject(grades, myGrades, mySubjects),
   );
@@ -172,13 +172,18 @@ export function TermPlanForm({
   const ready = !missing;
   const durationMinutes = Number.parseInt(duration, 10);
 
-  const submit = () => {
+  const submit = async () => {
     setError(undefined);
-    const inline = (message: string) => setError({ message });
-    startTransition(async () => {
-      try {
-        if (kind === "scheme") {
-          const result = await generateSchemeOfWork({
+    setPending(true);
+    const common = { router, here, onError: setError };
+    if (kind === "scheme")
+      await makeDocument({
+        ...common,
+        what: "scheme of work",
+        detail: `${target.grade} ${target.subject} · ${term}`,
+        href: (id) => `/dashboard/schemes/${id}`,
+        run: () =>
+          generateSchemeOfWork({
             ...target,
             term,
             durationMinutes,
@@ -192,12 +197,16 @@ export function TermPlanForm({
                   totalLessons: fromCalendar.lessons[classKey],
                 }
               : { weeks, holidays: breakWeeks, lessonsPerWeek }),
-          });
-          if (!result.ok) return void showGenerationError(result, inline);
-          toast.success("Scheme of work ready");
-          router.push(`/dashboard/schemes/${result.id}`);
-        } else {
-          const result = await generateAssessment({
+          }),
+      });
+    else
+      await makeDocument({
+        ...common,
+        what: kindInfo.label.toLowerCase(),
+        detail: `${target.grade} ${target.subject} · ${needsTopic ? topic : term}`,
+        href: (id) => `/dashboard/assessments/${id}`,
+        run: () =>
+          generateAssessment({
             ...target,
             term,
             type: `${assessmentType} assessment`,
@@ -208,16 +217,9 @@ export function TermPlanForm({
             durationMinutes: assessmentKind === "quiz" ? 20 : 60,
             kind: assessmentKind,
             topic: needsTopic ? topic : undefined,
-          });
-          if (!result.ok) return void showGenerationError(result, inline);
-          toast.success("Assessment ready");
-          router.push(`/dashboard/assessments/${result.id}`);
-        }
-      } catch {
-        // Only reached when the request itself fails, e.g. the connection dropped.
-        setError({ message: LOST_CONTACT, lost: true });
-      }
-    });
+          }),
+      });
+    setPending(false);
   };
 
   if (isPending) {
@@ -231,8 +233,8 @@ export function TermPlanForm({
         detail={`${target.grade} ${target.subject} · ${needsTopic ? topic : term}`}
         estimate={
           kind === "scheme"
-            ? "A full term takes 1 to 2 minutes. Please keep this page open."
-            : "This usually takes under a minute. Please keep this page open."
+            ? "A full term takes 1 to 2 minutes. You can leave this page: we'll tell you when it's ready."
+            : "This usually takes under a minute. You can leave this page: we'll tell you when it's ready."
         }
       />
     );

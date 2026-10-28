@@ -60,60 +60,59 @@ export function WeekLessons({
       ]),
     ),
   );
-  const [busy, startTransition] = useTransition();
+  // Plain state, not a transition: React holds navigations until an async transition ends,
+  // and the teacher should be able to leave while the lessons are written.
+  const [busy, setBusy] = useState(false);
 
-  const run = (targets: RowLesson[]) =>
-    new Promise<void>((resolve) =>
-      startTransition(async () => {
-        let failed = 0;
-        let limited = false;
-        for (const row of targets) {
-          setStates((s) => ({
-            ...s,
-            [row.lessonNumber]: { status: "running" },
-          }));
-          const result = await generateLessonPlan(
-            schemeId,
-            row.lessonNumber,
-            row.topic,
-          ).catch(() => ({
-            ok: false as const,
-            error:
-              "We couldn't reach Elimu. Check your connection and try again.",
-          }));
-          if (result.ok) {
-            setStates((s) => ({
-              ...s,
-              [row.lessonNumber]: { status: "done", lessonId: result.id },
-            }));
-          } else {
-            failed++;
-            setStates((s) => ({
-              ...s,
-              [row.lessonNumber]: { status: "failed", error: result.error },
-            }));
-            // Stop early on limits that would fail every remaining lesson too.
-            if ("limit" in result && result.limit) {
-              limited = true;
-              showGenerationError(result);
-              break;
-            }
-            if (/last hour/i.test(result.error)) {
-              toast.error(result.error);
-              break;
-            }
-          }
+  const run = async (targets: RowLesson[]) => {
+    setBusy(true);
+    let failed = 0;
+    let limited = false;
+    for (const row of targets) {
+      setStates((s) => ({
+        ...s,
+        [row.lessonNumber]: { status: "running" },
+      }));
+      const result = await generateLessonPlan(
+        schemeId,
+        row.lessonNumber,
+        row.topic,
+      ).catch(() => ({
+        ok: false as const,
+        error: "We couldn't reach Elimu. Check your connection and try again.",
+      }));
+      if (result.ok) {
+        setStates((s) => ({
+          ...s,
+          [row.lessonNumber]: { status: "done", lessonId: result.id },
+        }));
+      } else {
+        failed++;
+        setStates((s) => ({
+          ...s,
+          [row.lessonNumber]: { status: "failed", error: result.error },
+        }));
+        // Stop early on limits that would fail every remaining lesson too.
+        if ("limit" in result && result.limit) {
+          limited = true;
+          showGenerationError(result);
+          break;
         }
-        if (failed && !limited)
-          toast.error(
-            `${failed} lesson plan${failed === 1 ? "" : "s"} could not be created. Tap Retry to try again.`,
-          );
-        else if (targets.length > 1)
-          toast.success(`${targets.length} lesson plans ready`);
-        router.refresh();
-        resolve();
-      }),
-    );
+        if (/last hour/i.test(result.error)) {
+          toast.error(result.error);
+          break;
+        }
+      }
+    }
+    if (failed && !limited)
+      toast.error(
+        `${failed} lesson plan${failed === 1 ? "" : "s"} could not be created. Tap Retry to try again.`,
+      );
+    else if (targets.length > 1)
+      toast.success(`${targets.length} lesson plans ready`);
+    router.refresh();
+    setBusy(false);
+  };
 
   return <Week value={{ states, run, busy }}>{children}</Week>;
 }
