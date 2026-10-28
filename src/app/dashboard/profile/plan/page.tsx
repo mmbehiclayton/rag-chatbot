@@ -1,18 +1,14 @@
 import { ArrowLeft, Check, Clock, Info } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { WaysToUse } from "@/components/download/ways-to-use";
 import { CheckoutButton } from "@/components/pilot/checkout-button";
 import { PaymentForm } from "@/components/pilot/payment-form";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { allowances } from "@/lib/allowance";
 import { auth } from "@/lib/auth";
-import { DOC_LABELS } from "@/lib/documents";
-import {
-  DOWNLOAD_KINDS,
-  downloadPrices,
-  freeDownloadUsed,
-} from "@/lib/downloads";
+import { downloadPrices, freeDownloadUsed } from "@/lib/downloads";
 import { paystackOn } from "@/lib/paystack";
 import { getAccess, paybill } from "@/lib/plans";
 
@@ -152,58 +148,11 @@ export default async function TermPassPage({
           )}
         </section>
       )}
-      <section className="space-y-2">
-        <h2 className="text-base font-semibold">Ways to use Elimu</h2>
-        <ul className="divide-y rounded-xl border bg-card text-sm">
-          <li className="space-y-1 px-4 py-3">
-            <PlanRow name="Free" price="KES 0" />
-            <p className="text-muted-foreground">
-              Make up to {limits.free} documents a month for any class and read
-              them in full here. Your first download is free.
-            </p>
-          </li>
-          <li className="space-y-1 px-4 py-3">
-            <PlanRow
-              name="Pay per download"
-              price={`from KES ${Math.min(...Object.values(prices))}`}
-            />
-            <p className="text-muted-foreground">
-              Paid once for each document, then download and print it as often
-              as you like, as PDF or Word.
-            </p>
-            <ul className="mt-2 grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
-              {DOWNLOAD_KINDS.map((kind) => (
-                <li key={kind} className="flex justify-between gap-3">
-                  <span className="text-muted-foreground">
-                    {DOC_LABELS[kind]}
-                  </span>
-                  <span className="font-medium whitespace-nowrap tabular-nums">
-                    KES {prices[kind]}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </li>
-          <li className="space-y-1 px-4 py-3">
-            <PlanRow name="Term pass" price={`KES ${price}`} />
-            <p className="text-muted-foreground">
-              Every download for all your classes for the whole of {term.label},
-              and up to {limits.paid} new documents a month.
-            </p>
-          </li>
-        </ul>
-      </section>
+      <WaysToUse
+        limits={limits}
+        prices={prices}
+        pass={{ price, term: term.label }}
+      />
     </div>
-  );
-}
-
-function PlanRow({ name, price }: { name: string; price: string }) {
-  return (
-    <p className="flex items-baseline justify-between gap-3">
-      <span className="font-medium">{name}</span>
-      <span className="font-semibold whitespace-nowrap tabular-nums">
-        {price}
-      </span>
-    </p>
   );
 }

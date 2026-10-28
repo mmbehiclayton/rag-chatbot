@@ -2,7 +2,7 @@
 
 import { FolderOpen, Ticket } from "lucide-react";
 import Link from "next/link";
-import { useSyncExternalStore } from "react";
+import { useRef, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,20 +46,21 @@ export function LimitDialog() {
     () => null,
   );
   const close = () => setLimit(null);
+  // Focus the main action when it opens, not the first button in the page order.
+  const main = useRef<HTMLButtonElement>(null);
 
   return (
     <Dialog open={!!info} onOpenChange={(open) => !open && close()}>
       {info && (
-        <DialogContent className="text-sm">
+        <DialogContent className="text-sm" initialFocus={main}>
           <DialogHeader>
             <DialogTitle className="pr-8 text-base font-semibold">
-              You've made this month's {info.limit} documents
+              No documents left this month
             </DialogTitle>
             <DialogDescription className="text-sm">
-              Your {info.pass ? "free plan" : "term pass"} makes {info.limit}{" "}
-              documents a month. You can make more from {info.resetsOn}.
-              Everything you've already made still opens, and you can still edit
-              it.
+              You've made your {info.limit} for this month. You can make more
+              from {info.resetsOn}. Everything you've already made still opens,
+              and you can edit it.
             </DialogDescription>
           </DialogHeader>
 
@@ -86,20 +87,23 @@ export function LimitDialog() {
               variant="outline"
               size="lg"
               onClick={close}
+              nativeButton={false}
               render={<Link href="/dashboard/lessons" />}
             >
               <FolderOpen /> My documents
             </Button>
             {info.pass ? (
               <Button
+                ref={main}
                 size="lg"
                 onClick={close}
+                nativeButton={false}
                 render={<Link href="/dashboard/profile/plan" />}
               >
                 Get a term pass
               </Button>
             ) : (
-              <Button size="lg" onClick={close}>
+              <Button ref={main} size="lg" onClick={close}>
                 OK
               </Button>
             )}
