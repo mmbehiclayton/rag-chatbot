@@ -179,7 +179,7 @@ export async function startCheckout(): Promise<
   }
 }
 
-/** Test mode on: everything is free. Off: teachers need a trial, their free class or a term pass. */
+/** Test mode on: everything is free. Off: downloads need the free one, a paid document or a term pass. */
 export async function setTestMode(input: { on: boolean }): Promise<Result> {
   const session = await auth();
   if (!session?.userId || session.role !== "SUPERADMIN")
@@ -231,7 +231,7 @@ export async function setAllowances(
   const session = await auth();
   if (!session?.userId || session.role !== "SUPERADMIN")
     return { success: false, error: "Only Elimu staff can do this." };
-  const plans: AllowancePlan[] = ["trial", "free", "paid"];
+  const plans: AllowancePlan[] = ["free", "paid"];
   const value: Partial<Record<AllowancePlan, number>> = {};
   for (const plan of plans) {
     const n = Math.round(Number(input[plan]));

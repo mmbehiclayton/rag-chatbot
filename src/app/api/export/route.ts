@@ -23,16 +23,11 @@ import {
   docName,
   teacherContext,
 } from "@/lib/documents";
+import { downloadAccess, exportQuery, parseDocRef } from "@/lib/downloads";
 import { DOCX_TYPE, htmlToDocx } from "@/lib/export-docx";
 import { filingLabel, filingOf } from "@/lib/filing";
 import { licenceFor, stampHTML } from "@/lib/licence";
-import {
-  type ClassRef,
-  coversClass,
-  freePlanMessage,
-  getAccess,
-  plansOn,
-} from "@/lib/plans";
+import { siteUrl } from "@/lib/site-url";
 import {
   formatDay,
   formatRange,
@@ -58,16 +53,12 @@ export async function GET(req: NextRequest) {
   if (!type) return new NextResponse("Missing params", { status: 400 });
 
   let html = "";
-  // The class the document belongs to, checked against the teacher's plan before it is sent.
-  let cls: ClassRef | null = null;
 
   try {
     if (type === "term") {
       const term = searchParams.get("term");
       if (!grade || !subject || !term)
         return new NextResponse("Missing params", { status: 400 });
-      const denied = await accessDenied(session.userId, { grade, subject });
-      if (denied) return denied;
       const file = await buildTermFileHTML(
         session.userId,
         grade,
@@ -75,6 +66,8 @@ export async function GET(req: NextRequest) {
         term,
       );
       if (!file) return new NextResponse("Not found", { status: 404 });
+      const locked = await lockedRedirect(session.userId, searchParams);
+      if (locked) return locked;
       const licence = await licenceFor(
         session.userId,
         { type, title: htmlTitle(file) },
@@ -93,7 +86,6 @@ export async function GET(req: NextRequest) {
         include: TEACHER_INCLUDE,
       });
       if (!scheme) return new NextResponse("Not found", { status: 404 });
-      cls = scheme;
       const schedule = await getSchemeSchedule(scheme);
       const weekDates = new Map(
         schedule.weeks.map((w) => [w.number, formatRange(w.from, w.to)]),
@@ -105,7 +97,6 @@ export async function GET(req: NextRequest) {
         include: TEACHER_INCLUDE,
       });
       if (!scheme) return new NextResponse("Not found", { status: 404 });
-      cls = scheme;
       html = buildRecordHTML(
         scheme,
         await getSchemeSchedule(
@@ -119,10 +110,6 @@ export async function GET(req: NextRequest) {
         include: LESSON_EXPORT_INCLUDE,
       });
       if (!lesson) return new NextResponse("Not found", { status: 404 });
-      cls = {
-        grade: lesson.grade ?? lesson.scheme?.grade ?? "",
-        subject: lesson.subject ?? lesson.scheme?.subject ?? "",
-      };
       html = buildLessonHTML(lesson);
     } else if (type === "assessment") {
       const assessment = await db.assessment.findFirst({
@@ -130,7 +117,6 @@ export async function GET(req: NextRequest) {
         include: TEACHER_INCLUDE,
       });
       if (!assessment) return new NextResponse("Not found", { status: 404 });
-      cls = assessment;
       html = buildAssessmentHTML(assessment);
     } else if (type === "notes") {
       const note = await db.lessonNote.findFirst({
@@ -153,18 +139,13 @@ export async function GET(req: NextRequest) {
         },
       });
       if (!note) return new NextResponse("Not found", { status: 404 });
-      cls = {
-        grade: note.lessonPlan?.grade ?? note.lessonPlan?.scheme?.grade ?? "",
-        subject:
-          note.lessonPlan?.subject ?? note.lessonPlan?.scheme?.subject ?? "",
-      };
       html = buildNotesHTML(note);
     } else {
       return new NextResponse("Invalid type", { status: 400 });
     }
 
-    const denied = cls && (await accessDenied(session.userId, cls));
-    if (denied) return denied;
+    const locked = await lockedRedirect(session.userId, searchParams);
+    if (locked) return locked;
 
     const docx = searchParams.get("format") === "docx";
     const licence = await licenceFor(
@@ -199,20 +180,13 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** The "term pass needed" page when the teacher's plan doesn't cover the class, else null. */
-async function accessDenied(userId: string, cls: ClassRef) {
-  if (!(await plansOn())) return null;
-  const access = await getAccess(userId);
-  if (coversClass(access, cls)) return null;
-  return new NextResponse(
-    wrap(
-      "Term pass needed",
-      `<h1>Term pass needed</h1><p>${esc(freePlanMessage(access))}</p>`,
-    ),
-    {
-      status: 402,
-      headers: { "Content-Type": "text/html; charset=utf-8" },
-    },
+/** Sends the teacher to the download page when this document still needs paying for, else null. */
+async function lockedRedirect(userId: string, params: URLSearchParams) {
+  const ref = parseDocRef(params);
+  if (!ref || (await downloadAccess(userId, ref)).open) return null;
+  return NextResponse.redirect(
+    new URL(`/dashboard/download?${exportQuery(params)}`, siteUrl()),
+    303,
   );
 }
 

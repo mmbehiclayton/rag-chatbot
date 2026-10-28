@@ -133,8 +133,10 @@ export function DocMoreMenu({
             </DropdownMenuItem>
           )}
           <DropdownMenuItem
+            // No `download`: the file comes as an attachment anyway, and a document that still needs
+            // paying for opens its download page instead of saving that page as a .docx.
             // biome-ignore lint/a11y/useAnchorContent: base-ui renders the item's children into it.
-            render={<a href={`${exportHref}&format=docx`} download />}
+            render={<a href={`${exportHref}&format=docx`} />}
           >
             <FileText /> Download Word
           </DropdownMenuItem>

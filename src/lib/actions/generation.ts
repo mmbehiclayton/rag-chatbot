@@ -31,13 +31,7 @@ import {
   type LessonPart,
 } from "@/lib/improve-parts";
 import { getTrialModel } from "@/lib/model-trial";
-import {
-  type ClassRef,
-  coversClass,
-  freePlanMessage,
-  getAccess,
-  plansOn,
-} from "@/lib/plans";
+import { getAccess } from "@/lib/plans";
 import { retrieveContext } from "@/lib/rag";
 import { DOCS_PER_HOUR, overLimit } from "@/lib/rate-limit";
 import {
@@ -156,17 +150,14 @@ ${JSON.stringify(after)}`
 
 // ─── Shared Guards ────────────────────────────────────────────────────────────
 
-async function checkGenerationGuards(
-  session: { userId: string; tenantId?: string | null; role?: string | null },
-  cls: ClassRef,
-) {
-  // 0. Plan: the free plan covers one class
+async function checkGenerationGuards(session: {
+  userId: string;
+  tenantId?: string | null;
+  role?: string | null;
+}) {
+  // 0. The teacher's monthly allowance of documents. Any class: downloads are what's paid for.
   const access =
     session.role === "TEACHER" ? await getAccess(session.userId) : undefined;
-  if (access && (await plansOn()) && !coversClass(access, cls))
-    throw new TeacherError(freePlanMessage(access));
-
-  // 0b. The teacher's monthly allowance of documents
   const allowance = await getAllowance(session.userId, session.role, access);
   if (allowance && allowance.used >= allowance.limit)
     throw new TeacherError(allowanceMessage(allowance));
@@ -649,7 +640,7 @@ async function generateSchemeOfWorkImpl(
       missingCurriculum(parameters.grade, parameters.subject),
     );
 
-  await checkGenerationGuards(session, parameters);
+  await checkGenerationGuards(session);
 
   const customRule = await db.generationRule.findUnique({
     where: { contentType: "SCHEME_OF_WORK" },
@@ -871,7 +862,7 @@ async function generateLessonPlanImpl(
     }
   }
 
-  await checkGenerationGuards(session, scheme);
+  await checkGenerationGuards(session);
 
   const schemeMap = await getPublishedMap(scheme.grade, scheme.subject);
   const customRule = await db.generationRule.findUnique({
@@ -980,7 +971,7 @@ async function generateQuickLessonPlanImpl(parameters: {
     }
   }
 
-  await checkGenerationGuards(session, parameters);
+  await checkGenerationGuards(session);
 
   const quickMap = await getPublishedMap(parameters.grade, parameters.subject);
   const contextText = quickMap
@@ -1106,10 +1097,7 @@ async function generateLessonNotesImpl(lessonPlanId: string) {
     return copy;
   }
 
-  await checkGenerationGuards(session, {
-    grade: lessonPlan.grade ?? lessonPlan.scheme?.grade ?? "",
-    subject: lessonPlan.subject ?? lessonPlan.scheme?.subject ?? "",
-  });
+  await checkGenerationGuards(session);
 
   const customRule = await db.generationRule.findUnique({
     where: { contentType: "LESSON_NOTES" },
@@ -1279,7 +1267,7 @@ async function generateAssessmentImpl(parameters: {
       missingCurriculum(parameters.grade, parameters.subject),
     );
 
-  await checkGenerationGuards(session, parameters);
+  await checkGenerationGuards(session);
 
   // One sub-strand: the map's entry for it in full, rather than the whole term.
   const topicMap =
@@ -1601,7 +1589,7 @@ async function improveImpl(input: {
     if (!plan) throw new TeacherError("We couldn't find that lesson plan.");
     const grade = plan.grade ?? plan.scheme?.grade ?? "";
     const subject = plan.subject ?? plan.scheme?.subject ?? "";
-    await checkGenerationGuards(session, { grade, subject });
+    await checkGenerationGuards(session);
 
     const map = grade && subject ? await getPublishedMap(grade, subject) : null;
     const subStrand =
@@ -1670,10 +1658,7 @@ ${map ? `\n${MAP_RULES}\n\nCURRICULUM MAP FOR THIS LESSON:\n${lessonGrounding(ma
       },
     });
     if (!note) throw new TeacherError("We couldn't find those lesson notes.");
-    await checkGenerationGuards(session, {
-      grade: note.lessonPlan.grade ?? note.lessonPlan.scheme?.grade ?? "",
-      subject: note.lessonPlan.subject ?? note.lessonPlan.scheme?.subject ?? "",
-    });
+    await checkGenerationGuards(session);
 
     const result = await generateObject({
       model: aiModel("write"),
@@ -1713,7 +1698,7 @@ ${JSON.stringify(note.resources)}`,
     );
     if (!grounding)
       throw new TeacherError(missingCurriculum(scheme.grade, scheme.subject));
-    await checkGenerationGuards(session, scheme);
+    await checkGenerationGuards(session);
 
     const current = scheme.content as WrittenScheme;
     const written = await writeScheme(

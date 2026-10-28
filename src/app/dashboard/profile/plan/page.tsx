@@ -5,17 +5,16 @@ import { CheckoutButton } from "@/components/pilot/checkout-button";
 import { PaymentForm } from "@/components/pilot/payment-form";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent } from "@/components/ui/card";
+import { allowances } from "@/lib/allowance";
 import { auth } from "@/lib/auth";
+import { DOC_LABELS } from "@/lib/documents";
+import {
+  DOWNLOAD_KINDS,
+  downloadPrices,
+  freeDownloadUsed,
+} from "@/lib/downloads";
 import { paystackOn } from "@/lib/paystack";
 import { getAccess, paybill } from "@/lib/plans";
-
-const dateLabel = (d: Date) =>
-  d.toLocaleDateString("en-KE", {
-    timeZone: "Africa/Nairobi",
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
 
 export default async function TermPassPage({
   searchParams,
@@ -26,7 +25,12 @@ export default async function TermPassPage({
   if (!session?.userId) redirect("/login");
 
   const { payment } = await searchParams;
-  const access = await getAccess(session.userId);
+  const [access, prices, limits, freeUsed] = await Promise.all([
+    getAccess(session.userId),
+    downloadPrices(),
+    allowances(),
+    freeDownloadUsed(session.userId),
+  ]);
   const { term, pass } = access;
   const { price } = access;
   const pay = paybill();
@@ -34,15 +38,12 @@ export default async function TermPassPage({
   // A Paystack pass waits as PENDING only until checkout finishes, so only typed M-Pesa codes are "being checked".
   const pending = pass?.status === "PENDING" && pass.method === "MPESA_CODE";
 
-  const trialEndsOn = access.trialEndsOn ? access.trialEndsOn : null;
   const status =
     access.kind === "paid"
-      ? `Your term pass for ${term.label} is active. Every class is open.`
-      : access.kind === "trial" && trialEndsOn
-        ? `Free trial: every class is open until ${dateLabel(trialEndsOn)}.`
-        : access.kind === "free"
-          ? `Free plan: ${access.freeClass ? `${access.freeClass.grade} ${access.freeClass.subject}` : "one class of your choice"}, with the full term plan and printing.`
-          : "Elimu is free for now. Term passes start with the pilot term.";
+      ? `Your term pass for ${term.label} is active. Every download is open.`
+      : access.kind === "free"
+        ? `You're on the free plan. ${freeUsed ? "You've used your free download, so" : "Your first download is free. After that,"} each document is paid for once when you download it, or a term pass opens them all.`
+        : "Elimu is free for now. Term passes start with the pilot term.";
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -55,7 +56,7 @@ export default async function TermPassPage({
         </Link>
         <PageHeader
           title="Term pass"
-          description={`KES ${price} for ${term.label}: schemes, lesson plans, records of work and assessments for all your classes.`}
+          description={`KES ${price} for ${term.label}: download and print every scheme, lesson plan, record of work and assessment for all your classes.`}
         />
       </div>
 
@@ -112,14 +113,34 @@ export default async function TermPassPage({
           <li className="px-4 py-3">
             <p className="font-medium">Free</p>
             <p className="mt-0.5 text-muted-foreground">
-              One class: its scheme of work, lesson plans, record of work and
-              printing.
+              Make up to {limits.free} documents a month for any class and read
+              them in full here. Your first download is free.
             </p>
+          </li>
+          <li className="px-4 py-3">
+            <p className="font-medium">Pay per download</p>
+            <p className="mt-0.5 text-muted-foreground">
+              Paid once for each document, then download and print it as often
+              as you like, as PDF or Word.
+            </p>
+            <ul className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
+              {DOWNLOAD_KINDS.map((kind) => (
+                <li key={kind} className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">
+                    {DOC_LABELS[kind]}
+                  </span>
+                  <span className="font-medium tabular-nums">
+                    KES {prices[kind]}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </li>
           <li className="px-4 py-3">
             <p className="font-medium">Term pass · KES {price}</p>
             <p className="mt-0.5 text-muted-foreground">
-              Every class you teach, for the whole of {term.label}.
+              Every download for all your classes for the whole of {term.label},
+              and up to {limits.paid} new documents a month.
             </p>
           </li>
         </ul>

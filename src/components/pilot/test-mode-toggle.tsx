@@ -17,7 +17,7 @@ const OPTIONS = [
     on: false,
     label: "Payments on: pass required",
     confirm:
-      "Turn payments on? After their 14-day trial, teachers keep one free class and need a term pass for the rest.",
+      "Turn payments on? Teachers keep making documents free, get one free download, then pay per document or buy a term pass.",
   },
 ] as const;
 

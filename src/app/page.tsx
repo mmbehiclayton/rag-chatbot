@@ -19,7 +19,8 @@ import { allowances } from "@/lib/allowance";
 import { auth } from "@/lib/auth";
 import { MAP_STATUS } from "@/lib/curriculum-map";
 import { db, withDbRetry } from "@/lib/db";
-import { plansOn, TRIAL_DAYS, termPrice } from "@/lib/plans";
+import { downloadPrices } from "@/lib/downloads";
+import { plansOn, termPrice } from "@/lib/plans";
 
 const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL;
 
@@ -144,13 +145,15 @@ async function readyGrades() {
 }
 
 export default async function Home() {
-  const [session, paying, price, limits, ready] = await Promise.all([
+  const [session, paying, price, limits, ready, prices] = await Promise.all([
     auth(),
     plansOn(),
     termPrice(),
     allowances(),
     readyGrades(),
+    downloadPrices(),
   ]);
+  const cheapest = Math.min(...Object.values(prices));
   const signedIn = !!session?.userId;
   const shillings = `KES ${price.toLocaleString("en-KE")}`;
 
@@ -174,8 +177,8 @@ export default async function Home() {
     {
       q: "How much does it cost?",
       a: paying
-        ? `It is free to start. For the first ${TRIAL_DAYS} days you can use every class. After that one class stays free, and a term pass for all your classes is ${shillings} a term, paid by M-Pesa.`
-        : "It is free during the pilot, for every class. Later, one class will stay free and a term pass will cover the rest. You don't need a card or M-Pesa to create an account.",
+        ? `Making documents and reading them in Elimu is free, and your first download is free. After that you pay once for each document you download, from KES ${cheapest} for a lesson plan to KES ${prices.scheme} for a scheme of work, or get a term pass for ${shillings} that opens every download for the term. Pay by M-Pesa.`
+        : "It is free during the pilot, for every class. Later, making documents will stay free and you will pay to download them, per document or with a term pass. You don't need a card or M-Pesa to create an account.",
     },
   ];
 
@@ -428,18 +431,42 @@ export default async function Home() {
             {paying ? (
               <>
                 <p className="mt-2 max-w-2xl text-muted-foreground">
-                  Try every class free for {TRIAL_DAYS} days. Pay only for the
-                  terms you need.
+                  Make documents and read them free, for any class. Pay only for
+                  what you download.
                 </p>
-                <ul className="mt-6 grid gap-4 sm:grid-cols-2">
+                <ul className="mt-6 grid gap-4 sm:grid-cols-3">
                   <li className="space-y-3 rounded-xl border bg-background p-5">
                     <h3 className="font-semibold">Free</h3>
                     <p className="text-2xl font-semibold">KES 0</p>
                     <ul className="space-y-2 text-sm">
                       {[
-                        `Every class for the first ${TRIAL_DAYS} days`,
-                        "Then one class, free for as long as you like",
+                        "Make documents for any class",
                         `Up to ${limits.free} documents a month`,
+                        "Your first download free",
+                      ].map((t) => (
+                        <li key={t} className="flex gap-2">
+                          <Check
+                            className="mt-0.5 size-4 shrink-0 text-success"
+                            aria-hidden
+                          />
+                          {t}
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                  <li className="space-y-3 rounded-xl border bg-background p-5">
+                    <h3 className="font-semibold">Per download</h3>
+                    <p className="text-2xl font-semibold">
+                      <span className="text-sm font-normal text-muted-foreground">
+                        from
+                      </span>{" "}
+                      KES {cheapest}
+                    </p>
+                    <ul className="space-y-2 text-sm">
+                      {[
+                        `Lesson plan KES ${prices.lesson}, assessment KES ${prices.assessment}`,
+                        `Scheme of work KES ${prices.scheme}`,
+                        "Pay once, download and print as often as you like",
                       ].map((t) => (
                         <li key={t} className="flex gap-2">
                           <Check
@@ -464,7 +491,7 @@ export default async function Home() {
                     </p>
                     <ul className="space-y-2 text-sm">
                       {[
-                        "All your classes",
+                        "Every download, all your classes",
                         `Up to ${limits.paid} documents a month`,
                         "Pay by M-Pesa, no card needed",
                       ].map((t) => (
@@ -482,8 +509,9 @@ export default async function Home() {
               </>
             ) : (
               <p className="mt-2 max-w-2xl text-muted-foreground">
-                Elimu is free for every class during the pilot. Later, one class
-                will stay free and a term pass will cover the rest.
+                Elimu is free for every class during the pilot. Later, making
+                documents will stay free and you will pay to download them, per
+                document or with a term pass.
               </p>
             )}
           </div>

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AllowanceForm } from "@/components/pilot/allowance-form";
 import { CommissionForm } from "@/components/pilot/commission-form";
 import { CommissionPayout } from "@/components/pilot/commission-payout";
+import { DownloadPriceForm } from "@/components/pilot/download-price-form";
 import { DownloadTrace } from "@/components/pilot/download-trace";
 import { PaymentReview } from "@/components/pilot/payment-review";
 import { PilotReadiness } from "@/components/pilot/pilot-readiness";
@@ -12,9 +13,15 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { calendarTerms, getAcademicCalendar } from "@/lib/academic-calendar";
-import { ALLOWANCE_LIMITS, allowances, TOKENS_PER_DOC } from "@/lib/allowance";
+import {
+  ALLOWANCE_LIMITS,
+  allowances,
+  kenyaMonth,
+  TOKENS_PER_DOC,
+} from "@/lib/allowance";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
+import { DOWNLOAD_PRICE_LIMITS, downloadPrices } from "@/lib/downloads";
 import { PRICE_LIMITS, plansOn, termPrice } from "@/lib/plans";
 import { COMMISSION_LIMITS, commissionPercent } from "@/lib/referrals";
 import {
@@ -151,6 +158,8 @@ export default async function PilotPage() {
     commissions,
     commissionTotals,
     topDownloads,
+    docPrices,
+    sales,
   ] = await Promise.all([
     termPrice(),
     plansOn(),
@@ -194,7 +203,20 @@ export default async function PilotPage() {
         take: 5,
       }),
     ),
+    downloadPrices(),
+    withDbRetry(() =>
+      db.documentUnlock.groupBy({
+        by: ["method"],
+        where: { status: "ACTIVE", paidAt: { gte: kenyaMonth().start } },
+        _count: true,
+        _sum: { amount: true },
+      }),
+    ),
   ]);
+  const sale = (method: string) => {
+    const row = sales.find((r) => r.method === method);
+    return { count: row?._count ?? 0, sum: row?._sum.amount ?? 0 };
+  };
   const downloaders = await withDbRetry(() =>
     db.user.findMany({
       where: { id: { in: topDownloads.map((d) => d.userId) } },
@@ -405,7 +427,7 @@ export default async function PilotPage() {
           <h2 className="text-base font-semibold">Test mode</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {paying
-              ? "Payments are on. New teachers get a 14-day trial, then one free class, and a term pass opens every class."
+              ? "Payments are on. Making documents is free within the monthly allowance. Each teacher's first download is free; after that they pay per document or get a term pass."
               : "Test mode is on. Every teacher can use every class, and nobody is asked to pay."}
           </p>
         </div>
@@ -428,6 +450,26 @@ export default async function PilotPage() {
             price={price}
             min={PRICE_LIMITS.min}
             max={PRICE_LIMITS.max}
+          />
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold">Download prices</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            What a teacher without a term pass pays to download one document,
+            once. Documents already paid for stay open. This month:{" "}
+            {sale("PAYSTACK").count} paid (KES{" "}
+            {sale("PAYSTACK").sum.toLocaleString("en-KE")}),{" "}
+            {sale("FREE").count} free first downloads.
+          </p>
+        </div>
+        <div className="rounded-xl border bg-card p-4">
+          <DownloadPriceForm
+            prices={docPrices}
+            min={DOWNLOAD_PRICE_LIMITS.min}
+            max={DOWNLOAD_PRICE_LIMITS.max}
           />
         </div>
       </section>

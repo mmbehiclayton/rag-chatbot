@@ -762,7 +762,7 @@ Hero Section:
 Headline: "Empowering Kenya's Educators with AI"
 Subheadline: "Create KICD-compliant schemes of work, lesson plans, and
               assessments in minutes, not hours"
-CTA: [Start Free Trial] [Watch Demo]
+CTA: [Start free] [Watch Demo]
 Visual: Kenyan teacher using laptop/tablet, smiling, classroom background
 
 Features Section:

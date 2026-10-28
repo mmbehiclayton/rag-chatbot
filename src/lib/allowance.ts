@@ -7,18 +7,16 @@ import { type Access, getAccess } from "@/lib/plans";
  * document, such as a full scheme of work, counts as one per TOKENS_PER_DOC it used, so the
  * allowance follows what Elimu actually pays. Admins and staff have no allowance.
  */
-export type AllowancePlan = "trial" | "free" | "paid";
+export type AllowancePlan = "free" | "paid";
 export const ALLOWANCE_KEY = "docAllowance";
 export const ALLOWANCE_DEFAULTS: Record<AllowancePlan, number> = {
-  trial: 40,
-  free: 15,
+  free: 10,
   paid: 150,
 };
 export const ALLOWANCE_LIMITS = { min: 1, max: 2000 };
 export const TOKENS_PER_DOC = 25_000;
 
 export const PLAN_LABELS: Record<AllowancePlan, string> = {
-  trial: "free trial",
   free: "free plan",
   paid: "term pass",
 };
@@ -38,7 +36,7 @@ export async function allowances(): Promise<Record<AllowancePlan, number>> {
     const n = Number(parsed[plan]);
     return Number.isInteger(n) && n > 0 ? n : ALLOWANCE_DEFAULTS[plan];
   };
-  return { trial: pick("trial"), free: pick("free"), paid: pick("paid") };
+  return { free: pick("free"), paid: pick("paid") };
 }
 
 /** Midnight on the 1st of this month in Kenya, and the same on the 1st of next month. */
@@ -78,7 +76,7 @@ export type Allowance = {
   used: number;
   /** When the count starts again. */
   resetsOn: Date;
-  /** What a term pass gives, to show free and trial teachers. */
+  /** What a term pass gives, to show free teachers. */
   paidLimit: number;
 };
 
@@ -96,8 +94,7 @@ export async function getAllowance(
     documentsUsed(userId, start),
   ]);
   // In test mode everyone is "unlimited" on plans; they get the term pass allowance.
-  const plan: AllowancePlan =
-    a.kind === "trial" || a.kind === "free" ? a.kind : "paid";
+  const plan: AllowancePlan = a.kind === "free" ? "free" : "paid";
   return {
     plan,
     limit: limits[plan],

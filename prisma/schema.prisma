@@ -86,6 +86,7 @@ model User {
   commissionsEarned ReferralCommission[] @relation("CommissionReferrer")
   commissionsFrom   ReferralCommission[] @relation("CommissionReferred")
   downloads         DownloadLog[]
+  unlocks           DocumentUnlock[]
 
   @@index([tenantId])
   @@index([invitedById])
@@ -703,4 +704,33 @@ model DownloadLog {
 
   @@index([userId, createdAt])
   @@index([createdAt])
+}
+
+/**
+ * A document a teacher may download and print as often as they like: their one free download,
+ * or one they paid for. Teachers with a term pass don't need these. The key names the document
+ * ("scheme:<id>", "record:<id>", "lesson:<id>", "notes:<id>", "assessment:<id>", or
+ * "term:<grade>|<subject>|<term>" for a term file), so edits after paying stay open.
+ */
+model DocumentUnlock {
+  id         String    @id @default(uuid())
+  teacherId  String
+  teacher    User      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  docKey     String
+  docType    String // scheme | record | lesson | assessment | notes | term
+  title      String?
+  method     String // "FREE" | "PAYSTACK"
+  status     String    @default("PENDING") // "PENDING" | "ACTIVE"
+  amount     Int       @default(0)
+  reference  String?   @unique // the latest Paystack reference
+  phone      String?
+  // The /api/export link to send the teacher back to once they have paid.
+  returnPath String?
+  paidAt     DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([teacherId, docKey])
+  @@index([teacherId, method])
+  @@index([status, paidAt])
 }

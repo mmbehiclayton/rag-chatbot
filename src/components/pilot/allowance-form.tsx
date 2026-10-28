@@ -11,8 +11,7 @@ import { setAllowances } from "@/lib/actions/pilot";
 import type { AllowancePlan } from "@/lib/allowance";
 
 const PLANS: { plan: AllowancePlan; label: string }[] = [
-  { plan: "trial", label: "Free trial" },
-  { plan: "free", label: "Free plan" },
+  { plan: "free", label: "Free" },
   { plan: "paid", label: "Term pass" },
 ];
 
