@@ -309,3 +309,32 @@ export function titleForPath(pathname: string) {
     )?.[1] ?? "Home"
   );
 }
+
+/** Every page the menus link to; these are top level and get no back arrow. */
+const TOP_LEVEL = new Set(
+  [
+    ...PRIMARY_NAV,
+    ...DOC_NAV,
+    ...MORE_NAV,
+    ...adminNavGroups("SUPERADMIN").flatMap((g) => g.items),
+  ].map((i) => i.href),
+);
+
+/**
+ * Where "up" goes from a page below the top level, or null on a top-level page: the nearest
+ * menu page or document above it, e.g. a lesson's edit page goes to the lesson, a lesson to
+ * Lesson plans, a new lesson plan to Home.
+ */
+export function parentPath(pathname: string): string | null {
+  if (pathname === "/dashboard" || TOP_LEVEL.has(pathname)) return null;
+  const segments = pathname.split("/");
+  for (let n = segments.length - 1; n > 2; n--) {
+    const up = segments.slice(0, n).join("/");
+    if (
+      TOP_LEVEL.has(up) ||
+      /^\/dashboard\/(schemes|lessons|notes|assessments)\/[^/]+$/.test(up)
+    )
+      return up;
+  }
+  return "/dashboard";
+}

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppSidebar, MobileMenu } from "@/components/layout/app-sidebar";
 import { BottomNav } from "@/components/layout/bottom-nav";
-import { PageTitle } from "@/components/layout/page-title";
+import { BackButton, PageTitle } from "@/components/layout/page-title";
 import { UserNav } from "@/components/layout/user-nav";
 import { AIOutageBanner } from "@/components/shared/ai-outage-banner";
 import { LimitDialog } from "@/components/shared/limit-dialog";
@@ -50,13 +50,18 @@ export default async function DashboardLayout({
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="no-print z-10 flex h-14 shrink-0 items-center justify-between gap-4 border-b bg-card px-4 md:px-6">
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="group/title flex min-w-0 items-center gap-2">
             <MobileMenu
               role={session.role}
               isCurator={user?.isCurator ?? false}
               workspace={workspace}
             />
-            <Logo href="/dashboard" className="md:hidden [&>span]:sr-only" />
+            {/* On a phone the back arrow takes the logo's place. */}
+            <Logo
+              href="/dashboard"
+              className="md:hidden group-has-data-back/title:hidden [&>span]:sr-only"
+            />
+            <BackButton />
             <PageTitle />
           </div>
           <div className="flex shrink-0 items-center gap-2">
