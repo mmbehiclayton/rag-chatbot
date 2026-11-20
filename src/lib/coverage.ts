@@ -210,8 +210,9 @@ export function summarise(
           total,
         )
       : null;
+  // Before term starts, or once the school year is over, a pace would only discourage.
   const pace =
-    expected === null || expected === 0
+    expected === null || expected === 0 || expected >= 100
       ? null
       : percent < expected - PACE_MARGIN
         ? "behind"

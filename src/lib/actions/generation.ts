@@ -5,7 +5,20 @@ import { generateObject } from "ai";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { explainAIError } from "@/lib/ai-errors";
-import { aiModel, modelUsed } from "@/lib/ai-models";
+import {
+  aiModel,
+  modelUsed,
+  onTrialModel,
+  withTrialModel,
+} from "@/lib/ai-models";
+import {
+  allowanceMessage,
+  getAllowance,
+  type LimitInfo,
+  limitInfo,
+} from "@/lib/allowance";
+import type { AssessmentKind } from "@/lib/assessment-kinds";
+import { COGNITIVE_LEVELS } from "@/lib/assessment-specs";
 import { auth } from "@/lib/auth";
 import {
   allSubStrands,
@@ -18,12 +31,12 @@ import {
 import { db } from "@/lib/db";
 import { filingFor, filingOf } from "@/lib/filing";
 import {
-  type ClassRef,
-  coversClass,
-  freePlanMessage,
-  getAccess,
-  plansOn,
-} from "@/lib/plans";
+  isLessonPart,
+  LESSON_PARTS,
+  type LessonPart,
+} from "@/lib/improve-parts";
+import { getTrialModel } from "@/lib/model-trial";
+import { getAccess } from "@/lib/plans";
 import { retrieveContext } from "@/lib/rag";
 import { DOCS_PER_HOUR, overLimit } from "@/lib/rate-limit";
 import {
@@ -43,9 +56,17 @@ import { getTeacherTerms } from "@/lib/term-pack-data";
 // generators return their outcome instead. TeacherError messages are shown as written.
 class TeacherError extends Error {}
 
+// The month's documents are used up. The result carries the details for the dialog that says
+// what the teacher can do next.
+class LimitError extends TeacherError {
+  constructor(readonly limit: LimitInfo) {
+    super(allowanceMessage(limit));
+  }
+}
+
 export type GenerationResult =
   | { ok: true; id: string; reused?: boolean }
-  | { ok: false; error: string };
+  | { ok: false; error: string; limit?: LimitInfo };
 
 function explain(label: string, e: unknown): string {
   return e instanceof TeacherError ? e.message : explainAIError(label, e);
@@ -56,9 +77,16 @@ async function asResult(
   fn: () => Promise<{ id: string; reused?: boolean }>,
 ): Promise<GenerationResult> {
   try {
-    const { id, reused } = await fn();
+    // Staff trying another writing model get it for this whole request.
+    const session = await auth();
+    const trial = session?.userId
+      ? await getTrialModel(session.userId, session.role)
+      : null;
+    const { id, reused } = await withTrialModel(trial, fn);
     return reused ? { ok: true, id, reused } : { ok: true, id };
   } catch (e) {
+    if (e instanceof LimitError)
+      return { ok: false, error: e.message, limit: e.limit };
     return { ok: false, error: explain(label, e) };
   }
 }
@@ -137,16 +165,17 @@ ${JSON.stringify(after)}`
 
 // ─── Shared Guards ────────────────────────────────────────────────────────────
 
-async function checkGenerationGuards(
-  session: { userId: string; tenantId?: string | null },
-  cls: ClassRef,
-) {
-  // 0. Plan: the free plan covers one class
-  if (await plansOn()) {
-    const access = await getAccess(session.userId);
-    if (!coversClass(access, cls))
-      throw new TeacherError(freePlanMessage(access));
-  }
+async function checkGenerationGuards(session: {
+  userId: string;
+  tenantId?: string | null;
+  role?: string | null;
+}) {
+  // 0. The teacher's monthly allowance of documents. Any class: downloads are what's paid for.
+  const access =
+    session.role === "TEACHER" ? await getAccess(session.userId) : undefined;
+  const allowance = await getAllowance(session.userId, session.role, access);
+  if (allowance && allowance.used >= allowance.limit)
+    throw new LimitError(limitInfo(allowance, access));
 
   // 1. Rate limit: 20 documents per teacher per hour
   if (await overLimit(`gen_${session.userId}`, DOCS_PER_HOUR, 60 * 60 * 1000)) {
@@ -448,6 +477,39 @@ const LessonNotesSchema = z.object({
 type SchemeOfWorkContent = z.infer<typeof SchemeOfWorkSchema>;
 type LessonPlanContent = z.infer<typeof LessonPlanSchema>;
 
+const STRUCTURE = LessonPlanSchema.shape.lessonStructure;
+
+/** What Improve writes for each part of a lesson plan. nested parts live under lessonStructure. */
+const PART_SCHEMAS = {
+  introduction: {
+    nested: true,
+    schema: STRUCTURE.pick({ introduction: true }),
+  },
+  steps: { nested: true, schema: STRUCTURE.pick({ mainActivities: true }) },
+  differentiation: {
+    nested: true,
+    schema: STRUCTURE.pick({ differentiation: true }),
+  },
+  conclusion: { nested: true, schema: STRUCTURE.pick({ conclusion: true }) },
+  resources: {
+    nested: false,
+    schema: LessonPlanSchema.pick({
+      learningResources: true,
+      organisationOfLearning: true,
+    }),
+  },
+  assessment: {
+    nested: false,
+    schema: LessonPlanSchema.pick({
+      assessmentRubric: true,
+      extendedActivity: true,
+    }),
+  },
+} satisfies Record<
+  Exclude<LessonPart, "whole">,
+  { nested: boolean; schema: z.ZodObject }
+>;
+
 const CBC_LEVELS = [
   "Exceeding expectations",
   "Meeting expectations",
@@ -471,6 +533,9 @@ const AssessmentSchema = z.object({
             .describe(
               "The specific learning outcome this question tests, as written in the curriculum design",
             ),
+          level: z
+            .enum(COGNITIVE_LEVELS)
+            .describe("The cognitive level this question tests"),
           marks: z.number(),
           modelAnswer: z.string(),
           rubric: z
@@ -537,7 +602,7 @@ async function generateSchemeOfWorkImpl(
         parameters.lessonsPerWeek,
   );
 
-  if (!parameters.forceFresh) {
+  if (!parameters.forceFresh && !onTrialModel()) {
     const candidates = await db.schemeOfWork.findMany({
       where: {
         grade: parameters.grade,
@@ -590,7 +655,7 @@ async function generateSchemeOfWorkImpl(
       missingCurriculum(parameters.grade, parameters.subject),
     );
 
-  await checkGenerationGuards(session, parameters);
+  await checkGenerationGuards(session);
 
   const customRule = await db.generationRule.findUnique({
     where: { contentType: "SCHEME_OF_WORK" },
@@ -726,6 +791,56 @@ export async function deleteAsset(
   return { success: true };
 }
 
+/**
+ * Each lesson's place in a scheme: its sub-strand and outcomes, and how many earlier lessons
+ * share them (the first, second… lesson on the same outcomes). Lessons with the same key teach
+ * the same thing, whichever scheme they come from.
+ */
+function lessonKeys(content: unknown) {
+  const keys = new Map<number, string>();
+  const seen = new Map<string, number>();
+  for (const l of schemeLessons(content)) {
+    if (!l.subStrand.trim()) continue;
+    const base = [l.subStrand, ...l.outcomes].map(plainName).join("|");
+    const nth = seen.get(base) ?? 0;
+    seen.set(base, nth + 1);
+    keys.set(l.lessonNumber, `${base}#${nth}`);
+  }
+  return keys;
+}
+
+/** The best lesson plan another teacher made for the same lesson, from any scheme for this class. */
+async function findSchemeLesson(
+  scheme: { grade: string; subject: string; content: unknown },
+  lessonNumber: number,
+  userId: string,
+) {
+  const want = lessonKeys(scheme.content).get(lessonNumber);
+  if (!want) return null;
+  const others = await db.schemeOfWork.findMany({
+    where: {
+      grade: scheme.grade,
+      subject: scheme.subject,
+      teacherId: { not: userId },
+      lessonPlans: { some: {} },
+    },
+    orderBy: BEST_SCHEME_FIRST,
+    take: 50,
+    select: { id: true, content: true },
+  });
+  const matches = others.flatMap((o) => {
+    for (const [n, key] of lessonKeys(o.content))
+      if (key === want) return [{ schemeId: o.id, lessonNumber: n }];
+    return [];
+  });
+  if (matches.length === 0) return null;
+  return db.lessonPlan.findFirst({
+    where: { teacherId: { not: userId }, OR: matches },
+    orderBy: BEST_FIRST,
+    select: { id: true },
+  });
+}
+
 async function generateLessonPlanImpl(
   schemeId: string,
   lessonNumber: number,
@@ -743,21 +858,10 @@ async function generateLessonPlanImpl(
     (l) => l.lessonNumber === lessonNumber,
   )?.weekNumber;
 
-  // A teacher using a copy of this scheme may already have this lesson: copy theirs, no AI needed.
-  const ready = await db.lessonPlan.findFirst({
-    where: {
-      lessonNumber,
-      teacherId: { not: session.userId },
-      scheme: {
-        grade: scheme.grade,
-        subject: scheme.subject,
-        term: scheme.term,
-        content: { equals: scheme.content as Prisma.InputJsonValue },
-      },
-    },
-    orderBy: BEST_FIRST,
-    select: { id: true },
-  });
+  // Another teacher may already have this lesson in their own scheme: copy theirs, no AI needed.
+  const ready = onTrialModel()
+    ? null
+    : await findSchemeLesson(scheme, lessonNumber, session.userId);
   if (ready) {
     const copy = await copyLessonPlan(ready.id, session, {
       lessonNumber,
@@ -773,7 +877,7 @@ async function generateLessonPlanImpl(
     }
   }
 
-  await checkGenerationGuards(session, scheme);
+  await checkGenerationGuards(session);
 
   const schemeMap = await getPublishedMap(scheme.grade, scheme.subject);
   const customRule = await db.generationRule.findUnique({
@@ -852,19 +956,23 @@ async function generateQuickLessonPlanImpl(parameters: {
     : 40;
 
   // Another teacher already has exactly this lesson: copy theirs, no AI needed.
-  const ready = await db.lessonPlan.findFirst({
-    where: {
-      teacherId: { not: session.userId },
-      durationMinutes,
-      topic: { equals: topic, mode: "insensitive" },
-      OR: [
-        { grade: parameters.grade, subject: parameters.subject },
-        { scheme: { grade: parameters.grade, subject: parameters.subject } },
-      ],
-    },
-    orderBy: BEST_FIRST,
-    select: { id: true },
-  });
+  const ready = onTrialModel()
+    ? null
+    : await db.lessonPlan.findFirst({
+        where: {
+          teacherId: { not: session.userId },
+          durationMinutes,
+          topic: { equals: topic, mode: "insensitive" },
+          OR: [
+            { grade: parameters.grade, subject: parameters.subject },
+            {
+              scheme: { grade: parameters.grade, subject: parameters.subject },
+            },
+          ],
+        },
+        orderBy: BEST_FIRST,
+        select: { id: true },
+      });
   if (ready) {
     const copy = await copyLessonPlan(ready.id, session, {
       grade: parameters.grade,
@@ -878,7 +986,7 @@ async function generateQuickLessonPlanImpl(parameters: {
     }
   }
 
-  await checkGenerationGuards(session, parameters);
+  await checkGenerationGuards(session);
 
   const quickMap = await getPublishedMap(parameters.grade, parameters.subject);
   const contextText = quickMap
@@ -973,7 +1081,7 @@ async function generateLessonNotesImpl(lessonPlanId: string) {
   const grade = lessonPlan.grade ?? lessonPlan.scheme?.grade;
   const subject = lessonPlan.subject ?? lessonPlan.scheme?.subject;
   const readyNotes =
-    grade && subject && lessonPlan.objectives.length > 0
+    grade && subject && lessonPlan.objectives.length > 0 && !onTrialModel()
       ? await db.lessonNote.findFirst({
           where: {
             teacherId: { not: session.userId },
@@ -1004,10 +1112,7 @@ async function generateLessonNotesImpl(lessonPlanId: string) {
     return copy;
   }
 
-  await checkGenerationGuards(session, {
-    grade: lessonPlan.grade ?? lessonPlan.scheme?.grade ?? "",
-    subject: lessonPlan.subject ?? lessonPlan.scheme?.subject ?? "",
-  });
+  await checkGenerationGuards(session);
 
   const customRule = await db.generationRule.findUnique({
     where: { contentType: "LESSON_NOTES" },
@@ -1065,15 +1170,106 @@ ${JSON.stringify(lessonPlan.content)}
   return notes;
 }
 
+const PracticalSchema = z.object({
+  title: z.string(),
+  subStrandsCovered: z.array(z.string()),
+  learningOutcomes: z
+    .array(z.string())
+    .describe(
+      "The specific learning outcomes assessed, as written in the curriculum design",
+    ),
+  task: z
+    .string()
+    .describe(
+      "What learners will do and make, written to the learners in simple English",
+    ),
+  materials: z.array(z.string()).describe("Locally available materials"),
+  steps: z.array(z.string()).describe("Steps for the learners, in order"),
+  teacherNotes: z
+    .string()
+    .describe("How to organise it: groups, time, safety, what to watch for"),
+  rubric: z
+    .array(
+      z.object({
+        criterion: z.string(),
+        learningOutcome: z.string(),
+        exceeding: z.string(),
+        meeting: z.string(),
+        approaching: z.string(),
+        below: z.string(),
+      }),
+    )
+    .describe(
+      "Three to five criteria, each with what a learner does at each level",
+    ),
+});
+
+const ChecklistSchema = z.object({
+  title: z.string(),
+  subStrandsCovered: z.array(z.string()),
+  activity: z
+    .string()
+    .describe("The class activity during which the teacher observes learners"),
+  items: z
+    .array(
+      z.object({
+        indicator: z
+          .string()
+          .describe(
+            "One thing the teacher can see a learner do, in a few words",
+          ),
+        learningOutcome: z.string(),
+      }),
+    )
+    .describe("Four to eight observable indicators"),
+});
+
+/** What each kind of assessment asks of the model, beyond the shared input. */
+function assessmentBrief(
+  kind: AssessmentKind,
+  p: { totalMarks: number; durationMinutes: number },
+) {
+  if (kind === "practical")
+    return `Write a practical or project task with a rubric.
+1. The task assesses the sub-strand's learning outcomes from the curriculum below, named exactly as written.
+2. Learners can do it in class or at home with materials found locally in Kenya. Say what they make or show at the end.
+3. Write the task and steps to the learners in simple English.
+4. Rubric: three to five criteria. For each, say what a learner does at each level: ${CBC_LEVELS.join(", ")}. Each criterion names the learning outcome it assesses.`;
+  if (kind === "checklist")
+    return `Write an observation checklist.
+1. Describe one class activity during which the teacher watches learners.
+2. List four to eight indicators: short, observable actions (e.g. "Measures length in centimetres"), each tied to a learning outcome from the curriculum below, named exactly as written.`;
+  return `Write ${kind === "quiz" ? "a short quiz" : "a formal assessment paper"} and marking scheme.
+1. ${kind === "quiz" ? "Cover the sub-strand's learning outcomes only." : "Cover the term's learning outcomes from the curriculum below."} Tag every question with the specific learning outcome it tests, as written in the design, and list the sub-strands covered.
+2. Tag every question with the cognitive level it tests: ${COGNITIVE_LEVELS.join(", ")}. Spread the marks across the levels to suit the grade, roughly 30% Knowledge, 30% Comprehension, 30% Application and 10% Higher order (more Knowledge and Comprehension in lower grades). Where the learning area calls for it, include a practical or real-life task with a rubric.
+3. Write section instructions to learners in simple English.
+4. Marks add up to exactly ${p.totalMarks}. Give a model answer for every question.${kind === "quiz" ? " Learners finish in about 20 minutes." : ""}
+5. Grading scale: exactly four bands from highest to lowest (${CBC_LEVELS.join(", ")}), each with a mark range out of ${p.totalMarks} and a short description of what a learner at that level can do.`;
+}
+
+const ASSESSMENT_TYPE: Record<Exclude<AssessmentKind, "written">, string> = {
+  quiz: "Quiz",
+  practical: "Practical task",
+  checklist: "Observation checklist",
+};
+
 async function generateAssessmentImpl(parameters: {
   grade: string;
   subject: string;
   term: string;
+  /** "End of term assessment" etc., for written tests. */
   type: string;
   totalMarks: number;
   durationMinutes: number;
+  kind?: AssessmentKind;
+  /** The sub-strand, for every kind but a written test. */
+  topic?: string;
 }) {
   const session = await requireSession();
+  const kind = parameters.kind ?? "written";
+  const topic = parameters.topic?.trim() ?? "";
+  if (kind !== "written" && !topic)
+    throw new TeacherError("Choose the sub-strand to assess.");
 
   const grounding = await termGrounding(
     parameters.grade,
@@ -1086,7 +1282,16 @@ async function generateAssessmentImpl(parameters: {
       missingCurriculum(parameters.grade, parameters.subject),
     );
 
-  await checkGenerationGuards(session, parameters);
+  await checkGenerationGuards(session);
+
+  // One sub-strand: the map's entry for it in full, rather than the whole term.
+  const topicMap =
+    kind !== "written" && grounding.source === "map"
+      ? await getPublishedMap(parameters.grade, parameters.subject)
+      : null;
+  const groundingText = topicMap
+    ? `${MAP_RULES}\n\nCURRICULUM MAP:\n${lessonGrounding(topicMap, topic)}`
+    : groundingBlock(grounding);
 
   const customRule = await db.generationRule.findUnique({
     where: { contentType: "ASSESSMENT" },
@@ -1095,32 +1300,30 @@ async function generateAssessmentImpl(parameters: {
     ? `\n\nCUSTOM PLATFORM GUIDELINES (STRICTLY ENFORCE):\n${customRule.customPrompt}\n`
     : "";
 
-  const systemPrompt = `You are an expert assessment designer following KICD CBC guidelines.
-Generate a formal Assessment Paper and marking scheme.${customRuleText}
+  const type = kind === "written" ? parameters.type : ASSESSMENT_TYPE[kind];
+  const systemPrompt = `You are an expert assessment designer following KICD CBC guidelines.${customRuleText}
 
 INPUT DATA:
 - Grade: ${parameters.grade}
 - Learning area: ${parameters.subject}
 - Term: ${parameters.term}
-- Assessment type: ${parameters.type}
-- Total marks: ${parameters.totalMarks}
-- Time allowed: ${parameters.durationMinutes} minutes
+- Assessment type: ${type}${topic ? `\n- Sub-strand: ${topic}` : ""}${kind === "written" || kind === "quiz" ? `\n- Total marks: ${parameters.totalMarks}` : ""}${kind === "written" ? `\n- Time allowed: ${parameters.durationMinutes} minutes` : ""}
 
-MANDATORY REQUIREMENTS:
-1. Cover the term's learning outcomes from the curriculum below. Tag every question with the specific learning outcome it tests, as written in the design, and list the sub-strands covered.
-2. Mix recall, understanding and application questions suited to the grade. Where the learning area calls for it, include a practical or real-life task with a rubric.
-3. Write section instructions to learners in simple English.
-4. Marks add up to exactly ${parameters.totalMarks}. Give a model answer for every question.
-5. Grading scale: exactly four bands from highest to lowest (${CBC_LEVELS.join(", ")}), each with a mark range out of ${parameters.totalMarks} and a short description of what a learner at that level can do.
+${assessmentBrief(kind, parameters)}
 
-${groundingBlock(grounding)}
+${groundingText}
 `;
 
   const { object, usage } = await generateObject({
     model: aiModel("write"),
-    schema: AssessmentSchema,
+    schema:
+      kind === "practical"
+        ? PracticalSchema
+        : kind === "checklist"
+          ? ChecklistSchema
+          : AssessmentSchema,
     system: systemPrompt,
-    prompt: `Generate the complete assessment paper with marking scheme now.`,
+    prompt: "Write the complete assessment now.",
   });
 
   // File it under the term, beside that term's scheme when the teacher has one.
@@ -1142,8 +1345,8 @@ ${groundingBlock(grounding)}
       title: object.title,
       grade: parameters.grade,
       subject: parameters.subject,
-      type: parameters.type,
-      content: object,
+      type,
+      content: { ...object, kind },
       ...filed,
       schemeId: scheme?.id,
       teacherId: session.userId,
@@ -1379,6 +1582,8 @@ async function improveImpl(input: {
   kind: ImproveKind;
   id: string;
   instruction: string;
+  /** Lesson plans only: change one part instead of the whole plan. */
+  part?: LessonPart;
 }) {
   const session = await requireSession();
   const instruction = (input.instruction ?? "").trim().slice(0, 500);
@@ -1399,30 +1604,56 @@ async function improveImpl(input: {
     if (!plan) throw new TeacherError("We couldn't find that lesson plan.");
     const grade = plan.grade ?? plan.scheme?.grade ?? "";
     const subject = plan.subject ?? plan.scheme?.subject ?? "";
-    await checkGenerationGuards(session, { grade, subject });
+    await checkGenerationGuards(session);
 
     const map = grade && subject ? await getPublishedMap(grade, subject) : null;
     const subStrand =
       (plan.content as { subStrand?: string } | null)?.subStrand || plan.topic;
-    const result = await generateObject({
-      model: aiModel("write"),
-      schema: LessonPlanSchema,
-      system: `${improveIntro("lesson plan")}${await rulesFor(contentType)}
+    const system = `${improveIntro("lesson plan")}${await rulesFor(contentType)}
 
 ${lessonPlanRules(plan.durationMinutes)}
 
 THE TEACHER'S CURRENT LESSON PLAN:
 ${JSON.stringify(plan.content)}
-${map ? `\n${MAP_RULES}\n\nCURRICULUM MAP FOR THIS LESSON:\n${lessonGrounding(map, subStrand)}\n` : ""}`,
-      prompt: `The teacher asked: ${instruction}\n\nWrite the whole lesson plan with this change.`,
-    });
-    usage = result.usage;
+${map ? `\n${MAP_RULES}\n\nCURRICULUM MAP FOR THIS LESSON:\n${lessonGrounding(map, subStrand)}\n` : ""}`;
+
+    const partKey =
+      isLessonPart(input.part) && input.part !== "whole" ? input.part : null;
+    let content: LessonPlanContent;
+    if (partKey) {
+      // Only one part is written; the rest of the plan stays exactly as it was.
+      const part = PART_SCHEMAS[partKey];
+      const label = LESSON_PARTS.find((l) => l.part === partKey)?.label ?? "";
+      const result = await generateObject({
+        model: aiModel("write"),
+        schema: part.schema as z.ZodType<Record<string, unknown>>,
+        system,
+        prompt: `The teacher asked: ${instruction}\n\nRewrite only the "${label}" part of the lesson plan with this change. Keep it in step with the rest of the plan.`,
+      });
+      usage = result.usage;
+      const old = plan.content as LessonPlanContent;
+      content = part.nested
+        ? {
+            ...old,
+            lessonStructure: { ...old.lessonStructure, ...result.object },
+          }
+        : { ...old, ...result.object };
+    } else {
+      const result = await generateObject({
+        model: aiModel("write"),
+        schema: LessonPlanSchema,
+        system,
+        prompt: `The teacher asked: ${instruction}\n\nWrite the whole lesson plan with this change.`,
+      });
+      usage = result.usage;
+      content = result.object as LessonPlanContent;
+    }
     await saveVersion(session.userId, "LESSON", plan.id, plan.content);
     await db.lessonPlan.update({
       where: { id: plan.id },
       data: {
-        content: result.object as LessonPlanContent,
-        objectives: result.object.specificLearningOutcomes,
+        content,
+        objectives: content.specificLearningOutcomes,
         checkedAt: null,
       },
     });
@@ -1442,10 +1673,7 @@ ${map ? `\n${MAP_RULES}\n\nCURRICULUM MAP FOR THIS LESSON:\n${lessonGrounding(ma
       },
     });
     if (!note) throw new TeacherError("We couldn't find those lesson notes.");
-    await checkGenerationGuards(session, {
-      grade: note.lessonPlan.grade ?? note.lessonPlan.scheme?.grade ?? "",
-      subject: note.lessonPlan.subject ?? note.lessonPlan.scheme?.subject ?? "",
-    });
+    await checkGenerationGuards(session);
 
     const result = await generateObject({
       model: aiModel("write"),
@@ -1485,7 +1713,7 @@ ${JSON.stringify(note.resources)}`,
     );
     if (!grounding)
       throw new TeacherError(missingCurriculum(scheme.grade, scheme.subject));
-    await checkGenerationGuards(session, scheme);
+    await checkGenerationGuards(session);
 
     const current = scheme.content as WrittenScheme;
     const written = await writeScheme(

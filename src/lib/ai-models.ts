@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import {
   defaultSettingsMiddleware,
   type LanguageModelMiddleware,
@@ -13,26 +14,47 @@ import {
 import { anthropic, getAIKey, openai } from "@/lib/ai-keys";
 
 /**
- * Which OpenAI model does which job. Change them in Vercel's environment settings, without a
- * code change: ELIMU_MODEL_WRITE for documents, ELIMU_MODEL_CHAT for Ask Elimu and the copilot.
+ * Which OpenAI model does which job. Change them in `.env.production`, without a code change:
+ * ELIMU_MODEL_WRITE for documents, ELIMU_MODEL_CHAT for Ask Elimu and the copilot.
+ * Chat answers are short and read once, so a small model does them at a fraction of the cost.
  */
 export type ModelJob = "write" | "chat";
 
 const DEFAULTS: Record<ModelJob, string> = {
   write: "gpt-4o",
-  chat: "gpt-4o",
+  chat: "gpt-4o-mini",
 };
 
+/**
+ * A staff member trying another writing model on their own documents (Settings), so they can
+ * compare it before switching everyone. Set per request by withTrialModel.
+ */
+const trialModel = new AsyncLocalStorage<string>();
+
+export function withTrialModel<T>(name: string | null, fn: () => T): T {
+  return name ? trialModel.run(name, fn) : fn();
+}
+
+/** The model being tried on this request, if any. Reuse is skipped then, so every try is fresh. */
+export function onTrialModel() {
+  return trialModel.getStore() ?? null;
+}
+
 export function modelName(job: ModelJob): string {
+  const trial = job === "write" ? onTrialModel() : null;
+  if (trial) return trial;
   const set =
     job === "write"
       ? process.env.ELIMU_MODEL_WRITE
-      : (process.env.ELIMU_MODEL_CHAT ?? process.env.ELIMU_MODEL_WRITE);
+      : process.env.ELIMU_MODEL_CHAT;
   return set?.trim() || DEFAULTS[job];
 }
 
-/** The Claude model that takes over when OpenAI isn't working. Set ELIMU_MODEL_BACKUP to change it. */
-const BACKUP_DEFAULT = "claude-opus-5-5";
+/**
+ * The Claude model that takes over when OpenAI isn't working. Set ELIMU_MODEL_BACKUP to change it.
+ * Sonnet costs half of Opus and is plenty for lesson documents.
+ */
+const BACKUP_DEFAULT = "claude-sonnet-5-5";
 
 export function backupModelName(): string {
   return process.env.ELIMU_MODEL_BACKUP?.trim() || BACKUP_DEFAULT;

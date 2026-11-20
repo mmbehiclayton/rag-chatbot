@@ -13,6 +13,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { confirmAction } from "@/components/shared/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -285,10 +286,14 @@ export function MapEditor({
               variant="ghost"
               size="icon"
               aria-label={`Remove strand ${i + 1}`}
-              onClick={() => {
+              onClick={async () => {
                 if (
                   strand.subStrands.length === 0 ||
-                  confirm(`Remove strand ${i + 1} and its sub-strands?`)
+                  (await confirmAction({
+                    title: `Remove strand ${i + 1} and its sub-strands?`,
+                    confirm: "Remove",
+                    destructive: true,
+                  }))
                 )
                   update((s) => s.filter((_, k) => k !== i));
               }}
@@ -517,11 +522,13 @@ export function MapEditor({
               <Button
                 variant="outline"
                 disabled={pending}
-                onClick={() => {
+                onClick={async () => {
                   if (
-                    !window.confirm(
-                      "Publish this map now, without a second curator checking it? Teachers' generations will use it straight away.",
-                    )
+                    !(await confirmAction({
+                      title: "Publish without a second check?",
+                      body: "No second curator has checked this map. Teachers' generations will use it straight away.",
+                      confirm: "Publish now",
+                    }))
                   )
                     return;
                   run(

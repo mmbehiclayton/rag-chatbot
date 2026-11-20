@@ -2,6 +2,7 @@ import {
   BarChart3,
   BookMarked,
   BookOpen,
+  Briefcase,
   Building2,
   CalendarDays,
   CalendarRange,
@@ -15,12 +16,13 @@ import {
   Library,
   ListChecks,
   type LucideIcon,
-  MessageSquare,
+  MessagesSquare,
   NotebookPen,
   Settings,
   Settings2,
   ShieldAlert,
   ShieldCheck,
+  Sparkles,
   UserCircle,
   Users,
 } from "lucide-react";
@@ -34,9 +36,20 @@ export type NavItem = {
 };
 export type NavGroup = { label?: string; items: NavItem[] };
 
-/** The bottom bar and the top of the sidebar: Home, then the four documents teachers keep. */
+/** The top of the sidebar: the pages a teacher opens most days. */
 export const PRIMARY_NAV: NavItem[] = [
   { name: "Home", href: "/dashboard", icon: Home },
+  {
+    name: "My classes",
+    short: "Classes",
+    href: "/dashboard/classes",
+    icon: GraduationCap,
+  },
+  { name: "This week", href: "/dashboard/timetable", icon: CalendarDays },
+];
+
+/** The four documents teachers keep. On a phone they are tabs on one "Documents" page. */
+export const DOC_NAV: NavItem[] = [
   {
     name: "Schemes of work",
     short: "Schemes",
@@ -63,9 +76,36 @@ export const PRIMARY_NAV: NavItem[] = [
   },
 ];
 
-/** Used now and then: on the sidebar under "More", on Home and on the Profile page on a phone. */
+/** What a teacher can make: the Create button on the phone bar and "Make something" on Home. */
+export const CREATE_NAV: (NavItem & { note: string })[] = [
+  {
+    name: "Lesson plan",
+    href: "/dashboard/create/lesson",
+    icon: FileText,
+    note: "For tomorrow",
+  },
+  {
+    name: "Scheme of work",
+    href: "/dashboard/create/scheme",
+    icon: BookOpen,
+    note: "For the term",
+  },
+  {
+    name: "Lesson notes",
+    href: "/dashboard/notes/new",
+    icon: NotebookPen,
+    note: "From a lesson plan",
+  },
+  {
+    name: "Assessment",
+    href: "/dashboard/create/assessment",
+    icon: ClipboardList,
+    note: "With a marking scheme",
+  },
+];
+
+/** Used now and then: in the menu under "More". */
 export const MORE_NAV: NavItem[] = [
-  { name: "My classes", href: "/dashboard/classes", icon: GraduationCap },
   {
     name: "Syllabus coverage",
     href: "/dashboard/coverage",
@@ -76,8 +116,9 @@ export const MORE_NAV: NavItem[] = [
     href: "/dashboard/designs",
     icon: Library,
   },
-  { name: "This week", href: "/dashboard/timetable", icon: CalendarDays },
-  { name: "Ask Elimu", href: "/dashboard/chat", icon: MessageSquare },
+  { name: "Ask Elimu", href: "/dashboard/chat", icon: Sparkles },
+  { name: "Staffroom", href: "/dashboard/staffroom", icon: MessagesSquare },
+  { name: "Jobs", href: "/dashboard/jobs", icon: Briefcase },
   { name: "Profile", href: "/dashboard/profile", icon: UserCircle },
 ];
 
@@ -140,6 +181,77 @@ export function adminNavGroups(
   return groups;
 }
 
+/**
+ * Admins and staff switch between their own menus and the teacher's, so neither is buried
+ * under the other. Teachers only have "teaching". The switch changes menus and Home, not access.
+ */
+export type Workspace = "teaching" | "admin";
+export const WORKSPACE_COOKIE = "elimu_workspace";
+
+export function canSwitchWorkspace(role: string | null) {
+  return role === "ADMIN" || role === "SUPERADMIN";
+}
+
+export function workspaceLabel(workspace: Workspace, role: string | null) {
+  if (workspace === "teaching") return "Teaching";
+  return role === "SUPERADMIN" ? "Elimu staff" : "School admin";
+}
+
+/** The saved choice, falling back to the admin menus for admins and staff. */
+export function parseWorkspace(
+  value: string | undefined,
+  role: string | null,
+): Workspace {
+  if (!canSwitchWorkspace(role)) return "teaching";
+  return value === "teaching" ? "teaching" : "admin";
+}
+
+/** The sidebar for a workspace: links at the top, then labelled groups. */
+export function workspaceNav(
+  workspace: Workspace,
+  role: string | null,
+  isCurator = false,
+): { top: NavItem[]; groups: NavGroup[] } {
+  if (workspace === "admin" && canSwitchWorkspace(role))
+    return {
+      top: [PRIMARY_NAV[0]],
+      groups: adminNavGroups(role, isCurator),
+    };
+  return {
+    top: PRIMARY_NAV,
+    groups: [
+      { label: "Documents", items: DOC_NAV },
+      { label: "More", items: MORE_NAV },
+      // Curators keep their one curriculum link; staff have it under their own menus.
+      ...(isCurator && role !== "SUPERADMIN"
+        ? adminNavGroups("TEACHER", true)
+        : []),
+    ],
+  };
+}
+
+/** Which workspace a page belongs to, so the sidebar follows a link into the other one. */
+export function workspaceForPath(
+  pathname: string,
+  role: string | null,
+): Workspace | null {
+  if (!canSwitchWorkspace(role)) return null;
+  const has = (items: NavItem[]) =>
+    items.some(
+      (i) => i.href !== "/dashboard" && isActivePath(pathname, i.href),
+    );
+  if (has(adminNavGroups(role).flatMap((g) => g.items))) return "admin";
+  if (
+    has(
+      [...PRIMARY_NAV, ...DOC_NAV, ...MORE_NAV].filter(
+        (i) => i.href !== "/dashboard/profile",
+      ),
+    )
+  )
+    return "teaching";
+  return null;
+}
+
 export function isActivePath(pathname: string, href: string) {
   if (href === "/dashboard") return pathname === "/dashboard";
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -164,6 +276,9 @@ const TITLES: [string, string][] = [
   ["/dashboard/notes", "Lesson notes"],
   ["/dashboard/assessments", "Assessment"],
   ["/dashboard/chat", "Ask Elimu"],
+  ["/dashboard/staffroom", "Staffroom"],
+  ["/dashboard/jobs/new", "Post a job"],
+  ["/dashboard/jobs", "Jobs"],
   ["/dashboard/profile", "Profile"],
   ["/dashboard/teachers", "Teachers"],
   ["/dashboard/admin/analytics", "Usage"],
@@ -193,4 +308,33 @@ export function titleForPath(pathname: string) {
       ([prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`),
     )?.[1] ?? "Home"
   );
+}
+
+/** Every page the menus link to; these are top level and get no back arrow. */
+const TOP_LEVEL = new Set(
+  [
+    ...PRIMARY_NAV,
+    ...DOC_NAV,
+    ...MORE_NAV,
+    ...adminNavGroups("SUPERADMIN").flatMap((g) => g.items),
+  ].map((i) => i.href),
+);
+
+/**
+ * Where "up" goes from a page below the top level, or null on a top-level page: the nearest
+ * menu page or document above it, e.g. a lesson's edit page goes to the lesson, a lesson to
+ * Lesson plans, a new lesson plan to Home.
+ */
+export function parentPath(pathname: string): string | null {
+  if (pathname === "/dashboard" || TOP_LEVEL.has(pathname)) return null;
+  const segments = pathname.split("/");
+  for (let n = segments.length - 1; n > 2; n--) {
+    const up = segments.slice(0, n).join("/");
+    if (
+      TOP_LEVEL.has(up) ||
+      /^\/dashboard\/(schemes|lessons|notes|assessments)\/[^/]+$/.test(up)
+    )
+      return up;
+  }
+  return "/dashboard";
 }

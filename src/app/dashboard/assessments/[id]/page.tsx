@@ -1,6 +1,5 @@
-import { BookOpen } from "lucide-react";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { DocMoreMenu } from "@/components/document/doc-actions";
 import {
   asArray,
   BulletList,
@@ -9,16 +8,29 @@ import {
   ExportButton,
   parseTitle,
 } from "@/components/document/doc-parts";
-import { Button } from "@/components/ui/button";
+import { TableOfSpecs } from "@/components/document/table-of-specs";
+import {
+  ChecklistBody,
+  PracticalBody,
+} from "@/components/document/task-assessment";
+import {
+  assessmentKind,
+  type ChecklistContent,
+  type PracticalContent,
+} from "@/lib/assessment-kinds";
+import { specTable } from "@/lib/assessment-specs";
 import { auth } from "@/lib/auth";
 import { classHref } from "@/lib/classes";
 import { db, withDbRetry } from "@/lib/db";
 import { docMeta } from "@/lib/documents";
+import { downloadNote } from "@/lib/downloads";
+import { todayInKenya } from "@/lib/term-pack";
 
 type Question = {
   questionNumber?: number;
   questionText?: string;
   learningOutcome?: string;
+  level?: string;
   marks?: number;
   modelAnswer?: string;
   rubric?: string;
@@ -47,6 +59,11 @@ export default async function AssessmentDetailPage({
   if (!session?.userId) redirect("/login");
 
   const { id } = await params;
+  // What a download costs, looked up alongside the page's own queries.
+  const download = downloadNote(
+    session.userId,
+    `/api/export?type=assessment&id=${id}`,
+  );
   const assessment = await withDbRetry(() =>
     db.assessment.findFirst({
       where: { id, teacherId: session.userId },
@@ -56,6 +73,7 @@ export default async function AssessmentDetailPage({
   if (!assessment) notFound();
 
   const content = (assessment.content ?? {}) as Content;
+  const kind = assessmentKind(content);
   const sections = asArray<Section>(content.sections);
   const totalMarks =
     content.markingScheme?.totalMarks ??
@@ -64,7 +82,24 @@ export default async function AssessmentDetailPage({
       .reduce((sum, q) => sum + (Number(q.marks) || 0), 0);
   const grading = asArray<Band>(content.markingScheme?.gradingScale);
   const covered = asArray(content.subStrandsCovered);
+  const specs = specTable(sections);
   const { title, needsReview } = parseTitle(assessment.title);
+  const count = (n: number, one: string, many: string) =>
+    `${n} ${n === 1 ? one : many}`;
+  const size =
+    kind === "practical"
+      ? count(
+          asArray((content as PracticalContent).rubric).length,
+          "criterion",
+          "criteria",
+        )
+      : kind === "checklist"
+        ? count(
+            asArray((content as ChecklistContent).items).length,
+            "indicator",
+            "indicators",
+          )
+        : `${totalMarks} marks`;
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
@@ -86,24 +121,37 @@ export default async function AssessmentDetailPage({
             year: assessment.year,
           },
           assessment.type,
-          `${totalMarks} marks`,
+          size,
         )}
         needsReview={needsReview}
         actions={
           <>
             <ExportButton
+              main
               href={`/api/export?type=assessment&id=${assessment.id}`}
+              note={await download}
             />
-            {assessment.scheme && (
-              <Button
-                variant="outline"
-                render={
-                  <Link href={`/dashboard/schemes/${assessment.scheme.id}`} />
-                }
-              >
-                <BookOpen /> Scheme of work
-              </Button>
-            )}
+            <DocMoreMenu
+              type="assessments"
+              id={assessment.id}
+              copy={{
+                term: assessment.term,
+                year: assessment.year,
+                thisYear: Number(todayInKenya().slice(0, 4)),
+              }}
+              exportHref={`/api/export?type=assessment&id=${assessment.id}`}
+              downloadNote={await download}
+              links={
+                assessment.scheme
+                  ? [
+                      {
+                        label: "Scheme of work",
+                        href: `/dashboard/schemes/${assessment.scheme.id}`,
+                      },
+                    ]
+                  : []
+              }
+            />
           </>
         }
       />
@@ -112,6 +160,13 @@ export default async function AssessmentDetailPage({
         <DocSection title="Sub-strands covered">
           <BulletList items={covered} />
         </DocSection>
+      )}
+
+      {kind === "practical" && (
+        <PracticalBody content={content as PracticalContent} />
+      )}
+      {kind === "checklist" && (
+        <ChecklistBody content={content as ChecklistContent} />
       )}
 
       {sections.map((section, si) => {
@@ -159,6 +214,7 @@ export default async function AssessmentDetailPage({
                           {q.learningOutcome && (
                             <p className="text-muted-foreground">
                               Tests: {q.learningOutcome}
+                              {q.level ? ` (${q.level})` : ""}
                             </p>
                           )}
                           {q.modelAnswer && (
@@ -181,6 +237,8 @@ export default async function AssessmentDetailPage({
           </DocSection>
         );
       })}
+
+      <TableOfSpecs specs={specs} />
 
       {grading.length > 0 && (
         <DocSection title="Grading">

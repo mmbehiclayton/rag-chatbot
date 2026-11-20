@@ -8,16 +8,24 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { adminNavGroups, MORE_NAV } from "@/components/layout/nav-config";
 import { InviteShare } from "@/components/pilot/invite-share";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { logout } from "@/lib/actions/auth";
+import { getAllowance, kenyaMonth, PLAN_LABELS } from "@/lib/allowance";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
 import { getInviteCode, inviteUrl } from "@/lib/invites";
+import { commissionPercent, referralSummary } from "@/lib/referrals";
 
 const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL;
+
+const dayLabel = (d: Date) =>
+  d.toLocaleDateString("en-KE", {
+    timeZone: "Africa/Nairobi",
+    day: "numeric",
+    month: "long",
+  });
 
 function Row({
   label,
@@ -38,9 +46,7 @@ export default async function ProfilePage() {
   const session = await auth();
   if (!session?.userId) redirect("/login");
 
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
+  const monthStart = kenyaMonth().start;
 
   const [user, usage] = await Promise.all([
     withDbRetry(() =>
@@ -68,23 +74,21 @@ export default async function ProfilePage() {
   ]);
   if (!user) redirect("/login");
 
-  const adminGroups = [
-    {
-      label: "More",
-      items: MORE_NAV.filter((i) => i.href !== "/dashboard/profile"),
-    },
-    ...adminNavGroups(session.role ?? null, user.isCurator),
-  ];
   const isTeacher = user.role === "TEACHER";
-  const [inviteCode, joined] = isTeacher
+  const [inviteCode, referrals, percent, allowance] = isTeacher
     ? await Promise.all([
         getInviteCode(session.userId).catch(() => null),
-        withDbRetry(() =>
-          db.user.count({ where: { invitedById: session.userId } }),
-        ).catch(() => 0),
+        referralSummary(session.userId).catch(() => null),
+        commissionPercent(),
+        getAllowance(session.userId, user.role).catch(() => null),
       ])
-    : [null, 0];
-  const month = monthStart.toLocaleDateString("en-KE", { month: "long" });
+    : [null, null, 0, null];
+  const joined = referrals?.joined ?? 0;
+  const kes = (n: number) => `KES ${n.toLocaleString("en-KE")}`;
+  const month = monthStart.toLocaleDateString("en-KE", {
+    timeZone: "Africa/Nairobi",
+    month: "long",
+  });
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -192,10 +196,42 @@ export default async function ProfilePage() {
           <div className="space-y-3 rounded-xl border bg-card p-4">
             <p className="text-sm text-muted-foreground">
               Send this link to teachers in your school or subject panel.{" "}
+              {percent > 0 &&
+                `When a teacher who joined from your link pays for a term, you earn ${percent}% of what they pay, every term they pay. `}
               {joined > 0
                 ? `${joined} ${joined === 1 ? "colleague has" : "colleagues have"} joined so far.`
                 : "Nobody has joined from your link yet."}
             </p>
+            {referrals && (percent > 0 || referrals.total > 0) && (
+              <dl className="grid grid-cols-3 divide-x rounded-md border">
+                <div className="p-3">
+                  <dt className="text-xs text-muted-foreground">Paying</dt>
+                  <dd className="text-base font-semibold">
+                    {referrals.paying} of {joined}
+                  </dd>
+                </div>
+                <div className="p-3">
+                  <dt className="text-xs text-muted-foreground">Earned</dt>
+                  <dd className="text-base font-semibold">
+                    {kes(referrals.total)}
+                  </dd>
+                </div>
+                <div className="p-3">
+                  <dt className="text-xs text-muted-foreground">
+                    Still to come
+                  </dt>
+                  <dd className="text-base font-semibold">
+                    {kes(referrals.pending)}
+                  </dd>
+                </div>
+              </dl>
+            )}
+            {referrals && referrals.pending > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Elimu sends what you've earned by M-Pesa, to the number you paid
+                from.
+              </p>
+            )}
             <InviteShare url={inviteUrl(inviteCode)} />
           </div>
         </section>
@@ -203,33 +239,48 @@ export default async function ProfilePage() {
 
       <section className="space-y-2">
         <h2 className="text-base font-semibold">Usage in {month}</h2>
-        <dl className="divide-y rounded-xl border bg-card">
-          <Row label="Documents created">{usage._count}</Row>
-          <Row label="AI tokens used">
-            {(usage._sum.totalTokens ?? 0).toLocaleString("en-KE")}
-          </Row>
-        </dl>
+        {allowance ? (
+          <div className="space-y-3 rounded-xl border bg-card p-4">
+            <p className="text-sm">
+              <span className="font-semibold">{allowance.used}</span> of{" "}
+              {allowance.limit} documents on your {PLAN_LABELS[allowance.plan]}
+            </p>
+            <div
+              className="h-2 overflow-hidden rounded-md bg-muted"
+              role="progressbar"
+              aria-label="Documents used this month"
+              aria-valuemin={0}
+              aria-valuemax={allowance.limit}
+              aria-valuenow={Math.min(allowance.used, allowance.limit)}
+            >
+              <div
+                className={
+                  allowance.used >= allowance.limit
+                    ? "h-full bg-destructive"
+                    : allowance.used >= allowance.limit * 0.8
+                      ? "h-full bg-warning"
+                      : "h-full bg-primary"
+                }
+                style={{
+                  width: `${Math.min(100, (allowance.used / allowance.limit) * 100)}%`,
+                }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Starts again on {dayLabel(allowance.resetsOn)}. Reusing a lesson
+              plan is free. A long document, like a full scheme of work, can
+              count as more than one.
+            </p>
+          </div>
+        ) : (
+          <dl className="divide-y rounded-xl border bg-card">
+            <Row label="Documents created">{usage._count}</Row>
+            <Row label="AI tokens used">
+              {(usage._sum.totalTokens ?? 0).toLocaleString("en-KE")}
+            </Row>
+          </dl>
+        )}
       </section>
-
-      {adminGroups.map((group) => (
-        <section key={group.label} className="space-y-2 md:hidden">
-          <h2 className="text-base font-semibold">{group.label}</h2>
-          <ul className="divide-y rounded-xl border bg-card">
-            {group.items.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className="flex min-h-12 items-center gap-3 px-4 text-sm hover:bg-muted"
-                >
-                  <item.icon className="size-4 text-muted-foreground" />
-                  <span className="flex-1">{item.name}</span>
-                  <ChevronRight className="size-4 text-muted-foreground" />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
 
       <section className="flex flex-col gap-2 sm:flex-row">
         {SUPPORT_EMAIL && (

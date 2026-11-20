@@ -18,23 +18,38 @@ export async function TeacherStats({ teacherId }: { teacherId: string }) {
     terms.filter((t) => t.closesOn >= today),
     today,
   );
-  const filed = term ? { term: `Term ${term.term}`, year: term.year } : {};
+  const countFor = (filed: { term?: string; year?: number }) =>
+    Promise.all([
+      withDbRetry(() =>
+        db.lessonPlan.count({ where: { teacherId, ...filed } }),
+      ),
+      withDbRetry(() =>
+        db.schemeOfWork.count({ where: { teacherId, ...filed } }),
+      ),
+      withDbRetry(() =>
+        db.lessonNote.count({
+          where: { teacherId, lessonPlan: { ...filed } },
+        }),
+      ),
+      withDbRetry(() =>
+        db.assessment.count({ where: { teacherId, ...filed } }),
+      ),
+    ]);
 
-  const [lessons, schemes, notes, assessments, reused] = await Promise.all([
-    withDbRetry(() => db.lessonPlan.count({ where: { teacherId, ...filed } })),
-    withDbRetry(() =>
-      db.schemeOfWork.count({ where: { teacherId, ...filed } }),
-    ),
-    withDbRetry(() =>
-      db.lessonNote.count({
-        where: { teacherId, lessonPlan: { ...filed } },
-      }),
-    ),
-    withDbRetry(() => db.assessment.count({ where: { teacherId, ...filed } })),
+  const [termCounts, reused] = await Promise.all([
+    countFor(term ? { term: `Term ${term.term}`, year: term.year } : {}),
     withDbRetry(() =>
       db.generationLog.count({ where: { userId: teacherId, model: "cache" } }),
     ),
   ]);
+  // Between terms nothing is filed for the coming term yet; a row of zeros would hide
+  // the work the teacher has done, so show everything they have made instead.
+  const forTerm = term && termCounts.some((n) => n > 0);
+  const [lessons, schemes, notes, assessments] = forTerm
+    ? termCounts
+    : term
+      ? await countFor({})
+      : termCounts;
 
   const tracked = coverage.classes.filter((c) => c.source);
   const s = coverage.summary;
@@ -79,8 +94,9 @@ export async function TeacherStats({ teacherId }: { teacherId: string }) {
               </p>
               {s.expected != null && (
                 <p className="text-xs text-muted-foreground">
-                  By today you'd expect about {s.expected}% (the tick on the
-                  ring).
+                  {s.expected >= 100
+                    ? "The school year is over. This is what your classes covered."
+                    : `By today you'd expect about ${s.expected}% (the tick on the ring).`}
                 </p>
               )}
             </div>
@@ -112,7 +128,9 @@ export async function TeacherStats({ teacherId }: { teacherId: string }) {
 
       <div className="space-y-2">
         <p className="text-xs text-muted-foreground">
-          {term ? `Prepared for ${termLabel(term)}` : "Prepared so far"}
+          {forTerm && term
+            ? `Prepared for ${termLabel(term)}`
+            : "Prepared so far"}
         </p>
         <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {counts.map((c) => (

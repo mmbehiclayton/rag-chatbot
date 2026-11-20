@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import {
   type TermCalendar,
   TermPlanForm,
 } from "@/components/create/term-plan-form";
+import { DocumentsLeft } from "@/components/shared/documents-left";
 import { PageHeader } from "@/components/shared/page-header";
 import { auth } from "@/lib/auth";
 import { getDesignLessonsPerWeek } from "@/lib/curriculum-map";
@@ -106,6 +108,9 @@ export default async function Page({
         title="Scheme of work"
         description="Plan a whole term week by week from the KICD curriculum design."
       />
+      <Suspense fallback={null}>
+        <DocumentsLeft userId={session.userId} role={session.role} />
+      </Suspense>
       <TermPlanForm
         kind="scheme"
         grades={grades}

@@ -1,19 +1,22 @@
 import { formatDistanceToNow } from "date-fns";
 import {
   BookOpen,
-  ChevronRight,
+  Briefcase,
   ClipboardList,
   FileText,
   GraduationCap,
   Info,
+  MessagesSquare,
   NotebookPen,
 } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { TeacherStats } from "@/components/dashboard/teacher-stats";
 import { parseTitle } from "@/components/document/doc-parts";
-import { MORE_NAV } from "@/components/layout/nav-config";
+import { CREATE_NAV } from "@/components/layout/nav-config";
+import { DocumentsLeft } from "@/components/shared/documents-left";
 import { EmptyState } from "@/components/shared/empty-state";
+import { InstallAppCard } from "@/components/shared/install-app";
 import {
   LinkList,
   type LinkListItem,
@@ -35,42 +38,26 @@ import { db, withDbRetry } from "@/lib/db";
 
 type Recent = LinkListItem & { updatedAt: Date };
 
-const MAKE = [
+/** The other pages are in the menu; Home points teachers to each other. */
+const COMMUNITY = [
   {
-    href: "/dashboard/create/lesson",
-    icon: FileText,
-    title: "Lesson plan",
-    note: "For tomorrow",
+    href: "/dashboard/staffroom",
+    icon: MessagesSquare,
+    title: "Staffroom",
+    note: "Ask and share with teachers",
   },
   {
-    href: "/dashboard/create/scheme",
-    icon: BookOpen,
-    title: "Scheme of work",
-    note: "For the term",
-  },
-  {
-    href: "/dashboard/notes/new",
-    icon: NotebookPen,
-    title: "Lesson notes",
-    note: "From a lesson plan",
-  },
-  {
-    href: "/dashboard/create/assessment",
-    icon: ClipboardList,
-    title: "Assessment",
-    note: "With a marking scheme",
+    href: "/dashboard/jobs",
+    icon: Briefcase,
+    title: "Jobs",
+    note: "Teaching jobs near you",
   },
 ];
-
-/** The tools that aren't on the bottom bar, minus the ones Home already shows. */
-const TOOLS = MORE_NAV.filter(
-  (i) => !["/dashboard/classes", "/dashboard/profile"].includes(i.href),
-);
 
 export async function TeacherOverview({
   session,
 }: {
-  session: { userId: string; tenantId?: string | null };
+  session: { userId: string; tenantId?: string | null; role?: string | null };
 }) {
   const teacherId = session.userId;
   const [user, classes, schemes, lessons, notes, assessments, curricula] =
@@ -225,6 +212,8 @@ export async function TeacherOverview({
         </p>
       </div>
 
+      <InstallAppCard />
+
       {noCurriculum && (
         <p className="flex gap-2 rounded-lg border bg-card p-3 text-sm">
           <Info className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
@@ -237,9 +226,45 @@ export async function TeacherOverview({
         </p>
       )}
 
-      <Suspense fallback={<Skeleton className="h-40 rounded-xl" />}>
-        <TeacherStats teacherId={teacherId} />
-      </Suspense>
+      <section id="make" className="scroll-mt-4 space-y-2">
+        <SectionTitle title="Make something" />
+        <Suspense fallback={null}>
+          <DocumentsLeft userId={teacherId} role={session.role} />
+        </Suspense>
+        <ul className="grid grid-cols-2 gap-2">
+          {CREATE_NAV.map((m, i) => (
+            <li key={m.href}>
+              <Link
+                href={m.href}
+                className={
+                  i === 0
+                    ? "flex h-full min-h-24 flex-col justify-between gap-2 rounded-xl border border-primary bg-primary p-4 text-primary-foreground transition-colors hover:bg-primary/90"
+                    : "flex h-full min-h-24 flex-col justify-between gap-2 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/60"
+                }
+              >
+                <m.icon
+                  className={
+                    i === 0 ? "size-5" : "size-5 text-muted-foreground"
+                  }
+                  aria-hidden
+                />
+                <span>
+                  <span className="block text-sm font-semibold">{m.name}</span>
+                  <span
+                    className={
+                      i === 0
+                        ? "block text-xs text-primary-foreground/80"
+                        : "block text-xs text-muted-foreground"
+                    }
+                  >
+                    {m.note}
+                  </span>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
 
       <TodayLessons teacherId={teacherId} hasSchemes={schemes.length > 0} />
 
@@ -274,42 +299,9 @@ export async function TeacherOverview({
         </section>
       )}
 
-      <section id="make" className="scroll-mt-4 space-y-2">
-        <SectionTitle title="Make something" />
-        <ul className="grid grid-cols-2 gap-2">
-          {MAKE.map((m, i) => (
-            <li key={m.href}>
-              <Link
-                href={m.href}
-                className={
-                  i === 0
-                    ? "flex h-full min-h-24 flex-col justify-between gap-2 rounded-xl border border-primary bg-primary p-4 text-primary-foreground transition-colors hover:bg-primary/90"
-                    : "flex h-full min-h-24 flex-col justify-between gap-2 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/60"
-                }
-              >
-                <m.icon
-                  className={
-                    i === 0 ? "size-5" : "size-5 text-muted-foreground"
-                  }
-                  aria-hidden
-                />
-                <span>
-                  <span className="block text-sm font-semibold">{m.title}</span>
-                  <span
-                    className={
-                      i === 0
-                        ? "block text-xs text-primary-foreground/80"
-                        : "block text-xs text-muted-foreground"
-                    }
-                  >
-                    {m.note}
-                  </span>
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <Suspense fallback={<Skeleton className="h-40 rounded-xl" />}>
+        <TeacherStats teacherId={teacherId} />
+      </Suspense>
 
       <section className="space-y-2">
         <SectionTitle
@@ -366,23 +358,21 @@ export async function TeacherOverview({
       )}
 
       <section className="space-y-2">
-        <SectionTitle title="Tools" />
-        <ul className="divide-y rounded-xl border bg-card">
-          {TOOLS.map((t) => (
-            <li key={t.href}>
+        <SectionTitle title="Teachers on Elimu" />
+        <ul className="grid grid-cols-2 gap-2">
+          {COMMUNITY.map((c) => (
+            <li key={c.href}>
               <Link
-                href={t.href}
-                className="flex min-h-12 items-center gap-3 px-4 text-sm font-medium transition-colors hover:bg-muted/60"
+                href={c.href}
+                className="flex h-full min-h-20 flex-col justify-between gap-2 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/60"
               >
-                <t.icon
-                  className="size-5 shrink-0 text-muted-foreground"
-                  aria-hidden
-                />
-                <span className="flex-1">{t.name}</span>
-                <ChevronRight
-                  className="size-4 shrink-0 text-muted-foreground"
-                  aria-hidden
-                />
+                <c.icon className="size-5 text-primary" aria-hidden />
+                <span>
+                  <span className="block text-sm font-semibold">{c.title}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {c.note}
+                  </span>
+                </span>
               </Link>
             </li>
           ))}

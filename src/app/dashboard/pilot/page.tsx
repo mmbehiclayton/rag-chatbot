@@ -1,5 +1,10 @@
 import { Wallet } from "lucide-react";
 import { redirect } from "next/navigation";
+import { AllowanceForm } from "@/components/pilot/allowance-form";
+import { CommissionForm } from "@/components/pilot/commission-form";
+import { CommissionPayout } from "@/components/pilot/commission-payout";
+import { DownloadPriceForm } from "@/components/pilot/download-price-form";
+import { DownloadTrace } from "@/components/pilot/download-trace";
 import { PaymentReview } from "@/components/pilot/payment-review";
 import { PilotReadiness } from "@/components/pilot/pilot-readiness";
 import { PriceForm } from "@/components/pilot/price-form";
@@ -8,9 +13,17 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { calendarTerms, getAcademicCalendar } from "@/lib/academic-calendar";
+import {
+  ALLOWANCE_LIMITS,
+  allowances,
+  kenyaMonth,
+  TOKENS_PER_DOC,
+} from "@/lib/allowance";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
+import { DOWNLOAD_PRICE_LIMITS, downloadPrices } from "@/lib/downloads";
 import { PRICE_LIMITS, plansOn, termPrice } from "@/lib/plans";
+import { COMMISSION_LIMITS, commissionPercent } from "@/lib/referrals";
 import {
   DEFAULT_TERMS,
   pickTerm,
@@ -137,7 +150,106 @@ export default async function PilotPage() {
     pickTerm(calendarTerms(await getAcademicCalendar()), todayInKenya()) ??
     DEFAULT_TERMS[DEFAULT_TERMS.length - 1];
 
-  const [price, paying] = await Promise.all([termPrice(), plansOn()]);
+  const [
+    price,
+    paying,
+    limits,
+    percent,
+    commissions,
+    commissionTotals,
+    topDownloads,
+    docPrices,
+    sales,
+  ] = await Promise.all([
+    termPrice(),
+    plansOn(),
+    allowances(),
+    commissionPercent(),
+    withDbRetry(() =>
+      db.referralCommission.findMany({
+        where: { status: "PENDING" },
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          amount: true,
+          referrer: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              termPasses: {
+                where: { phone: { not: null } },
+                orderBy: { createdAt: "desc" },
+                take: 1,
+                select: { phone: true },
+              },
+            },
+          },
+        },
+      }),
+    ),
+    withDbRetry(() =>
+      db.referralCommission.groupBy({
+        by: ["status"],
+        _sum: { amount: true },
+      }),
+    ),
+    withDbRetry(() =>
+      db.downloadLog.groupBy({
+        by: ["userId"],
+        where: { createdAt: { gte: new Date(now - 30 * DAY) } },
+        _count: { _all: true },
+        orderBy: { _count: { userId: "desc" } },
+        take: 5,
+      }),
+    ),
+    downloadPrices(),
+    withDbRetry(() =>
+      db.documentUnlock.groupBy({
+        by: ["method"],
+        where: { status: "ACTIVE", paidAt: { gte: kenyaMonth().start } },
+        _count: true,
+        _sum: { amount: true },
+      }),
+    ),
+  ]);
+  const sale = (method: string) => {
+    const row = sales.find((r) => r.method === method);
+    return { count: row?._count ?? 0, sum: row?._sum.amount ?? 0 };
+  };
+  const downloaders = await withDbRetry(() =>
+    db.user.findMany({
+      where: { id: { in: topDownloads.map((d) => d.userId) } },
+      select: { id: true, name: true, email: true },
+    }),
+  );
+  // What each teacher is owed, biggest first.
+  const owed = [
+    ...commissions
+      .reduce(
+        (m, c) => {
+          const row = m.get(c.referrer.id) ?? {
+            referrer: c.referrer,
+            ids: [] as string[],
+            amount: 0,
+          };
+          row.ids.push(c.id);
+          row.amount += c.amount;
+          return m.set(c.referrer.id, row);
+        },
+        new Map<
+          string,
+          {
+            referrer: (typeof commissions)[number]["referrer"];
+            ids: string[];
+            amount: number;
+          }
+        >(),
+      )
+      .values(),
+  ].sort((a, b) => b.amount - a.amount);
+  const commissionSum = (status: string) =>
+    commissionTotals.find((t) => t.status === status)?._sum.amount ?? 0;
   const [
     teachers,
     firstSchemes,
@@ -315,7 +427,7 @@ export default async function PilotPage() {
           <h2 className="text-base font-semibold">Test mode</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {paying
-              ? "Payments are on. New teachers get a 14-day trial, then one free class, and a term pass opens every class."
+              ? "Payments are on. Making documents is free within the monthly allowance. Each teacher's first download is free; after that they pay per document or get a term pass."
               : "Test mode is on. Every teacher can use every class, and nobody is asked to pay."}
           </p>
         </div>
@@ -340,6 +452,149 @@ export default async function PilotPage() {
             max={PRICE_LIMITS.max}
           />
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold">Download prices</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            What a teacher without a term pass pays to download one document,
+            once. Documents already paid for stay open. This month:{" "}
+            {sale("PAYSTACK").count} paid (KES{" "}
+            {sale("PAYSTACK").sum.toLocaleString("en-KE")}),{" "}
+            {sale("FREE").count} free first downloads.
+          </p>
+        </div>
+        <div className="rounded-xl border bg-card p-4">
+          <DownloadPriceForm
+            prices={docPrices}
+            min={DOWNLOAD_PRICE_LIMITS.min}
+            max={DOWNLOAD_PRICE_LIMITS.max}
+          />
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold">Documents a month</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            How many documents each teacher can have Elimu write in a month. In
+            test mode teachers get the term pass number. Reused lesson plans are
+            free; a document that uses more than{" "}
+            {TOKENS_PER_DOC.toLocaleString("en-KE")} tokens counts once for each{" "}
+            {TOKENS_PER_DOC.toLocaleString("en-KE")}. Admins and staff have no
+            limit.
+          </p>
+        </div>
+        <div className="rounded-xl border bg-card p-4">
+          <AllowanceForm
+            limits={limits}
+            min={ALLOWANCE_LIMITS.min}
+            max={ALLOWANCE_LIMITS.max}
+          />
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold">Referral commission</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            When a teacher pays for a term, the teacher who invited them earns
+            this share of the payment, every term they pay. A change applies to
+            new payments only. 0 switches it off.
+          </p>
+        </div>
+        <div className="rounded-xl border bg-card p-4">
+          <CommissionForm
+            percent={percent}
+            min={COMMISSION_LIMITS.min}
+            max={COMMISSION_LIMITS.max}
+          />
+        </div>
+        <dl className="grid grid-cols-2 divide-x rounded-xl border bg-card">
+          <div className="p-4">
+            <dt className="text-xs text-muted-foreground">To pay out</dt>
+            <dd className="text-lg font-semibold">
+              {kes(commissionSum("PENDING"))}
+            </dd>
+          </div>
+          <div className="p-4">
+            <dt className="text-xs text-muted-foreground">Paid out so far</dt>
+            <dd className="text-lg font-semibold">
+              {kes(commissionSum("PAID"))}
+            </dd>
+          </div>
+        </dl>
+        {owed.length === 0 ? (
+          <EmptyState
+            icon={Wallet}
+            title="Nothing to pay out"
+            description="Teachers owed commission show here. Send it by M-Pesa, then enter the code."
+          />
+        ) : (
+          <ul className="divide-y rounded-xl border bg-card">
+            {owed.map((o) => (
+              <li
+                key={o.referrer.id}
+                className="space-y-3 p-4 sm:flex sm:items-center sm:justify-between sm:gap-4 sm:space-y-0"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">
+                    {kes(o.amount)} · {o.referrer.name || o.referrer.email}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {o.referrer.termPasses[0]?.phone ?? o.referrer.email} ·{" "}
+                    {o.ids.length} {o.ids.length === 1 ? "payment" : "payments"}
+                  </p>
+                </div>
+                <CommissionPayout
+                  referrerId={o.referrer.id}
+                  ids={o.ids}
+                  amount={o.amount}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-base font-semibold">Shared copies</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Every download and print carries the teacher's name and a Ref code
+            at the foot of each page. If a copy turns up somewhere it shouldn't,
+            look the code up to see whose account it came from.
+          </p>
+        </div>
+        <div className="rounded-xl border bg-card p-4">
+          <DownloadTrace />
+        </div>
+        {topDownloads.length > 0 && (
+          <div className="rounded-xl border bg-card p-4">
+            <h3 className="text-sm font-medium">
+              Most downloads in the last 30 days
+            </h3>
+            <ul className="mt-2 divide-y text-sm">
+              {topDownloads.map((d) => {
+                const u = downloaders.find((x) => x.id === d.userId);
+                return (
+                  <li
+                    key={d.userId}
+                    className="flex justify-between gap-3 py-2"
+                  >
+                    <span className="min-w-0 truncate">
+                      {u?.name || u?.email || "Deleted account"}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {d._count._all}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
       </section>
 
       <section className="space-y-3">

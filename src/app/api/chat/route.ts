@@ -19,7 +19,12 @@ import {
 import { getGradeOptions, getTeachingProfile } from "@/lib/curriculum-options";
 import { db } from "@/lib/db";
 import { retrieveContext } from "@/lib/rag";
-import { CHAT_PER_DAY, overLimit } from "@/lib/rate-limit";
+import {
+  CHAT_HISTORY,
+  CHAT_MAX_OUTPUT,
+  CHAT_PER_DAY,
+  overLimit,
+} from "@/lib/rate-limit";
 
 // Below this, a chunk from an unfiltered search is usually about something else.
 const MIN_SIMILARITY = 0.4;
@@ -186,6 +191,7 @@ ${customRuleText}
 
 If the context doesn't contain the answer, say so briefly, then rely on your general educational knowledge.
 Keep answers clear and practical for a Kenyan classroom. Use short paragraphs and lists. Use Kenyan English.
+Keep each answer under about 400 words unless the teacher asks for something longer.
 Start with the answer itself, not "Certainly" or "Great question".
 ${classNote}
 ${contextText}
@@ -204,7 +210,8 @@ ${contextText}
         const result = streamText({
           model: aiModel("chat"),
           system: systemPrompt,
-          messages: await convertToModelMessages(messages.slice(-10)),
+          messages: await convertToModelMessages(messages.slice(-CHAT_HISTORY)),
+          maxOutputTokens: CHAT_MAX_OUTPUT,
           onFinish: async ({ text, totalUsage }) => {
             // Logged like documents, so chat counts towards the school's allowance and staff see its cost.
             await db.generationLog

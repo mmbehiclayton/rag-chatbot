@@ -1,4 +1,16 @@
 import { type NextRequest, NextResponse } from "next/server";
+import {
+  assessmentKind,
+  type ChecklistContent,
+  type PracticalContent,
+  RUBRIC_LEVELS,
+} from "@/lib/assessment-kinds";
+import {
+  COGNITIVE_LEVELS,
+  percent,
+  type SpecTable,
+  specTable,
+} from "@/lib/assessment-specs";
 import { auth } from "@/lib/auth";
 import { classLessonWhere } from "@/lib/classes";
 import { db } from "@/lib/db";
@@ -11,14 +23,16 @@ import {
   docName,
   teacherContext,
 } from "@/lib/documents";
-import { filingLabel, filingOf } from "@/lib/filing";
 import {
-  type ClassRef,
-  coversClass,
-  freePlanMessage,
-  getAccess,
-  plansOn,
-} from "@/lib/plans";
+  docPagePath,
+  downloadAccess,
+  exportQuery,
+  parseDocRef,
+} from "@/lib/downloads";
+import { DOCX_TYPE, htmlToDocx } from "@/lib/export-docx";
+import { filingLabel, filingOf } from "@/lib/filing";
+import { licenceFor, stampHTML } from "@/lib/licence";
+import { siteUrl } from "@/lib/site-url";
 import {
   formatDay,
   formatRange,
@@ -28,7 +42,7 @@ import {
 import { getSchemeSchedule, getTeacherTerms } from "@/lib/term-pack-data";
 
 // Returns a print-ready HTML document for a scheme, lesson plan, or assessment.
-// Usage: GET /api/export?type=scheme&id=<id>
+// Usage: GET /api/export?type=scheme&id=<id>, and &format=docx for a Word file.
 // A term file: GET /api/export?type=term&grade=Grade 7&subject=English&term=Term 2 2026
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -44,16 +58,12 @@ export async function GET(req: NextRequest) {
   if (!type) return new NextResponse("Missing params", { status: 400 });
 
   let html = "";
-  // The class the document belongs to, checked against the teacher's plan before it is sent.
-  let cls: ClassRef | null = null;
 
   try {
     if (type === "term") {
       const term = searchParams.get("term");
       if (!grade || !subject || !term)
         return new NextResponse("Missing params", { status: 400 });
-      const denied = await accessDenied(session.userId, { grade, subject });
-      if (denied) return denied;
       const file = await buildTermFileHTML(
         session.userId,
         grade,
@@ -61,7 +71,14 @@ export async function GET(req: NextRequest) {
         term,
       );
       if (!file) return new NextResponse("Not found", { status: 404 });
-      return new NextResponse(file, {
+      const locked = await lockedRedirect(session.userId, searchParams);
+      if (locked) return locked;
+      const licence = await licenceFor(
+        session.userId,
+        { type, title: htmlTitle(file) },
+        "print",
+      );
+      return new NextResponse(withBar(stampHTML(file, licence), searchParams), {
         headers: { "Content-Type": "text/html; charset=utf-8" },
       });
     }
@@ -74,7 +91,6 @@ export async function GET(req: NextRequest) {
         include: TEACHER_INCLUDE,
       });
       if (!scheme) return new NextResponse("Not found", { status: 404 });
-      cls = scheme;
       const schedule = await getSchemeSchedule(scheme);
       const weekDates = new Map(
         schedule.weeks.map((w) => [w.number, formatRange(w.from, w.to)]),
@@ -86,7 +102,6 @@ export async function GET(req: NextRequest) {
         include: TEACHER_INCLUDE,
       });
       if (!scheme) return new NextResponse("Not found", { status: 404 });
-      cls = scheme;
       html = buildRecordHTML(
         scheme,
         await getSchemeSchedule(
@@ -100,10 +115,6 @@ export async function GET(req: NextRequest) {
         include: LESSON_EXPORT_INCLUDE,
       });
       if (!lesson) return new NextResponse("Not found", { status: 404 });
-      cls = {
-        grade: lesson.grade ?? lesson.scheme?.grade ?? "",
-        subject: lesson.subject ?? lesson.scheme?.subject ?? "",
-      };
       html = buildLessonHTML(lesson);
     } else if (type === "assessment") {
       const assessment = await db.assessment.findFirst({
@@ -111,7 +122,6 @@ export async function GET(req: NextRequest) {
         include: TEACHER_INCLUDE,
       });
       if (!assessment) return new NextResponse("Not found", { status: 404 });
-      cls = assessment;
       html = buildAssessmentHTML(assessment);
     } else if (type === "notes") {
       const note = await db.lessonNote.findFirst({
@@ -134,20 +144,39 @@ export async function GET(req: NextRequest) {
         },
       });
       if (!note) return new NextResponse("Not found", { status: 404 });
-      cls = {
-        grade: note.lessonPlan?.grade ?? note.lessonPlan?.scheme?.grade ?? "",
-        subject:
-          note.lessonPlan?.subject ?? note.lessonPlan?.scheme?.subject ?? "",
-      };
       html = buildNotesHTML(note);
     } else {
       return new NextResponse("Invalid type", { status: 400 });
     }
 
-    const denied = cls && (await accessDenied(session.userId, cls));
-    if (denied) return denied;
+    const locked = await lockedRedirect(session.userId, searchParams);
+    if (locked) return locked;
 
-    return new NextResponse(html, {
+    const docx = searchParams.get("format") === "docx";
+    const licence = await licenceFor(
+      session.userId,
+      { type, id, title: htmlTitle(html) },
+      docx ? "docx" : "print",
+    );
+    html = stampHTML(html, licence);
+
+    if (docx) {
+      const { title, data } = await htmlToDocx(
+        html,
+        html.includes("A4 landscape"),
+        licence,
+      );
+      // Windows and phones refuse some characters in file names.
+      const name = title.replace(/[\\/:*?"<>|]+/g, "").trim() || "Elimu";
+      return new NextResponse(data, {
+        headers: {
+          "Content-Type": DOCX_TYPE,
+          "Content-Disposition": `attachment; filename="elimu.docx"; filename*=UTF-8''${encodeURIComponent(name)}.docx`,
+        },
+      });
+    }
+
+    return new NextResponse(withBar(html, searchParams), {
       headers: { "Content-Type": "text/html; charset=utf-8" },
     });
   } catch (error: unknown) {
@@ -156,20 +185,13 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** The "term pass needed" page when the teacher's plan doesn't cover the class, else null. */
-async function accessDenied(userId: string, cls: ClassRef) {
-  if (!(await plansOn())) return null;
-  const access = await getAccess(userId);
-  if (coversClass(access, cls)) return null;
-  return new NextResponse(
-    wrap(
-      "Term pass needed",
-      `<h1>Term pass needed</h1><p>${esc(freePlanMessage(access))}</p>`,
-    ),
-    {
-      status: 402,
-      headers: { "Content-Type": "text/html; charset=utf-8" },
-    },
+/** Sends the teacher to the download page when this document still needs paying for, else null. */
+async function lockedRedirect(userId: string, params: URLSearchParams) {
+  const ref = parseDocRef(params);
+  if (!ref || (await downloadAccess(userId, ref)).open) return null;
+  return NextResponse.redirect(
+    new URL(`/dashboard/download?${exportQuery(params)}`, siteUrl()),
+    303,
   );
 }
 
@@ -195,7 +217,13 @@ const baseCSS = `
   li { margin: 3px 0; }
   .section { margin-bottom: 20px; }
   .badge { display: inline-block; background: #f3f4f6; color: #111; border: 1px solid #d1d5db; border-radius: 4px; padding: 2px 7px; font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: .04em; margin: 2px 3px 2px 0; }
-  .print-btn { position: fixed; top: 16px; right: 16px; background: #111; color: #fff; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold; z-index: 50; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+  .print-bar { position: sticky; top: 0; z-index: 50; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 12px; background: #fff; border-bottom: 1px solid #d1d5db; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .print-bar a, .print-bar button { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: 6px; font: inherit; font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer; white-space: nowrap; }
+  .bar-back { color: #111; padding-left: 4px !important; }
+  .bar-actions { display: flex; gap: 8px; }
+  .bar-btn { background: #fff; color: #111; border: 1px solid #d1d5db; }
+  .bar-main { background: #076fed; color: #fff; border: 1px solid #076fed; }
+  .turn-hint { display: none; margin: 0; padding: 8px 12px; background: #fff7e6; color: #111; border-bottom: 1px solid #d1d5db; font: 14px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   .page-break { page-break-before: always; break-before: page; }
   .doc-detail { font-size: 15px; margin: 8px 0 0; }
   .draft { text-align: right; font-size: 11px; margin: 0 0 6px; }
@@ -217,10 +245,66 @@ const baseCSS = `
   table.scheme td.assess div { font-weight: bold; margin: 3px 0; }
   table.scheme td.assess div::before { content: "\\2713  "; }
 
-  @media print { .print-btn { display: none; } }
+  @media print { .print-bar, .turn-hint { display: none !important; } }
 `;
 
+/** The document's title, as the page gives it, for the download log. */
+function htmlTitle(html: string) {
+  return (html.match(/<title>([^<]*)<\/title>/)?.[1] ?? "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
+// Marks where the bar goes on screen (withBar); the Word file drops it.
 const printScript = `<button class="print-btn" onclick="window.print()">Print / Save PDF</button>`;
+
+/**
+ * Swaps the print button for a bar across the top: back to the document in Elimu, the Word file,
+ * and Print. Back returns to the page the teacher came from when there is one, so their place is
+ * kept. Hidden when printing.
+ */
+function withBar(html: string, params: URLSearchParams) {
+  const word = new URLSearchParams(exportQuery(params));
+  word.set("format", "docx");
+  const bar = `<nav class="print-bar" aria-label="Document"><a class="bar-back" href="${esc(docPagePath(params))}" onclick="if(history.length>1&&document.referrer.indexOf(location.origin)===0){history.back();return false}">&larr; Back</a><span class="bar-actions">${params.get("type") === "term" ? "" : `<a class="bar-btn" href="/api/export?${esc(word.toString())}">Word</a>`}<button class="bar-btn bar-main" onclick="window.print()">Print / Save PDF</button></span></nav>`;
+  // Save as PDF names the file after the page title. Some browsers (and the installed app's
+  // window) left it blank or choked on the dashes, so the title is set to a plain file name,
+  // and again just before printing.
+  const name = pdfName(htmlTitle(html));
+  // pdfName has already taken out "<", so the name can't close the script.
+  const script = `<script>var n=${JSON.stringify(name)};document.title=n;addEventListener("beforeprint",function(){document.title=n});</script>`;
+  return html
+    .replace(/<title>[^<]*<\/title>/, `<title>${esc(name)}</title>`)
+    .replace(printScript, bar + FIT_TO_SCREEN + script);
+}
+
+/**
+ * On a phone the A4 sheets are wider than the screen, so each is shrunk to fit instead of
+ * scrolling sideways (the teacher can still pinch to zoom). Landscape sheets also ask the teacher
+ * to turn the phone. The shrinking comes off while printing, so the printout doesn't change.
+ */
+const FIT_TO_SCREEN = `<p class="turn-hint" role="note">Turn your phone sideways to read this table more easily.</p><style>@media screen and (max-width: 640px) { body { padding: 8px 0; } .page { margin-bottom: 8px; } }</style><script>(function(){
+function pages(){return document.querySelectorAll(".page")}
+function fit(){var w=document.documentElement.clientWidth,wide=false;
+pages().forEach(function(p){p.style.zoom="";var f=p.offsetWidth;if(f>w)p.style.zoom=String((w-16)/f);if(p.classList.contains("wide"))wide=true});
+var h=document.querySelector(".turn-hint");if(h)h.style.display=wide&&w<600&&innerHeight>innerWidth?"block":"none"}
+addEventListener("resize",fit);addEventListener("afterprint",fit);
+addEventListener("beforeprint",function(){pages().forEach(function(p){p.style.zoom=""})});
+if(document.readyState==="loading")addEventListener("DOMContentLoaded",fit);else fit()})()</script>`;
+
+/** A file name for Save as PDF, e.g. "Grade 1 Creative Activities - Scheme of work - Term 3". */
+function pdfName(title: string) {
+  return (
+    title
+      .replace(/\s*[–—]\s*/g, " - ")
+      .replace(/[\\/:*?"<>|#%&{}$!'@+`=]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 120)
+      .trim() || "Elimu document"
+  );
+}
 
 // Renders the body inside a fixed-size "paper" sheet so the on-screen preview
 // matches the printed output exactly, with consistent edge margins on both.
@@ -238,7 +322,7 @@ function wrap(title: string, body: string, landscape = false) {
       @page { size: ${SIZE}; margin: ${PAD}; }
     }
   `;
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)}</title><style>${baseCSS}${paper}</style></head><body>${printScript}<div class="page">${body}</div></body></html>`;
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)}</title><style>${baseCSS}${paper}</style></head><body>${printScript}<div class="page${landscape ? " wide" : ""}">${body}</div></body></html>`;
 }
 
 /**
@@ -373,7 +457,7 @@ function schemeBody(scheme: SchemeExport, weekDates?: Map<number, string>) {
         <th>Key inquiry questions</th>
         <th>Learning resources</th>
         <th>Assessment</th>
-        <th>Reflection</th>
+        <th>Reflection / remarks</th>
       </tr></thead>
       <tbody>${weekRows}</tbody>
     </table>
@@ -773,6 +857,7 @@ type AssessmentQuestion = {
   questionNumber?: string | number;
   questionText?: string;
   learningOutcome?: string;
+  level?: string;
   marks?: number | string;
   modelAnswer?: string;
   rubric?: string;
@@ -811,6 +896,9 @@ type AssessmentExport = {
 
 /** The learners' paper first, then the teacher's marking scheme on a new page. */
 function assessmentBody(assessment: AssessmentExport) {
+  const kind = assessmentKind(assessment.content);
+  if (kind === "practical") return practicalBody(assessment);
+  if (kind === "checklist") return checklistBody(assessment);
   const c = (assessment.content ?? {}) as AssessmentContent;
   const sections = Array.isArray(c.sections) ? c.sections : [];
   const questionsOf = (section: AssessmentSection) =>
@@ -818,6 +906,7 @@ function assessmentBody(assessment: AssessmentExport) {
   const title = cleanTitle(assessment.title);
   const sectionName = (section: AssessmentSection, si: number) =>
     `Section ${si + 1}${section.sectionTitle ? `: ${esc(section.sectionTitle)}` : ""}`;
+  const specs = specTable(sections);
 
   const paper = sections
     .map((section, si) => {
@@ -849,6 +938,7 @@ function assessmentBody(assessment: AssessmentExport) {
         <td class="center">${esc(q.questionNumber ?? qi + 1)}</td>
         <td>${esc(q.modelAnswer)}${q.rubric ? `<br><small>${esc(q.rubric)}</small>` : ""}</td>
         <td>${esc(q.learningOutcome)}</td>
+        ${specs.hasLevels ? `<td>${esc(q.level)}</td>` : ""}
         <td class="center">${esc(q.marks)}</td>
       </tr>`,
         )
@@ -856,7 +946,7 @@ function assessmentBody(assessment: AssessmentExport) {
       return `
       <h3>${sectionName(section, si)}</h3>
       <table>
-        <thead><tr><th style="width:30px">#</th><th>Answer</th><th style="width:30%">Outcome tested</th><th style="width:50px">Marks</th></tr></thead>
+        <thead><tr><th style="width:30px">#</th><th>Answer</th><th style="width:30%">Outcome tested</th>${specs.hasLevels ? `<th style="width:15%">Level</th>` : ""}<th style="width:50px">Marks</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
     })
@@ -899,7 +989,7 @@ function assessmentBody(assessment: AssessmentExport) {
     ${paper}
 
     <div class="page-break"></div>
-    <div class="center"><h1>Marking scheme</h1><p>${esc(title)}</p></div>
+    <div class="center"><h1>Marking scheme</h1><p class="doc-detail">${esc(title)}</p></div>
     ${covered.length ? `<div class="section"><h2>Sub-strands covered</h2><ul>${covered.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
     <div class="section">${marking}</div>
     ${
@@ -911,6 +1001,159 @@ function assessmentBody(assessment: AssessmentExport) {
     </div>`
         : ""
     }
+    ${specs.rows.length ? specsPage(title, specs) : ""}
+  `;
+}
+
+/** One page after the marking scheme: marks per learning outcome and cognitive level. */
+function specsPage(title: string | null, specs: SpecTable) {
+  const levels = specs.hasLevels ? COGNITIVE_LEVELS : [];
+  const cell = (marks: number) =>
+    `<td class="center">${marks ? marks : ""}</td>`;
+  const rows = specs.rows
+    .map(
+      (r) => `
+      <tr>
+        <td>${esc(r.outcome)}</td>
+        <td class="center">${esc(r.questions.join(", "))}</td>
+        ${levels.map((_, i) => cell(r.byLevel[i])).join("")}
+        <td class="center"><strong>${r.marks}</strong></td>
+        <td class="center">${percent(r.marks, specs.total)}</td>
+      </tr>`,
+    )
+    .join("");
+  const levelHeads = levels.map((l) => `<th class="center">${l}</th>`).join("");
+  const cols = [levels.length ? 33 : 65, 12, ...levels.map(() => 10), 8, 7]
+    .map((w) => `<col style="width: ${w}%">`)
+    .join("");
+  return `
+    <div class="page-break"></div>
+    <div class="center"><h1>Table of specifications</h1><p class="doc-detail">${esc(title)}</p></div>
+    <table>
+      <colgroup>${cols}</colgroup>
+      <thead><tr><th>Learning outcome</th><th class="center">Questions</th>${levelHeads}<th class="center">Marks</th><th class="center">%</th></tr></thead>
+      <tbody>${rows}
+        <tr>
+          <th>Total</th><th></th>
+          ${levels.map((_, i) => `<th class="center">${specs.byLevel[i]}</th>`).join("")}
+          <th class="center">${specs.total}</th><th class="center">100%</th>
+        </tr>
+        ${
+          levels.length
+            ? `<tr><th>Share of marks</th><th></th>${levels.map((_, i) => `<th class="center">${percent(specs.byLevel[i], specs.total)}</th>`).join("")}<th></th><th></th></tr>`
+            : ""
+        }
+      </tbody>
+    </table>
+    <p><small>Marks per learning outcome${levels.length ? " and per level (Knowledge, Comprehension, Application, Higher order)" : ""}. Check that the spread suits your class before you give the paper.</small></p>
+  `;
+}
+
+/** The header for a task or checklist: no total marks, but the sub-strand it covers. */
+function taskHead(assessment: AssessmentExport, covered: string[]) {
+  return `${draftMark(assessment)}${docHead(
+    "assessment",
+    {
+      ...teacherContext(assessment.teacher),
+      grade: assessment.grade,
+      subject: assessment.subject,
+      term: assessment.term,
+      year: assessment.year,
+    },
+    cleanTitle(assessment.title),
+    [
+      ["Type", esc(assessment.type)],
+      ["Sub-strand", esc(covered.join(", "))],
+    ],
+  )}`;
+}
+
+/** The learners' task sheet, then the teacher's rubric on a new page. */
+function practicalBody(assessment: AssessmentExport) {
+  const c = (assessment.content ?? {}) as PracticalContent;
+  const title = cleanTitle(assessment.title);
+  const rubric = (Array.isArray(c.rubric) ? c.rubric : []).filter(
+    (r) => r?.criterion,
+  );
+  const steps = arr(c.steps).filter((x) => x.trim());
+  const materials = arr(c.materials).filter((x) => x.trim());
+  const rows = rubric
+    .map(
+      (r, i) => `
+      <tr>
+        <td><strong>${i + 1}. ${esc(r.criterion)}</strong>${r.learningOutcome ? `<br><small>${esc(r.learningOutcome)}</small>` : ""}</td>
+        ${RUBRIC_LEVELS.map((l) => `<td>${esc(r[l.key])}</td>`).join("")}
+        <td></td>
+      </tr>`,
+    )
+    .join("");
+  const cols = [22, 17, 17, 17, 17, 10]
+    .map((w) => `<col style="width: ${w}%">`)
+    .join("");
+
+  return `
+    ${taskHead(assessment, arr(c.subStrandsCovered))}
+    <table class="head">
+      <tr><th>Learner's name</th><td></td><th>Admission no.</th><td></td></tr>
+      <tr><th>Stream</th><td></td><th>Date</th><td></td></tr>
+    </table>
+    ${c.task ? `<div class="section"><h2>Your task</h2><p>${esc(c.task)}</p></div>` : ""}
+    ${materials.length ? `<div class="section"><h2>You will need</h2><ul>${materials.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+    ${steps.length ? `<div class="section"><h2>Steps</h2><ol>${steps.map((x) => `<li>${esc(x)}</li>`).join("")}</ol></div>` : ""}
+
+    <div class="page-break"></div>
+    <div class="center"><h1>Rubric</h1><p class="doc-detail">${esc(title)}</p></div>
+    ${
+      rows
+        ? `<table>
+      <colgroup>${cols}</colgroup>
+      <thead><tr><th>Criterion</th>${RUBRIC_LEVELS.map((l) => `<th class="center">${l.short} (${l.score})</th>`).join("")}<th class="center">Score</th></tr></thead>
+      <tbody>${rows}
+        <tr><th>Total</th><th></th><th></th><th></th><th></th><th class="center">/ ${rubric.length * 4}</th></tr>
+      </tbody>
+    </table>
+    <p><small>${RUBRIC_LEVELS.map((l) => `${l.short} (${l.score}): ${l.label}`).join(" · ")}. Score each criterion, then add up.</small></p>`
+        : ""
+    }
+    ${c.teacherNotes ? `<div class="section"><h2>Notes for the teacher</h2><p>${esc(c.teacherNotes)}</p></div>` : ""}
+  `;
+}
+
+/** Learners on the class list down the side, one column per thing to look for. Landscape. */
+function checklistBody(assessment: AssessmentExport) {
+  const c = (assessment.content ?? {}) as ChecklistContent;
+  const items = (Array.isArray(c.items) ? c.items : []).filter(
+    (i) => i?.indicator,
+  );
+  const share = Math.max(5, Math.floor(54 / Math.max(items.length, 1)));
+  const cols = [4, 20, ...items.map(() => share), 8, 14]
+    .map((w) => `<col style="width: ${w}%">`)
+    .join("");
+  const blank = `<td>&nbsp;</td>`;
+  const rows = Array.from(
+    { length: 40 },
+    (_, i) =>
+      `<tr><td class="center">${i + 1}</td>${blank}${items.map(() => blank).join("")}${blank}${blank}</tr>`,
+  ).join("");
+
+  return `
+    <style>
+      table.tick th { font-size: 10px; vertical-align: bottom; }
+      table.tick td { height: 20px; padding: 3px 6px; }
+    </style>
+    ${taskHead(assessment, arr(c.subStrandsCovered))}
+    ${c.activity ? `<p><strong>Activity:</strong> ${esc(c.activity)}</p>` : ""}
+    <p><small>Tick &#10003; when the learner shows it; leave it blank if not yet. Overall: EE, ME, AE or BE.</small></p>
+    <table class="tick">
+      <colgroup>${cols}</colgroup>
+      <thead><tr><th class="center">No.</th><th>Learner's name</th>${items.map((it, i) => `<th>${i + 1}. ${esc(it.indicator)}</th>`).join("")}<th class="center">Overall</th><th>Remarks</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${
+      items.some((it) => it.learningOutcome)
+        ? `<div class="section"><h2>What each column tests</h2><ol>${items.map((it) => `<li>${esc(it.indicator)}${it.learningOutcome ? ` – ${esc(it.learningOutcome)}` : ""}</li>`).join("")}</ol></div>`
+        : ""
+    }
   `;
 }
 
@@ -918,6 +1161,7 @@ function buildAssessmentHTML(assessment: AssessmentExport) {
   return wrap(
     docName("assessment", assessment, assessment.title),
     assessmentBody(assessment),
+    assessmentKind(assessment.content) === "checklist",
   );
 }
 
@@ -1246,6 +1490,9 @@ async function buildTermFileHTML(
     ...recordSheets,
     ...termLessons.map((l) => ({ body: lessonBody(l) })),
     ...termNotes.map((n) => ({ body: notesBody(n) })),
-    ...termAssessments.map((a) => ({ body: assessmentBody(a) })),
+    ...termAssessments.map((a) => ({
+      body: assessmentBody(a),
+      wide: assessmentKind(a.content) === "checklist",
+    })),
   ]);
 }

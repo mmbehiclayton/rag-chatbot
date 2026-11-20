@@ -1,12 +1,12 @@
 import { AlertTriangle, CalendarDays, ClipboardCheck } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { DocMoreMenu } from "@/components/document/doc-actions";
 import {
   asArray,
   BulletList,
   DocHeader,
   DocSection,
-  ExportButton,
   Field,
   parseTitle,
 } from "@/components/document/doc-parts";
@@ -24,7 +24,13 @@ import { auth } from "@/lib/auth";
 import { classHref } from "@/lib/classes";
 import { db, withDbRetry } from "@/lib/db";
 import { docMeta } from "@/lib/documents";
-import { formatDay, formatRange, termLabel } from "@/lib/term-pack";
+import { downloadNote } from "@/lib/downloads";
+import {
+  formatDay,
+  formatRange,
+  termLabel,
+  todayInKenya,
+} from "@/lib/term-pack";
 import { getSchemeSchedule } from "@/lib/term-pack-data";
 
 // Writing a document with AI can take a couple of minutes.
@@ -59,6 +65,11 @@ export default async function SchemeDetailPage({
   if (!session?.userId) redirect("/login");
 
   const { id } = await params;
+  // What a download costs, looked up alongside the page's own queries.
+  const download = downloadNote(
+    session.userId,
+    `/api/export?type=scheme&id=${id}`,
+  );
   const scheme = await withDbRetry(() =>
     db.schemeOfWork.findFirst({
       where: { id, teacherId: session.userId },
@@ -145,15 +156,28 @@ export default async function SchemeDetailPage({
         needsReview={needsReview}
         actions={
           <>
-            <ExportButton href={`/api/export?type=scheme&id=${scheme.id}`} />
-            <ImproveButton kind="SCHEME" id={scheme.id} canUndo={canUndo} />
             <Button
-              variant="outline"
+              className="w-full sm:w-auto"
               render={<Link href={`/dashboard/schemes/${scheme.id}/record`} />}
             >
               <ClipboardCheck /> Record of work
             </Button>
             {needsReview && <ApproveSchemeButton schemeId={scheme.id} />}
+            <ImproveButton kind="SCHEME" id={scheme.id} canUndo={canUndo} />
+            <DocMoreMenu
+              type="schemes"
+              id={scheme.id}
+              copy={{
+                term: scheme.term,
+                year: scheme.year,
+                thisYear: Number(todayInKenya().slice(0, 4)),
+                lessons: scheme.lessonPlans.length,
+              }}
+              exportHref={`/api/export?type=scheme&id=${scheme.id}`}
+              downloadNote={await download}
+              pdfInMenu
+              deleteNote="Its lesson plans are kept. Its record of work (lessons marked as taught) is deleted too."
+            />
           </>
         }
       />

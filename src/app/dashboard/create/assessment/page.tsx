@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { TermPlanForm } from "@/components/create/term-plan-form";
+import { DocumentsLeft } from "@/components/shared/documents-left";
 import { PageHeader } from "@/components/shared/page-header";
 import { auth } from "@/lib/auth";
 import {
@@ -43,8 +45,11 @@ export default async function Page({
     <div className="mx-auto max-w-xl space-y-6">
       <PageHeader
         title="Assessment"
-        description="An assessment paper with a marking scheme, from the curriculum design."
+        description="A test, quiz, practical task or checklist, from the curriculum design."
       />
+      <Suspense fallback={null}>
+        <DocumentsLeft userId={session.userId} role={session.role} />
+      </Suspense>
       <TermPlanForm
         kind="assessment"
         grades={grades}

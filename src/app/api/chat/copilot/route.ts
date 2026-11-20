@@ -2,7 +2,12 @@ import { convertToModelMessages, streamText } from "ai";
 import { aiModel, modelUsed } from "@/lib/ai-models";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { CHAT_PER_DAY, overLimit } from "@/lib/rate-limit";
+import {
+  CHAT_HISTORY,
+  CHAT_MAX_OUTPUT,
+  CHAT_PER_DAY,
+  overLimit,
+} from "@/lib/rate-limit";
 
 export const maxDuration = 30;
 
@@ -72,12 +77,14 @@ GUIDELINES:
 4. Keep core CBC values and competencies at the heart of your suggestions.
 5. Provide specific dialogue examples if the teacher asks "What should I say when...".
 6. Be encouraging and professional.
+7. Keep each answer under about 400 words unless the teacher asks for something longer.
 `;
 
   const result = streamText({
     model: aiModel("chat"),
     system: systemPrompt,
-    messages: await convertToModelMessages(messages.slice(-10)),
+    messages: await convertToModelMessages(messages.slice(-CHAT_HISTORY)),
+    maxOutputTokens: CHAT_MAX_OUTPUT,
     onFinish: async ({ totalUsage }) => {
       await db.generationLog
         .create({

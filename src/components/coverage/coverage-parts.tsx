@@ -63,6 +63,8 @@ export function coverageLine(s: CoverageSummary) {
 
 /** "By today you'd expect about 55%." */
 export function expectedLine(s: CoverageSummary) {
+  if (s.expected !== null && s.expected >= 100)
+    return "The school year is over. This is what your classes covered.";
   return s.expected === null
     ? "Add your term dates under Profile to see whether you're on track."
     : `By today you'd expect about ${s.expected}%. The line on the bar marks it.`;

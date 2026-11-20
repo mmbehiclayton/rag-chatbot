@@ -1,8 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
+import { useState } from "react";
 import { GenerationProgress } from "@/components/create/generation-progress";
 import {
   defaultGradeSubject,
@@ -12,6 +11,8 @@ import { ReusePanel } from "@/components/create/reuse-panel";
 import { TopicPicker } from "@/components/create/topic-picker";
 import { ChoiceChips } from "@/components/shared/choice-chips";
 import { CurriculumNotice } from "@/components/shared/curriculum-notice";
+import { FormError } from "@/components/shared/form-error";
+import { makeDocument, useStillHere } from "@/components/shared/making";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { generateQuickLessonPlan } from "@/lib/actions/generation";
@@ -39,42 +40,53 @@ export function QuickLessonForm({
   initialTopic?: string;
 }) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setPending] = useState(false);
+  const here = useStillHere();
   const [target, setTarget] = useState(() =>
     defaultGradeSubject(grades, myGrades, mySubjects),
   );
   const [topic, setTopic] = useState(initialTopic);
   // Null until the teacher picks a length, so it follows the grade.
   const [durationInput, setDuration] = useState<string | null>(null);
+  const [error, setError] = useState<{ message: string; lost?: boolean }>();
   const duration = durationInput ?? `${lessonMinutesFor(target.grade)} min`;
 
   const key = `${target.grade}|${target.subject}`;
   const suggestions = topicSuggestions[key] ?? [];
   const hasCurriculum = curricula.includes(key);
-  const ready = !!target.grade && !!target.subject && topic.trim().length > 1;
+  // What's still needed, said under the greyed-out button.
+  const missing = !target.grade
+    ? "Choose a grade to continue."
+    : !target.subject
+      ? "Choose a subject to continue."
+      : topic.trim().length <= 1
+        ? "Type the topic to continue."
+        : null;
+  const ready = !missing;
 
-  const submit = () => {
-    startTransition(async () => {
-      try {
-        const result = await generateQuickLessonPlan({
+  const submit = async () => {
+    setError(undefined);
+    setPending(true);
+    await makeDocument({
+      what: "lesson plan",
+      detail: `${target.grade} ${target.subject} · ${topic.trim()}`,
+      run: () =>
+        generateQuickLessonPlan({
           grade: target.grade,
           subject: target.subject,
           topic,
           durationMinutes: Number.parseInt(duration, 10),
-        });
-        if (!result.ok) return void toast.error(result.error);
-        toast.success(
-          result.reused
-            ? "Another teacher already made this lesson, so you got your own copy straight away. Use Improve to change it."
-            : "Lesson plan ready",
-        );
-        router.push(`/dashboard/lessons/${result.id}`);
-      } catch {
-        toast.error(
-          "We lost contact with Elimu. It may still have finished, so check your Library before you try again.",
-        );
-      }
+        }),
+      href: (id) => `/dashboard/lessons/${id}`,
+      router,
+      here,
+      onError: setError,
+      readyMessage: ({ reused }) =>
+        reused
+          ? "Another teacher already made this lesson, so you got your own copy straight away. Use Improve to change it."
+          : "Your lesson plan is ready",
     });
+    setPending(false);
   };
 
   if (isPending) {
@@ -82,6 +94,7 @@ export function QuickLessonForm({
       <GenerationProgress
         title="Writing your lesson plan"
         detail={`${target.grade} ${target.subject} · ${topic.trim()}`}
+        estimate="It takes about 30 seconds. You can leave this page: we'll tell you when it's ready."
       />
     );
   }
@@ -146,9 +159,31 @@ export function QuickLessonForm({
         />
       )}
 
-      <Button type="submit" size="lg" className="w-full" disabled={!ready}>
+      {error && (
+        <FormError
+          title="Your lesson plan wasn't made"
+          message={error.message}
+          onRetry={submit}
+          showDocuments={error.lost}
+        />
+      )}
+      <Button
+        type="submit"
+        size="lg"
+        className="w-full"
+        disabled={!ready}
+        aria-describedby={missing ? "create-missing" : undefined}
+      >
         Create lesson plan
       </Button>
+      {missing && (
+        <p
+          id="create-missing"
+          className="text-center text-sm text-muted-foreground"
+        >
+          {missing}
+        </p>
+      )}
       <p className="text-center text-xs text-muted-foreground">
         Always review AI-generated content before you teach with it.
       </p>

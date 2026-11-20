@@ -22,3 +22,7 @@ export async function overLimit(key: string, max: number, windowMs: number) {
 export const DOCS_PER_HOUR = 20;
 /** Questions a teacher can ask Ask Elimu and the lesson copilot in a day. */
 export const CHAT_PER_DAY = 50;
+/** Earlier messages sent with each question. Every one is paid for again on every question. */
+export const CHAT_HISTORY = 6;
+/** Longest chat answer, in tokens (about 900 words); the prompt asks for 400. */
+export const CHAT_MAX_OUTPUT = 1200;

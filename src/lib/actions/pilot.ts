@@ -4,8 +4,14 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import {
+  ALLOWANCE_KEY,
+  ALLOWANCE_LIMITS,
+  type AllowancePlan,
+} from "@/lib/allowance";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { TRIAL_MODELS, trialModelKey } from "@/lib/model-trial";
 import { initializeCheckout, paystackOn } from "@/lib/paystack";
 import {
   getAccess,
@@ -13,6 +19,11 @@ import {
   TERM_PRICE_KEY,
   TEST_MODE_KEY,
 } from "@/lib/plans";
+import {
+  COMMISSION_KEY,
+  COMMISSION_LIMITS,
+  recordCommission,
+} from "@/lib/referrals";
 
 type Result = { success: true } | { success: false; error: string };
 
@@ -168,7 +179,7 @@ export async function startCheckout(): Promise<
   }
 }
 
-/** Test mode on: everything is free. Off: teachers need a trial, their free class or a term pass. */
+/** Test mode on: everything is free. Off: downloads need the free one, a paid document or a term pass. */
 export async function setTestMode(input: { on: boolean }): Promise<Result> {
   const session = await auth();
   if (!session?.userId || session.role !== "SUPERADMIN")
@@ -213,6 +224,39 @@ export async function setTermPrice(input: { price: number }): Promise<Result> {
   return { success: true };
 }
 
+/** Elimu staff set how many documents a month each plan gives. Applies straight away. */
+export async function setAllowances(
+  input: Record<AllowancePlan, number>,
+): Promise<Result> {
+  const session = await auth();
+  if (!session?.userId || session.role !== "SUPERADMIN")
+    return { success: false, error: "Only Elimu staff can do this." };
+  const plans: AllowancePlan[] = ["free", "paid"];
+  const value: Partial<Record<AllowancePlan, number>> = {};
+  for (const plan of plans) {
+    const n = Math.round(Number(input[plan]));
+    if (
+      !Number.isFinite(n) ||
+      n < ALLOWANCE_LIMITS.min ||
+      n > ALLOWANCE_LIMITS.max
+    )
+      return {
+        success: false,
+        error: `Enter a number between ${ALLOWANCE_LIMITS.min} and ${ALLOWANCE_LIMITS.max} for each plan.`,
+      };
+    value[plan] = n;
+  }
+  const json = JSON.stringify(value);
+  await db.platformSetting.upsert({
+    where: { key: ALLOWANCE_KEY },
+    create: { key: ALLOWANCE_KEY, value: json, updatedById: session.userId },
+    update: { value: json, updatedById: session.userId },
+  });
+  revalidatePath("/dashboard/pilot");
+  revalidatePath("/dashboard/profile");
+  return { success: true };
+}
+
 /** Elimu staff confirm a payment against the M-Pesa statement, or turn it down with a reason the teacher sees. */
 export async function reviewPayment(input: {
   id: string;
@@ -243,8 +287,143 @@ export async function reviewPayment(input: {
       success: false,
       error: "Someone has already checked this payment.",
     };
+  if (input.approve) await recordCommission(input.id);
   revalidatePath("/dashboard/pilot");
   return { success: true };
+}
+
+/** Elimu staff set the share of each term payment that goes to the teacher who invited the payer. */
+export async function setCommissionPercent(input: {
+  percent: number;
+}): Promise<Result> {
+  const session = await auth();
+  if (!session?.userId || session.role !== "SUPERADMIN")
+    return { success: false, error: "Only Elimu staff can do this." };
+  const percent = Math.round(Number(input.percent));
+  if (
+    !Number.isFinite(percent) ||
+    percent < COMMISSION_LIMITS.min ||
+    percent > COMMISSION_LIMITS.max
+  )
+    return {
+      success: false,
+      error: `Enter a percentage between ${COMMISSION_LIMITS.min} and ${COMMISSION_LIMITS.max}.`,
+    };
+  await db.platformSetting.upsert({
+    where: { key: COMMISSION_KEY },
+    create: {
+      key: COMMISSION_KEY,
+      value: String(percent),
+      updatedById: session.userId,
+    },
+    update: { value: String(percent), updatedById: session.userId },
+  });
+  revalidatePath("/dashboard/pilot");
+  revalidatePath("/dashboard/profile");
+  return { success: true };
+}
+
+/**
+ * Elimu staff sent a teacher what they're owed: the commissions they saw are marked paid. Only those,
+ * so one earned while staff were sending the money stays owed.
+ */
+export async function markCommissionsPaid(input: {
+  referrerId: string;
+  ids: string[];
+  payoutRef: string;
+}): Promise<Result> {
+  const session = await auth();
+  if (!session?.userId || session.role !== "SUPERADMIN")
+    return { success: false, error: "Only Elimu staff can do this." };
+  const payoutRef = input.payoutRef.replace(/\s+/g, "").toUpperCase();
+  if (!/^[A-Z0-9]{6,20}$/.test(payoutRef))
+    return {
+      success: false,
+      error: "Enter the M-Pesa code of the payment you sent.",
+    };
+  const { count } = await db.referralCommission.updateMany({
+    where: {
+      id: { in: input.ids.slice(0, 500) },
+      referrerId: input.referrerId,
+      status: "PENDING",
+    },
+    data: {
+      status: "PAID",
+      payoutRef,
+      paidAt: new Date(),
+      paidById: session.userId,
+    },
+  });
+  if (count === 0)
+    return { success: false, error: "Nothing is owed to this teacher now." };
+  revalidatePath("/dashboard/pilot");
+  return { success: true };
+}
+
+export type TracedDownload = {
+  teacher: string;
+  email: string;
+  school: string | null;
+  docType: string;
+  title: string | null;
+  format: string;
+  at: string;
+  downloads30d: number;
+};
+
+/** Elimu staff look up the Ref code printed on a copy, to see which account it was downloaded from. */
+export async function traceDownload(input: {
+  code: string;
+}): Promise<
+  | { success: true; download: TracedDownload }
+  | { success: false; error: string }
+> {
+  const session = await auth();
+  if (!session?.userId || session.role !== "SUPERADMIN")
+    return { success: false, error: "Only Elimu staff can do this." };
+  const code = input.code
+    .replace(/^\s*ref\s*/i, "")
+    .replace(/\s+/g, "")
+    .toUpperCase();
+  const log = await db.downloadLog.findUnique({
+    where: { code },
+    select: {
+      userId: true,
+      docType: true,
+      title: true,
+      format: true,
+      createdAt: true,
+      user: {
+        select: {
+          name: true,
+          email: true,
+          schoolName: true,
+          tenant: { select: { name: true } },
+        },
+      },
+    },
+  });
+  if (!log)
+    return { success: false, error: `No download has the code ${code}.` };
+  const downloads30d = await db.downloadLog.count({
+    where: {
+      userId: log.userId,
+      createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+    },
+  });
+  return {
+    success: true,
+    download: {
+      teacher: log.user.name || log.user.email,
+      email: log.user.email,
+      school: log.user.schoolName || log.user.tenant?.name || null,
+      docType: log.docType,
+      title: log.title,
+      format: log.format,
+      at: log.createdAt.toISOString(),
+      downloads30d,
+    },
+  };
 }
 
 const Answer = z.enum(["ACCEPTED", "CHANGES", "NOT_YET"]);
@@ -282,5 +461,26 @@ export async function answerHeadReview(input: {
   });
   revalidatePath(`/dashboard/schemes/${scheme.id}`);
   revalidatePath(`/dashboard/schemes/${scheme.id}/record`);
+  return { success: true };
+}
+
+/** Staff try a cheaper writing model on their own documents. null goes back to the normal model. */
+export async function setTrialModel(model: string | null): Promise<Result> {
+  const session = await auth();
+  if (!session?.userId || session.role !== "SUPERADMIN")
+    return { success: false, error: "Only Elimu staff can do this." };
+  const key = trialModelKey(session.userId);
+  if (!model) {
+    await db.platformSetting.deleteMany({ where: { key } });
+  } else {
+    if (!(TRIAL_MODELS as readonly string[]).includes(model))
+      return { success: false, error: "Pick one of the models in the list." };
+    await db.platformSetting.upsert({
+      where: { key },
+      create: { key, value: model, updatedById: session.userId },
+      update: { value: model, updatedById: session.userId },
+    });
+  }
+  revalidatePath("/dashboard/settings");
   return { success: true };
 }

@@ -49,6 +49,7 @@ export function TopicPicker({
   onChange,
   suggestions = [],
   startTyped = false,
+  withFocus = true,
 }: {
   grade: string;
   subject: string;
@@ -58,6 +59,8 @@ export function TopicPicker({
   /** Topics from the teacher's own schemes, shown under the text box. */
   suggestions?: string[];
   startTyped?: boolean;
+  /** False for an assessment, which covers the whole sub-strand. */
+  withFocus?: boolean;
 }) {
   const design = useCurriculumTopics(grade, subject);
   const [typeOwn, setTypeOwn] = useState(startTyped);
@@ -69,7 +72,7 @@ export function TopicPicker({
   const useDesign = !!design && !typeOwn;
   const chosen = subStrand[key] ?? design?.suggested ?? "";
   const topic = useDesign
-    ? focus.trim()
+    ? withFocus && focus.trim()
       ? `${chosen}: ${focus.trim()}`
       : chosen
     : own;
@@ -120,17 +123,19 @@ export function TopicPicker({
             </p>
           )}
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="focus">Lesson focus (optional)</Label>
-          <Input
-            id="focus"
-            value={focus}
-            onChange={(e) => setFocus(e.target.value)}
-            placeholder="e.g. adding like fractions"
-            maxLength={120}
-            autoComplete="off"
-          />
-        </div>
+        {withFocus && (
+          <div className="space-y-2">
+            <Label htmlFor="focus">Lesson focus (optional)</Label>
+            <Input
+              id="focus"
+              value={focus}
+              onChange={(e) => setFocus(e.target.value)}
+              placeholder="e.g. adding like fractions"
+              maxLength={120}
+              autoComplete="off"
+            />
+          </div>
+        )}
         <Button
           type="button"
           variant="link"

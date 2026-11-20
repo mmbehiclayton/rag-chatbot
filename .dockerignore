@@ -1,0 +1,35 @@
+# ── Dependencies ──────────────────────────────────────────────────────────────
+node_modules
+.pnpm-store
+package-lock.json
+
+# ── Build output ──────────────────────────────────────────────────────────────
+.next
+out
+tsconfig.tsbuildinfo
+
+# ── Version control / hosting ─────────────────────────────────────────────────
+.git
+.gitignore
+.vercel
+
+# ── Environment / secrets ─────────────────────────────────────────────────────
+.env
+.env.*
+
+# ── Logs and scratch files ────────────────────────────────────────────────────
+*.log
+*.txt
+*.patch
+*.pdf
+
+# ── Docs and deploy tooling ───────────────────────────────────────────────────
+*.md
+docs
+deploy
+Dockerfile*
+.dockerignore
+deploy.sh
+
+# ── Local uploads (old PDFs; the live site reads from UploadThing) ────────────
+public/uploads

@@ -3,6 +3,16 @@ import { BookOpen, ClipboardCheck, FileText, Users } from "lucide-react";
 import { redirect } from "next/navigation";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { costUsd, kes, usdToKes } from "@/lib/ai-prices";
+import { kenyaMonth } from "@/lib/allowance";
 import { auth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
 import { cn } from "@/lib/utils";
@@ -18,6 +28,8 @@ const CONTENT_LABEL: Record<string, string> = {
 };
 
 const num = (n: number) => n.toLocaleString("en-KE");
+/** One document's cost: shillings with cents, since many cost under a shilling. */
+const kesFine = (usd: number) => `KES ${(usd * usdToKes()).toFixed(2)}`;
 
 /** What teachers have prepared and how much of the monthly AI limit is used. Admins see their school; staff see everyone. */
 export default async function UsagePage() {
@@ -33,9 +45,7 @@ export default async function UsagePage() {
   const workWhere = isStaff ? {} : { teacher: { tenantId } };
   const logWhere = isStaff ? {} : { tenantId };
 
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
+  const monthStart = kenyaMonth().start;
 
   const [
     school,
@@ -50,6 +60,8 @@ export default async function UsagePage() {
     recentSchemes,
     recentLessons,
     recentAssessments,
+    byModel,
+    byTeacher,
   ] = await withDbRetry(() =>
     Promise.all([
       isStaff
@@ -126,18 +138,67 @@ export default async function UsagePage() {
           teacher: { select: { name: true, email: true } },
         },
       }),
+      db.generationLog.groupBy({
+        by: ["contentType", "model"],
+        where: { ...logWhere, createdAt: { gte: monthStart } },
+        _count: true,
+        _sum: { promptTokens: true, completionTokens: true },
+      }),
+      db.generationLog.groupBy({
+        by: ["userId", "model"],
+        where: { ...logWhere, createdAt: { gte: monthStart } },
+        _count: true,
+        _sum: { promptTokens: true, completionTokens: true },
+      }),
     ]),
   );
 
   const limit = quota._sum.tokenQuota ?? 0;
   const used = month._sum.totalTokens ?? 0;
   const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
-  // GPT-4o list prices: $2.50 per million input tokens, $10 per million output tokens.
-  const costUsd =
-    ((month._sum.promptTokens ?? 0) * 2.5 +
-      (month._sum.completionTokens ?? 0) * 10) /
-    1_000_000;
-  const monthName = monthStart.toLocaleDateString("en-KE", { month: "long" });
+  const priced = <
+    T extends {
+      model: string;
+      _count: number;
+      _sum: {
+        promptTokens: number | null;
+        completionTokens: number | null;
+      };
+    },
+  >(
+    row: T,
+  ) => ({
+    ...row,
+    usd: costUsd(
+      row.model,
+      row._sum.promptTokens ?? 0,
+      row._sum.completionTokens ?? 0,
+    ),
+  });
+  const costRows = byModel.map(priced).sort((a, b) => b.usd - a.usd);
+  const totalUsd = costRows.reduce((sum, r) => sum + r.usd, 0);
+  // Each teacher's cost this month, across every model they used.
+  const teacherUsd = new Map<string, { usd: number; docs: number }>();
+  for (const r of byTeacher.map(priced)) {
+    const t = teacherUsd.get(r.userId) ?? { usd: 0, docs: 0 };
+    teacherUsd.set(r.userId, { usd: t.usd + r.usd, docs: t.docs + r._count });
+  }
+  const topSpend = [...teacherUsd.entries()]
+    .sort((a, b) => b[1].usd - a[1].usd)
+    .slice(0, 10);
+  const spenders = isStaff
+    ? await withDbRetry(() =>
+        db.user.findMany({
+          where: { id: { in: topSpend.map(([id]) => id) } },
+          select: { id: true, name: true, email: true },
+        }),
+      )
+    : [];
+  const spenderName = new Map(spenders.map((u) => [u.id, u.name || u.email]));
+  const monthName = monthStart.toLocaleDateString("en-KE", {
+    timeZone: "Africa/Nairobi",
+    month: "long",
+  });
 
   const totals = [
     { label: "Teachers", value: teacherCount, icon: Users },
@@ -245,13 +306,78 @@ export default async function UsagePage() {
         {isStaff && (
           <p className="border-t pt-3 text-xs text-muted-foreground">
             Estimated AI cost this month:{" "}
-            <span className="font-medium text-foreground">
-              ${costUsd.toFixed(2)}
-            </span>{" "}
-            (at GPT-4o prices)
+            <span className="font-medium text-foreground">{kes(totalUsd)}</span>{" "}
+            (${totalUsd.toFixed(2)} at list prices)
           </p>
         )}
       </section>
+
+      {isStaff && costRows.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-base font-semibold">Cost in {monthName}</h2>
+          <div className="rounded-xl border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>What</TableHead>
+                  <TableHead>Model</TableHead>
+                  <TableHead className="text-right">Made</TableHead>
+                  <TableHead className="text-right">Cost</TableHead>
+                  <TableHead className="text-right">Each</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {costRows.map((r) => (
+                  <TableRow key={`${r.contentType}-${r.model}`}>
+                    <TableCell>
+                      {CONTENT_LABEL[r.contentType] ?? r.contentType}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {r.model === "cache" ? "Reused" : r.model}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {num(r._count)}
+                    </TableCell>
+                    <TableCell className="text-right">{kes(r.usd)}</TableCell>
+                    <TableCell className="text-right">
+                      {r._count ? kesFine(r.usd / r._count) : "-"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          {topSpend.length > 0 && (
+            <>
+              <h3 className="pt-2 text-sm font-semibold">
+                Teachers who cost the most
+              </h3>
+              <ul className="divide-y rounded-xl border bg-card text-sm">
+                {topSpend.map(([id, t]) => (
+                  <li
+                    key={id}
+                    className="flex items-center justify-between gap-3 px-4 py-3"
+                  >
+                    <span className="min-w-0 truncate">
+                      {spenderName.get(id) ?? "Removed account"}
+                    </span>
+                    <span className="shrink-0 text-muted-foreground">
+                      {num(t.docs)} uses ·{" "}
+                      <span className="font-medium text-foreground">
+                        {kes(t.usd)}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Estimates from list prices at KES {usdToKes()} to the dollar. The
+            real bill is on the OpenAI and Anthropic websites.
+          </p>
+        </section>
+      )}
 
       <section className="space-y-2">
         <h2 className="text-base font-semibold">Teachers</h2>

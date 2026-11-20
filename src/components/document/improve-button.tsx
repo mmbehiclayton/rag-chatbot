@@ -1,9 +1,10 @@
 "use client";
 
-import { Sparkles, Undo2 } from "lucide-react";
+import { CircleAlert, Sparkles, Undo2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { showGenerationError } from "@/components/shared/limit-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,6 +22,7 @@ import {
   improveDocument,
   undoImprove,
 } from "@/lib/actions/generation";
+import { LESSON_PARTS, type LessonPart } from "@/lib/improve-parts";
 
 const IDEAS: Record<ImproveKind, string[]> = {
   LESSON: [
@@ -66,6 +68,8 @@ export function ImproveButton({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [instruction, setInstruction] = useState("");
+  const [part, setPart] = useState<LessonPart>("whole");
+  const [error, setError] = useState<string>();
   const [isPending, startTransition] = useTransition();
   const [isUndoing, startUndo] = useTransition();
 
@@ -83,18 +87,30 @@ export function ImproveButton({
 
   const submit = () =>
     startTransition(async () => {
+      setError(undefined);
       try {
-        const result = await improveDocument({ kind, id, instruction });
-        if (!result.ok) return void toast.error(result.error);
+        const result = await improveDocument({
+          kind,
+          id,
+          instruction,
+          part: kind === "LESSON" ? part : undefined,
+        });
+        if (!result.ok) {
+          if (result.limit) setOpen(false);
+          return void showGenerationError(result, (message) =>
+            setError(`${message} Nothing was changed.`),
+          );
+        }
         setOpen(false);
         setInstruction("");
+        setPart("whole");
         toast.success(`Your ${WHAT[kind]} has been changed`, {
           description: "Read it through before you use it.",
           action: { label: "Undo", onClick: undo },
         });
         router.refresh();
       } catch {
-        toast.error(OFFLINE);
+        setError(OFFLINE);
       }
     });
 
@@ -120,6 +136,27 @@ export function ImproveButton({
               Tell Elimu what to change. Everything else stays the same.
             </DialogDescription>
           </DialogHeader>
+
+          {kind === "LESSON" && (
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">Which part?</legend>
+              <div className="flex flex-wrap gap-2">
+                {LESSON_PARTS.map((p) => (
+                  <Button
+                    key={p.part}
+                    type="button"
+                    variant={part === p.part ? "default" : "outline"}
+                    aria-pressed={part === p.part}
+                    className="min-h-11 rounded-md text-sm font-normal"
+                    disabled={isPending}
+                    onClick={() => setPart(p.part)}
+                  >
+                    {p.label}
+                  </Button>
+                ))}
+              </div>
+            </fieldset>
+          )}
 
           <div className="flex flex-wrap gap-2">
             {IDEAS[kind].map((idea) => (
@@ -154,6 +191,19 @@ export function ImproveButton({
             </p>
           )}
 
+          {error && (
+            <p
+              role="alert"
+              className="flex gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3"
+            >
+              <CircleAlert
+                className="mt-0.5 size-4 shrink-0 text-destructive"
+                aria-hidden
+              />
+              <span>{error}</span>
+            </p>
+          )}
+
           <DialogFooter>
             <Button
               size="lg"
@@ -163,7 +213,7 @@ export function ImproveButton({
             >
               {isPending ? <Spinner /> : <Sparkles />}
               {isPending
-                ? `Changing… about ${kind === "SCHEME" ? "a minute" : "30 seconds"}`
+                ? `Changing… about ${kind === "SCHEME" ? "a minute" : part !== "whole" ? "10 seconds" : "30 seconds"}`
                 : "Make the change"}
             </Button>
           </DialogFooter>

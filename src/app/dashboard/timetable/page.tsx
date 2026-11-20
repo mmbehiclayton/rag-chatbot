@@ -58,6 +58,15 @@ export default async function TimetablePage({
         <PageHeader
           title={isCurrent ? "This week" : `Week ${week.number}`}
           description={`${termLabel(term)} · Week ${week.number} of ${weeks.length} · ${formatRange(week.from, week.to)}`}
+          action={
+            <Button
+              variant="outline"
+              className="h-11"
+              render={<Link href="/dashboard/profile/term" />}
+            >
+              <CalendarDays /> Term dates and timetable
+            </Button>
+          }
         />
         <div className="flex items-center justify-between gap-2">
           {prev ? (
@@ -152,13 +161,6 @@ export default async function TimetablePage({
           </ul>
         </section>
       )}
-
-      <Link
-        href="/dashboard/profile/term"
-        className="inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline"
-      >
-        Change my timetable
-      </Link>
     </div>
   );
 }

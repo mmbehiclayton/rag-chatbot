@@ -1,9 +1,10 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { db, withDbRetry } from "@/lib/db";
+import { recordCommission } from "@/lib/referrals";
 import { siteUrl } from "@/lib/site-url";
 
 /**
- * Term passes paid through Paystack's checkout (M-Pesa or card, in KES).
+ * Term passes and single downloads paid through Paystack's checkout (M-Pesa or card, in KES).
  * Paystack amounts are in cents. A pass goes live only after we fetch the transaction
  * from Paystack with the secret key, so neither the return link nor the webhook is trusted on its own.
  */
@@ -24,12 +25,14 @@ export function appUrl(path = "") {
 }
 
 type PassMeta = { teacherId: string; year: number; term: number };
+/** A single document's download (lib/downloads). */
+type DownloadMeta = { kind: "download"; teacherId: string; docKey: string };
 
 export async function initializeCheckout(input: {
   email: string;
   amountKes: number;
   reference: string;
-  metadata: PassMeta;
+  metadata: PassMeta | DownloadMeta;
 }) {
   const res = await fetch(`${API}/transaction/initialize`, {
     method: "POST",
@@ -72,7 +75,7 @@ type Transaction = {
   reference: string;
   amount: number;
   currency: string;
-  metadata: Partial<PassMeta> | string | null;
+  metadata: Partial<PassMeta & DownloadMeta> | string | null;
   customer?: { phone?: string | null };
   authorization?: { mobile_money_number?: string | null };
 };
@@ -106,7 +109,8 @@ export async function confirmPayment(
     typeof tx.metadata === "string"
       ? JSON.parse(tx.metadata || "{}")
       : (tx.metadata ?? {})
-  ) as Partial<PassMeta>;
+  ) as Partial<PassMeta & DownloadMeta>;
+  if (meta.kind === "download") return confirmDownload(tx, meta);
   if (!meta.teacherId || !meta.year || !meta.term || tx.currency !== "KES")
     return "failed";
 
@@ -120,7 +124,7 @@ export async function confirmPayment(
   const pass = await withDbRetry(() =>
     db.termPass.findUnique({
       where: key,
-      select: { status: true, amount: true },
+      select: { id: true, status: true, amount: true },
     }),
   );
   if (pass?.status === "ACTIVE") return "paid";
@@ -137,6 +141,41 @@ export async function confirmPayment(
         tx.authorization?.mobile_money_number || tx.customer?.phone || null,
       note: null,
       reviewedAt: new Date(),
+    },
+  });
+  await recordCommission(pass.id);
+  return "paid";
+}
+
+/** Opens a paid-for document for download, once Paystack has confirmed the payment. */
+async function confirmDownload(
+  tx: Transaction,
+  meta: Partial<DownloadMeta>,
+): Promise<"paid" | "failed"> {
+  if (!meta.teacherId || !meta.docKey || tx.currency !== "KES") return "failed";
+  const key = {
+    teacherId_docKey: { teacherId: meta.teacherId, docKey: meta.docKey },
+  };
+  const unlock = await withDbRetry(() =>
+    db.documentUnlock.findUnique({
+      where: key,
+      select: { status: true, amount: true },
+    }),
+  );
+  if (unlock?.status === "ACTIVE") return "paid";
+  if (!unlock || tx.amount < unlock.amount * 100) return "failed";
+
+  await db.documentUnlock.update({
+    where: key,
+    data: {
+      status: "ACTIVE",
+      method: "PAYSTACK",
+      // The reference that paid, in case the teacher opened a second checkout meanwhile.
+      reference: tx.reference,
+      amount: Math.round(tx.amount / 100),
+      phone:
+        tx.authorization?.mobile_money_number || tx.customer?.phone || null,
+      paidAt: new Date(),
     },
   });
   return "paid";

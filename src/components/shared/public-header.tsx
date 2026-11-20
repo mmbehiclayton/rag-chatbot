@@ -7,10 +7,19 @@ import { Button } from "@/components/ui/button";
  * Header for pages anyone can read without signing in. Teachers who are already signed in
  * get a way back to their dashboard instead of "Sign in".
  */
-export function PublicHeader({ signedIn = false }: { signedIn?: boolean }) {
+export function PublicHeader({
+  signedIn = false,
+  wide = false,
+}: {
+  signedIn?: boolean;
+  /** Match the wider landing page. */
+  wide?: boolean;
+}) {
   return (
     <header className="border-b bg-card">
-      <div className="mx-auto flex h-14 max-w-4xl items-center justify-between gap-2 px-4">
+      <div
+        className={`mx-auto flex h-14 items-center ${wide ? "max-w-5xl" : "max-w-4xl"} justify-between gap-2 px-4`}
+      >
         <Logo />
         <nav aria-label="Site" className="flex items-center gap-1">
           <Button
@@ -48,10 +57,10 @@ export function SignUpPrompt({ title, body }: { title: string; body: string }) {
       <p className="text-sm text-muted-foreground">{body}</p>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Button size="lg" render={<Link href="/register" />}>
-          Create free account
+          Sign up
         </Button>
         <Button size="lg" variant="outline" render={<Link href="/login" />}>
-          I already have an account
+          Sign in
         </Button>
       </div>
     </section>

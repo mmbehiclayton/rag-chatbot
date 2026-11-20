@@ -3,15 +3,17 @@
 import { CalendarDays } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
+import { useState } from "react";
 import { GenerationProgress } from "@/components/create/generation-progress";
 import {
   defaultGradeSubject,
   GradeSubjectPicker,
 } from "@/components/create/grade-subject-picker";
+import { TopicPicker } from "@/components/create/topic-picker";
 import { ChoiceChips } from "@/components/shared/choice-chips";
 import { CurriculumNotice } from "@/components/shared/curriculum-notice";
+import { FormError } from "@/components/shared/form-error";
+import { makeDocument, useStillHere } from "@/components/shared/making";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -21,12 +23,14 @@ import {
   generateAssessment,
   generateSchemeOfWork,
 } from "@/lib/actions/generation";
+import { ASSESSMENT_KINDS, type AssessmentKind } from "@/lib/assessment-kinds";
 import type { GradeOption } from "@/lib/curriculum-options";
 import { lessonMinutesFor } from "@/lib/term-pack";
 
 const TERMS = ["Term 1", "Term 2", "Term 3"];
 const ASSESSMENT_TYPES = ["Opener", "Mid-term", "End of term"];
 const MARKS = ["30", "50", "100"];
+const QUIZ_MARKS = ["10", "20"];
 
 function NumberField({
   id,
@@ -104,7 +108,8 @@ export function TermPlanForm({
   initialAssessmentType?: string;
 }) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setPending] = useState(false);
+  const here = useStillHere();
   const [target, setTarget] = useState(() =>
     defaultGradeSubject(grades, myGrades, mySubjects),
   );
@@ -123,6 +128,15 @@ export function TermPlanForm({
       : "End of term",
   );
   const [marks, setMarks] = useState("50");
+  const [quizMarks, setQuizMarks] = useState("20");
+  const [assessmentKind, setAssessmentKind] =
+    useState<AssessmentKind>("written");
+  const [topic, setTopic] = useState("");
+  const [error, setError] = useState<{ message: string; lost?: boolean }>();
+  const kindInfo =
+    ASSESSMENT_KINDS.find((k) => k.id === assessmentKind) ??
+    ASSESSMENT_KINDS[0];
+  const needsTopic = kind === "assessment" && assessmentKind !== "written";
 
   const hasCurriculum = curricula.includes(`${target.grade}|${target.subject}`);
   const termDates = calendar[term];
@@ -143,15 +157,33 @@ export function TermPlanForm({
       breakWeeks < weeks &&
       lessonsPerWeek >= 1 &&
       lessonsPerWeek <= 10);
-  const ready =
-    !!target.grade && !!target.subject && hasCurriculum && numbersValid;
+  // What's still needed, said under the greyed-out button.
+  const missing = !target.grade
+    ? "Choose a grade to continue."
+    : !target.subject
+      ? "Choose a subject to continue."
+      : !hasCurriculum
+        ? "Elimu doesn't have this subject's curriculum design yet."
+        : !numbersValid
+          ? "Check the weeks and lessons per week."
+          : needsTopic && !topic.trim()
+            ? "Type a topic to continue."
+            : null;
+  const ready = !missing;
   const durationMinutes = Number.parseInt(duration, 10);
 
-  const submit = () => {
-    startTransition(async () => {
-      try {
-        if (kind === "scheme") {
-          const result = await generateSchemeOfWork({
+  const submit = async () => {
+    setError(undefined);
+    setPending(true);
+    const common = { router, here, onError: setError };
+    if (kind === "scheme")
+      await makeDocument({
+        ...common,
+        what: "scheme of work",
+        detail: `${target.grade} ${target.subject} · ${term}`,
+        href: (id) => `/dashboard/schemes/${id}`,
+        run: () =>
+          generateSchemeOfWork({
             ...target,
             term,
             durationMinutes,
@@ -165,29 +197,29 @@ export function TermPlanForm({
                   totalLessons: fromCalendar.lessons[classKey],
                 }
               : { weeks, holidays: breakWeeks, lessonsPerWeek }),
-          });
-          if (!result.ok) return void toast.error(result.error);
-          toast.success("Scheme of work ready");
-          router.push(`/dashboard/schemes/${result.id}`);
-        } else {
-          const result = await generateAssessment({
+          }),
+      });
+    else
+      await makeDocument({
+        ...common,
+        what: kindInfo.label.toLowerCase(),
+        detail: `${target.grade} ${target.subject} · ${needsTopic ? topic : term}`,
+        href: (id) => `/dashboard/assessments/${id}`,
+        run: () =>
+          generateAssessment({
             ...target,
             term,
             type: `${assessmentType} assessment`,
-            totalMarks: Number.parseInt(marks, 10),
-            durationMinutes: 60,
-          });
-          if (!result.ok) return void toast.error(result.error);
-          toast.success("Assessment ready");
-          router.push(`/dashboard/assessments/${result.id}`);
-        }
-      } catch {
-        // Only reached when the request itself fails, e.g. the connection dropped.
-        toast.error(
-          "We lost contact with Elimu. It may still have finished, so check your Library before you try again.",
-        );
-      }
-    });
+            totalMarks: Number.parseInt(
+              assessmentKind === "quiz" ? quizMarks : marks,
+              10,
+            ),
+            durationMinutes: assessmentKind === "quiz" ? 20 : 60,
+            kind: assessmentKind,
+            topic: needsTopic ? topic : undefined,
+          }),
+      });
+    setPending(false);
   };
 
   if (isPending) {
@@ -196,13 +228,13 @@ export function TermPlanForm({
         title={
           kind === "scheme"
             ? "Writing your scheme of work"
-            : "Writing your assessment"
+            : `Writing your ${kindInfo.label.toLowerCase()}`
         }
-        detail={`${target.grade} ${target.subject} · ${term}`}
+        detail={`${target.grade} ${target.subject} · ${needsTopic ? topic : term}`}
         estimate={
           kind === "scheme"
-            ? "A full term takes 1 to 2 minutes. Please keep this page open."
-            : "This usually takes under a minute. Please keep this page open."
+            ? "A full term takes 1 to 2 minutes. You can leave this page: we'll tell you when it's ready."
+            : "This usually takes under a minute. You can leave this page: we'll tell you when it's ready."
         }
       />
     );
@@ -349,31 +381,93 @@ export function TermPlanForm({
           ) : (
             <>
               <div className="space-y-2">
-                <p className="text-sm font-medium">Type</p>
+                <p className="text-sm font-medium">What kind?</p>
                 <ChoiceChips
-                  label="Assessment type"
-                  options={ASSESSMENT_TYPES}
-                  value={[assessmentType]}
-                  onChange={([t]) => t && setAssessmentType(t)}
+                  label="Kind of assessment"
+                  options={ASSESSMENT_KINDS.map((k) => k.label)}
+                  value={[kindInfo.label]}
+                  onChange={([l]) => {
+                    const k = ASSESSMENT_KINDS.find((x) => x.label === l);
+                    if (k) setAssessmentKind(k.id);
+                  }}
                 />
+                <p className="text-xs text-muted-foreground">{kindInfo.note}</p>
               </div>
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Total marks</p>
-                <ChoiceChips
-                  label="Total marks"
-                  options={MARKS}
-                  value={[marks]}
-                  onChange={([m]) => m && setMarks(m)}
-                />
-              </div>
+              {assessmentKind === "written" ? (
+                <>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Type</p>
+                    <ChoiceChips
+                      label="Assessment type"
+                      options={ASSESSMENT_TYPES}
+                      value={[assessmentType]}
+                      onChange={([t]) => t && setAssessmentType(t)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Total marks</p>
+                    <ChoiceChips
+                      label="Total marks"
+                      options={MARKS}
+                      value={[marks]}
+                      onChange={([m]) => m && setMarks(m)}
+                    />
+                  </div>
+                </>
+              ) : (
+                hasCurriculum && (
+                  <TopicPicker
+                    grade={target.grade}
+                    subject={target.subject}
+                    value={topic}
+                    onChange={setTopic}
+                    withFocus={false}
+                  />
+                )
+              )}
+              {assessmentKind === "quiz" && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Total marks</p>
+                  <ChoiceChips
+                    label="Total marks"
+                    options={QUIZ_MARKS}
+                    value={[quizMarks]}
+                    onChange={([m]) => m && setQuizMarks(m)}
+                  />
+                </div>
+              )}
             </>
           )}
         </CardContent>
       </Card>
 
-      <Button type="submit" size="lg" className="w-full" disabled={!ready}>
-        {kind === "scheme" ? "Create scheme of work" : "Create assessment"}
+      {error && (
+        <FormError
+          title={`Your ${kind === "scheme" ? "scheme of work" : kindInfo.label.toLowerCase()} wasn't made`}
+          message={error.message}
+          onRetry={submit}
+          showDocuments={error.lost}
+        />
+      )}
+      <Button
+        type="submit"
+        size="lg"
+        className="w-full"
+        disabled={!ready}
+        aria-describedby={missing ? "create-missing" : undefined}
+      >
+        {kind === "scheme"
+          ? "Create scheme of work"
+          : `Create ${kindInfo.label.toLowerCase()}`}
       </Button>
+      {missing && (
+        <p
+          id="create-missing"
+          className="text-center text-sm text-muted-foreground"
+        >
+          {missing}
+        </p>
+      )}
       <p className="text-center text-xs text-muted-foreground">
         Always review AI-generated content before you use it.
       </p>

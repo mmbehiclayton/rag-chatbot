@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { confirmAction } from "@/components/shared/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,7 +42,7 @@ const SOURCE: Record<
   { label: string; variant: "success" | "secondary" | "warning" }
 > = {
   saved: { label: "Saved here", variant: "success" },
-  hosting: { label: "From Vercel settings", variant: "secondary" },
+  hosting: { label: "From server settings", variant: "secondary" },
   none: { label: "Not set", variant: "warning" },
 };
 
@@ -124,7 +125,7 @@ export function AIKeyCard({
           )}
           {source === "saved" && hostingLast4 && (
             <div className="flex justify-between gap-4">
-              <dt className="text-muted-foreground">Vercel fallback</dt>
+              <dt className="text-muted-foreground">Server fallback</dt>
               <dd>ends in {hostingLast4}</dd>
             </div>
           )}
@@ -212,13 +213,16 @@ export function AIKeyCard({
                 variant="outline"
                 className="h-11 text-destructive"
                 disabled={busy !== null}
-                onClick={() => {
+                onClick={async () => {
                   if (
-                    window.confirm(
-                      hostingLast4
-                        ? `Remove the saved ${info.name} key? Elimu goes back to the key in Vercel's settings (ends in ${hostingLast4}).`
-                        : `Remove the saved ${info.name} key? There is no key in Vercel's settings, so ${info.name} stops working.`,
-                    )
+                    await confirmAction({
+                      title: `Remove the saved ${info.name} key?`,
+                      body: hostingLast4
+                        ? `Elimu goes back to the key in the server settings (ends in ${hostingLast4}).`
+                        : `There is no key in the server settings, so ${info.name} stops working.`,
+                      confirm: "Remove key",
+                      destructive: true,
+                    })
                   )
                     run("remove", () => removeAIKey({ provider }));
                 }}
