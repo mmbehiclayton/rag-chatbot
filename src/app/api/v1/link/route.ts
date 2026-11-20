@@ -33,14 +33,37 @@ export async function POST(req: Request) {
 
   const existing = await db.user.findFirst({
     where: { email: { equals: email, mode: "insensitive" } },
-    select: { id: true, role: true },
+    select: { id: true, role: true, emailVerified: true },
   });
   if (existing) {
     if (existing.role !== "TEACHER")
       return fail(403, "Only teacher accounts can be used from EduPro.");
+
+    // Elimu has never verified most sign-ups, so this account may have been registered by
+    // someone who does not own the address. The person linking just proved they own it, so
+    // claim the account: a password nobody knows, every open session ended, address marked
+    // verified. Documents and plan stay. The teacher uses "forgot password" to sign in on
+    // Elimu directly again.
+    if (!existing.emailVerified) {
+      const passwordHash = await bcrypt.hash(
+        randomBytes(32).toString("hex"),
+        10,
+      );
+      await db.$transaction([
+        db.session.deleteMany({ where: { userId: existing.id } }),
+        db.user.update({
+          where: { id: existing.id },
+          data: { passwordHash, emailVerified: new Date() },
+        }),
+      ]);
+      return NextResponse.json({
+        success: true,
+        data: { elimuUserId: existing.id, created: false, passwordReset: true },
+      });
+    }
     return NextResponse.json({
       success: true,
-      data: { elimuUserId: existing.id, created: false },
+      data: { elimuUserId: existing.id, created: false, passwordReset: false },
     });
   }
 
@@ -58,6 +81,6 @@ export async function POST(req: Request) {
   });
   return NextResponse.json({
     success: true,
-    data: { elimuUserId: user.id, created: true },
+    data: { elimuUserId: user.id, created: true, passwordReset: false },
   });
 }

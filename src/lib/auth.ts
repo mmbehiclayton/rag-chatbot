@@ -3,6 +3,7 @@ import type { User } from "@prisma/client";
 import { jwtVerify, SignJWT } from "jose";
 import { cookies } from "next/headers";
 import { db } from "./db";
+import { actingTeacherId } from "./service-context";
 
 const secretKey =
   process.env.JWT_SECRET_KEY || "development_secret_do_not_use_in_prod";
@@ -55,6 +56,22 @@ export async function createSession(user: User) {
 }
 
 export async function verifySession() {
+  // A call from EduPro's server acts as one teacher (see service-context.ts); no cookie involved.
+  const acting = actingTeacherId();
+  if (acting) {
+    const teacher = await db.user.findUnique({
+      where: { id: acting },
+      select: { role: true, tenantId: true, email: true },
+    });
+    if (!teacher || teacher.role !== "TEACHER") return null;
+    return {
+      userId: acting,
+      role: teacher.role,
+      tenantId: teacher.tenantId,
+      email: teacher.email,
+    };
+  }
+
   const cookieStore = await cookies();
   const token = cookieStore.get("session")?.value;
   if (!token) return null;
