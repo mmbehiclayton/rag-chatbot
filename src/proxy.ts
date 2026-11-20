@@ -31,7 +31,9 @@ const isPublicRoute = (path: string) =>
   path.startsWith("/_next") ||
   path.startsWith("/invite/") ||
   path.startsWith("/designs/") ||
-  path.startsWith("/api/paystack/");
+  path.startsWith("/api/paystack/") ||
+  // Service calls from EduPro carry no cookie; src/lib/service-auth.ts checks the key itself.
+  path.startsWith("/api/v1/");
 
 /** Sends a signed-out visitor to sign in, then back to the page they wanted. API calls get a 401 instead. */
 function toLogin(request: NextRequest) {
