@@ -5,7 +5,10 @@ import {
   generateLessonPlan,
   generateQuickLessonPlan,
   generateSchemeOfWork,
+  improveDocument,
+  undoImprove,
 } from "@/lib/actions/generation";
+import { isLessonPart } from "@/lib/improve-parts";
 import { fail, requireTeacher } from "@/lib/service-auth";
 import { runAsTeacher } from "@/lib/service-context";
 import {
@@ -29,9 +32,27 @@ const KINDS = {
   "quick-lesson": { type: "lessons" },
   notes: { type: "notes" },
   assessment: { type: "assessments" },
+  // These two take the type from the document being changed.
+  improve: { type: "schemes" },
+  undo: { type: "schemes" },
 } as const;
 
 type Kind = keyof typeof KINDS;
+
+const IMPROVE_TYPE = {
+  SCHEME: "schemes",
+  LESSON: "lessons",
+  NOTES: "notes",
+} as const;
+
+/** The document type a job produces, so EduPro knows where to open the result. */
+function jobType(kind: Kind, b: Body) {
+  if (kind !== "improve" && kind !== "undo") return KINDS[kind].type;
+  const k = typeof b.kind === "string" ? b.kind : "";
+  return Object.hasOwn(IMPROVE_TYPE, k)
+    ? IMPROVE_TYPE[k as keyof typeof IMPROVE_TYPE]
+    : "schemes";
+}
 
 function isKind(v: string): v is Kind {
   return Object.hasOwn(KINDS, v);
@@ -96,6 +117,28 @@ function plan(kind: Kind, b: Body): (() => Promise<JobResult>) | string {
       if (!id) return "Choose a lesson plan.";
       return () => generateLessonNotes(id) as Promise<JobResult>;
     }
+    case "improve":
+    case "undo": {
+      const docKind = typeof b.kind === "string" ? b.kind : "";
+      const id = text(b.id);
+      if (!Object.hasOwn(IMPROVE_TYPE, docKind) || !id)
+        return "Choose which document to change.";
+      const target = docKind as keyof typeof IMPROVE_TYPE;
+      if (kind === "undo")
+        return () => undoImprove({ kind: target, id }) as Promise<JobResult>;
+      const instruction = text(b.instruction, 500);
+      if (!instruction || instruction.length < 3)
+        return 'Tell Elimu what to change, for example "Add a group activity".';
+      const part =
+        target === "LESSON" && isLessonPart(b.part) ? b.part : undefined;
+      return () =>
+        improveDocument({
+          kind: target,
+          id,
+          instruction,
+          part,
+        }) as Promise<JobResult>;
+    }
     case "assessment": {
       const grade = text(b.grade);
       const subject = text(b.subject);
@@ -146,7 +189,8 @@ export async function POST(
       "Two documents are already being made. Wait for one to finish.",
     );
 
-  const jobId = createJob(teacher.id, KINDS[kind].type);
+  const type = jobType(kind, body);
+  const jobId = createJob(teacher.id, type);
   // Runs after the reply is sent, still as this teacher.
   after(async () => {
     try {
@@ -160,7 +204,7 @@ export async function POST(
   });
 
   return NextResponse.json(
-    { success: true, data: { jobId, type: KINDS[kind].type } },
+    { success: true, data: { jobId, type } },
     { status: 202 },
   );
 }
